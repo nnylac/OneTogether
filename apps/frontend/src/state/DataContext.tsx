@@ -14,6 +14,7 @@ interface DataContextValue {
   thresholds: ThresholdAlert[];
   publicAlerts: Broadcast[];
   publishBroadcast: (broadcast: Omit<Broadcast, 'id' | 'timestamp' | 'issuer' | 'icon'> & Partial<Pick<Broadcast, 'issuer' | 'icon'>>) => void;
+  deleteBroadcast: (id: string) => void;
   makeIncidentPublic: (incidentId: string) => void;
   assignIncident: (incidentId: string, organisationId: string) => void;
   updateIncidentStatus: (incidentId: string, status: Incident['status']) => void;
@@ -68,6 +69,10 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     ]);
   };
 
+  const deleteBroadcast = (id: string) => {
+    setBroadcasts((current) => current.filter((broadcast) => broadcast.id !== id));
+  };
+
   const makeIncidentPublic = (incidentId: string) => {
     setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, publicVisibility: 'Public' } : incident));
   };
@@ -120,6 +125,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     thresholds,
     publicAlerts,
     publishBroadcast,
+    deleteBroadcast,
     makeIncidentPublic,
     assignIncident,
     updateIncidentStatus,
