@@ -1,0 +1,20 @@
+{
+  "name": "onetogether",
+  "private": true,
+  "version": "0.1.0",
+  "description": "OneTogether Singapore emergency response prototype",
+  "scripts": {
+    "dev": "concurrently \"npm run dev:api\" \"npm run dev:web\"",
+    "dev:web": "npm --workspace apps/frontend run dev",
+    "dev:api": "npm --workspace apps/backend run start:dev",
+    "build": "npm --workspace apps/frontend run build && npm --workspace apps/backend run build",
+    "lint": "npm --workspace apps/frontend run lint && npm --workspace apps/backend run lint"
+  },
+  "workspaces": [
+    "apps/frontend",
+    "apps/backend"
+  ],
+  "devDependencies": {
+    "concurrently": "^8.2.2"
+  }
+}

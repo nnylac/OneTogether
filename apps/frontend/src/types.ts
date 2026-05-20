@@ -1,0 +1,121 @@
+export type Role = 'citizen' | 'organisation' | 'government';
+export type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Notice' | 'Info';
+export type IncidentStatus = 'Open' | 'Triage' | 'Dispatched' | 'In Progress' | 'Resolved';
+export type IncidentType = 'Medical' | 'Fire' | 'Flood' | 'Road' | 'Infrastructure' | 'Civil' | 'Other';
+export type Audience = 'all' | 'responders' | 'zone';
+
+export interface User {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  organisationId?: string;
+}
+
+export interface Organisation {
+  id: string;
+  name: string;
+  type: 'Government' | 'Healthcare' | 'NGO' | 'Grassroots';
+  address: string;
+  verified: boolean;
+  volunteersAvailable: number;
+  volunteersTotal: number;
+  activeTasks: number;
+  status: 'active' | 'deployed';
+}
+
+export interface TimelineUpdate {
+  time: string;
+  organisation: string;
+  text: string;
+}
+
+export interface Incident {
+  id: string;
+  title: string;
+  type: IncidentType;
+  severity: Exclude<Severity, 'Notice' | 'Info'>;
+  status: IncidentStatus;
+  createdBy: string;
+  createdAt: string;
+  location: string;
+  zone: string;
+  description: string;
+  assignedOrganisations: string[];
+  respondingOrganisations: { organisation: string; status: string }[];
+  volunteerSupportNeeded: boolean;
+  publicVisibility: 'Private' | 'Public';
+  unitsResponded: number;
+  volunteersResponded: number;
+  timeline: TimelineUpdate[];
+}
+
+export interface Broadcast {
+  id: string;
+  title: string;
+  severity: 'CRITICAL' | 'NOTICE' | 'INFO';
+  audience: Audience;
+  zone?: string;
+  message: string;
+  issuer: string;
+  timestamp: string;
+  icon: string;
+  linkedIncidentId?: string;
+}
+
+export interface VolunteerTask {
+  id: string;
+  title: string;
+  organisation: string;
+  location: string;
+  time: string;
+  urgency: 'Critical' | 'High' | 'Medium';
+  skills: string[];
+  slotsFilled: number;
+  slotsTotal: number;
+  status: 'Open' | 'Filling' | 'Full';
+  description: string;
+}
+
+export interface CommunityProgramme {
+  id: string;
+  title: string;
+  organisation: string;
+  location: string;
+  time: string;
+  category: 'Preparedness' | 'Relief' | 'Training' | 'Awareness';
+  tags: string[];
+  registered: number;
+  capacity: number;
+  description: string;
+  contact: string;
+}
+
+export interface Hospital {
+  id: string;
+  name: string;
+  address: string;
+  availableBeds: number;
+  totalBeds: number;
+  icuAvailable: number;
+  traumaBays: number;
+  status: 'Normal' | 'Limited' | 'Critical';
+  updatedAt: string;
+}
+
+export interface ThresholdAlert {
+  id: string;
+  title: string;
+  current: number;
+  threshold: number;
+  unit?: string;
+  status: 'Normal' | 'Warning' | 'Critical';
+  recommendation: string;
+}
+
+export interface NotificationItem {
+  id: string;
+  text: string;
+  time: string;
+  type: 'assignment' | 'update' | 'broadcast';
+}
