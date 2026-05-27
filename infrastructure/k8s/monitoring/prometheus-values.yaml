@@ -1,0 +1,39 @@
+﻿# Helm values for kube-prometheus-stack
+# Install with:
+#   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+#   helm upgrade --install prometheus prometheus-community/kube-prometheus-stack \
+#     -n monitoring --create-namespace -f infrastructure/k8s/monitoring/prometheus-values.yaml
+
+prometheus:
+  prometheusSpec:
+    retention: 15d
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          resources:
+            requests:
+              storage: 20Gi
+
+grafana:
+  adminPassword: "CHANGE_ME_USE_SECRETS_MANAGER"
+  persistence:
+    enabled: true
+    size: 5Gi
+  ingress:
+    enabled: true
+    annotations:
+      kubernetes.io/ingress.class: alb
+      alb.ingress.kubernetes.io/scheme: internal  # Internal only — access via VPN
+    hosts:
+      - grafana.internal.onetogether.sg
+
+alertmanager:
+  alertmanagerSpec:
+    storage:
+      volumeClaimTemplate:
+        spec:
+          storageClassName: gp2
+          resources:
+            requests:
+              storage: 2Gi

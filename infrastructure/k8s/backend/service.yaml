@@ -1,0 +1,17 @@
+﻿# ClusterIP service — traffic reaches pods via the ALB Ingress Controller
+apiVersion: v1
+kind: Service
+metadata:
+  name: backend
+  namespace: onetogether
+  labels:
+    app: backend
+spec:
+  type: ClusterIP
+  selector:
+    app: backend
+  ports:
+    - name: http
+      port: 80
+      targetPort: 3001
+      protocol: TCP

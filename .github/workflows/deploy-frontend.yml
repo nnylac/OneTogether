@@ -1,0 +1,79 @@
+﻿# ============================================================
+# Deploy Frontend
+# Builds the React app, uploads to S3, invalidates CloudFront.
+# ============================================================
+name: Deploy Frontend
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "apps/frontend/**"
+      - ".github/workflows/deploy-frontend.yml"
+
+permissions:
+  id-token: write
+  contents: read
+
+env:
+  AWS_REGION: ap-southeast-1
+
+jobs:
+  deploy:
+    name: Build and Deploy Frontend
+    runs-on: ubuntu-latest
+
+    steps:
+      # 1. Checkout
+      - uses: actions/checkout@v4
+
+      # 2. Setup Node.js (matches the project version)
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+
+      # 3. Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # 4. OIDC auth to AWS
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      # 5. Build Vite app with production env vars baked in
+      # VITE_ vars are inlined at build time — keep non-sensitive here
+      - name: Build frontend
+        working-directory: apps/frontend
+        env:
+          VITE_API_BASE_URL:            ${{ secrets.VITE_API_BASE_URL }}
+          VITE_COGNITO_CLIENT_ID:       ${{ secrets.COGNITO_CLIENT_ID }}
+          VITE_COGNITO_USER_POOL_ID:    ${{ secrets.COGNITO_USER_POOL_ID }}
+          VITE_AWS_REGION:              ap-southeast-1
+        run: |
+          npm run build
+
+      # 6. Sync build output to the S3 frontend bucket
+      # --delete removes stale files, --cache-control sets aggressive caching
+      - name: Upload to S3
+        run: |
+          # Upload hashed assets with long-lived cache (Vite includes hash in filename)
+          aws s3 sync apps/frontend/dist/ s3://${{ secrets.FRONTEND_BUCKET_NAME }}/ \
+            --delete \
+            --cache-control "public,max-age=31536000,immutable" \
+            --exclude "index.html"
+
+          # Upload index.html with no-cache so users always get the latest version
+          aws s3 cp apps/frontend/dist/index.html \
+            s3://${{ secrets.FRONTEND_BUCKET_NAME }}/index.html \
+            --cache-control "no-store,no-cache,must-revalidate"
+
+      # 7. Invalidate CloudFront so edge caches serve the new version immediately
+      - name: Invalidate CloudFront
+        run: |
+          aws cloudfront create-invalidation \
+            --distribution-id ${{ secrets.CLOUDFRONT_DISTRIBUTION_ID }} \
+            --paths "/*"

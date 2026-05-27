@@ -1,0 +1,116 @@
+﻿# ============================================================
+# Backend NestJS Deployment
+# Image is pushed to ECR by the CI/CD pipeline and updated
+# here by ArgoCD on each merge to main.
+# ============================================================
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: onetogether
+  labels:
+    app: backend
+    version: "1.0.0"
+spec:
+  replicas: 2                      # Start with 2; HPA scales up to 10
+  selector:
+    matchLabels:
+      app: backend
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0            # Zero-downtime deploys
+  template:
+    metadata:
+      labels:
+        app: backend
+      annotations:
+        # Force pod restart when the ConfigMap changes
+        checksum/config: "{{ include (print $.Template.BasePath \"/configmap.yaml\") . | sha256sum }}"
+    spec:
+      # Spread pods across both AZs for fault tolerance
+      topologySpreadConstraints:
+        - maxSkew: 1
+          topologyKey: topology.kubernetes.io/zone
+          whenUnsatisfiable: DoNotSchedule
+          labelSelector:
+            matchLabels:
+              app: backend
+
+      containers:
+        - name: backend
+          # CI/CD pipeline replaces this image tag on every build
+          image: ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/onetogether-production-backend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 3001
+              name: http
+
+          env:
+            - name: NODE_ENV
+              value: production
+            - name: PORT
+              value: "3001"
+            # Injected by the CI/CD pipeline from AWS Secrets Manager
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: onetogether-secrets
+                  key: DATABASE_URL
+            - name: REDIS_URL
+              valueFrom:
+                secretKeyRef:
+                  name: onetogether-secrets
+                  key: REDIS_URL
+            - name: COGNITO_USER_POOL_ID
+              valueFrom:
+                secretKeyRef:
+                  name: onetogether-secrets
+                  key: COGNITO_USER_POOL_ID
+            - name: COGNITO_CLIENT_ID
+              valueFrom:
+                secretKeyRef:
+                  name: onetogether-secrets
+                  key: COGNITO_CLIENT_ID
+            - name: SQS_INCIDENT_QUEUE_URL
+              valueFrom:
+                configMapKeyRef:
+                  name: onetogether-config
+                  key: SQS_INCIDENT_QUEUE_URL
+            - name: EVENTBRIDGE_BUS_NAME
+              valueFrom:
+                configMapKeyRef:
+                  name: onetogether-config
+                  key: EVENTBRIDGE_BUS_NAME
+            - name: SNS_ALERTS_TOPIC_ARN
+              valueFrom:
+                configMapKeyRef:
+                  name: onetogether-config
+                  key: SNS_ALERTS_TOPIC_ARN
+
+          resources:
+            requests:
+              cpu: 250m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+
+          # Readiness: only route traffic here when the /api/health endpoint responds
+          readinessProbe:
+            httpGet:
+              path: /api/incidents   # Existing endpoint used as health check
+              port: 3001
+            initialDelaySeconds: 10
+            periodSeconds: 10
+            failureThreshold: 3
+
+          # Liveness: restart the container if it stops responding
+          livenessProbe:
+            httpGet:
+              path: /api/incidents
+              port: 3001
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            failureThreshold: 3

@@ -1,0 +1,14 @@
+﻿# Non-sensitive runtime configuration.
+# Sensitive values (DB passwords, tokens) go in the onetogether-secrets K8s Secret,
+# which is created by the CI/CD pipeline from AWS Secrets Manager.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: onetogether-config
+  namespace: onetogether
+data:
+  # These are filled in by the deploy-backend.yml GitHub Actions workflow
+  SQS_INCIDENT_QUEUE_URL:  "PLACEHOLDER_FILLED_BY_CI"
+  EVENTBRIDGE_BUS_NAME:    "PLACEHOLDER_FILLED_BY_CI"
+  SNS_ALERTS_TOPIC_ARN:    "PLACEHOLDER_FILLED_BY_CI"
+  AWS_REGION:              "ap-southeast-1"

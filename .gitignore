@@ -3,3 +3,11 @@ dist
 .env
 .DS_Store
 *.log
+
+# Terraform — contain account IDs and secrets
+*.tfvars
+backend.hcl
+.terraform/
+.terraform.lock.hcl
+.tmp/
+

@@ -1,0 +1,33 @@
+﻿# ALB Ingress — creates an AWS Application Load Balancer via the
+# aws-load-balancer-controller installed by Terraform
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend
+  namespace: onetogether
+  annotations:
+    # Tell the ALB controller to create an internet-facing ALB
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+
+    # HTTPS with the ACM cert created for api.yourdomain.com
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80},{"HTTPS":443}]'
+    alb.ingress.kubernetes.io/ssl-redirect: "443"
+    # Replace with your actual ACM certificate ARN (from terraform output)
+    alb.ingress.kubernetes.io/certificate-arn: "REPLACE_WITH_ACM_CERT_ARN"
+
+    # Enable access logging to S3 for audit trail
+    alb.ingress.kubernetes.io/load-balancer-attributes: "access_logs.s3.enabled=true,access_logs.s3.bucket=onetogether-production-data-lake-ACCOUNT_ID"
+spec:
+  rules:
+    - host: api.REPLACE_WITH_YOUR_DOMAIN
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80

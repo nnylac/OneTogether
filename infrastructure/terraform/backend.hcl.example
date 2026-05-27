@@ -1,0 +1,9 @@
+﻿# Copy this file to backend.hcl and fill in your values.
+# backend.hcl is gitignored — never commit it (contains your account ID).
+# Run infrastructure/bootstrap/init-backend.ps1 first to create the bucket and table.
+
+bucket         = "onetogether-tfstate-YOUR_ACCOUNT_ID"
+key            = "onetogether/production/terraform.tfstate"
+region         = "ap-southeast-1"
+dynamodb_table = "onetogether-tfstate-lock"
+encrypt        = true
