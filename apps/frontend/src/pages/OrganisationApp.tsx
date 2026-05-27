@@ -1,11 +1,24 @@
-import { Activity, Building2, Car, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, RefreshCw, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
+import { Activity, Building2, Car, CheckCircle2, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Loader2, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Wand2, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SidebarLayout } from '../components/layouts';
-import { Badge, Card, EmptyButton, GreenButton, PrimaryButton, ProgressBar, StatCard } from '../components/ui';
+import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr } from '../components/ui';
 import { useData } from '../state/DataContext';
-import type { Incident } from '../types';
+import type { Incident, IncidentType, TimelineCategory } from '../types';
+
+const timelineCategoryConfig: Record<TimelineCategory, { label: string; cls: string }> = {
+  INITIAL:   { label: 'Initial Report', cls: 'bg-blue-100 text-blue-800' },
+  STATUS:    { label: 'Status Change',  cls: 'bg-purple-100 text-purple-800' },
+  DEPLOY:    { label: 'Deployment',     cls: 'bg-orange-100 text-orange-800' },
+  BROADCAST: { label: 'Broadcast',      cls: 'bg-amber-100 text-amber-800' },
+  ASSESS:    { label: 'Assessment',     cls: 'bg-teal-100 text-teal-800' },
+  COORD:     { label: 'Coordination',   cls: 'bg-indigo-100 text-indigo-800' },
+  MEDICAL:   { label: 'Medical',        cls: 'bg-red-100 text-red-800' },
+  VOLUNTEER: { label: 'Volunteer',      cls: 'bg-green-100 text-green-800' },
+  NOTE:      { label: 'Note',           cls: 'bg-sgds-gray-100 text-sgds-gray-700' },
+  CLOSE:     { label: 'Resolution',     cls: 'bg-emerald-100 text-emerald-800' },
+};
 
 const statusOrder: Incident['status'][] = ['Open', 'Triage', 'Dispatched', 'In Progress', 'Resolved'];
 
@@ -27,54 +40,66 @@ export function OrganisationApp() {
 
 function OrgDashboard() {
   const { incidents, broadcasts, notifications, organisations, hospitals } = useData();
-  const assigned = incidents.filter((incident) => incident.assignedOrganisations.includes('scdf') || incident.createdBy === 'scdf');
-  const resources = organisations.reduce((sum, org) => sum + org.volunteersAvailable, 0);
-  const volunteerTotal = organisations.reduce((sum, org) => sum + org.volunteersTotal, 0);
-  const availableBeds = hospitals.reduce((sum, hospital) => sum + hospital.availableBeds, 0);
-  const totalBeds = hospitals.reduce((sum, hospital) => sum + hospital.totalBeds, 0);
+  const assigned = incidents.filter((i) => i.assignedOrganisations.includes('scdf') || i.createdBy === 'scdf');
+  const resources = organisations.reduce((s, o) => s + o.volunteersAvailable, 0);
+  const volunteerTotal = organisations.reduce((s, o) => s + o.volunteersTotal, 0);
+  const availableBeds = hospitals.reduce((s, h) => s + h.availableBeds, 0);
+  const totalBeds = hospitals.reduce((s, h) => s + h.totalBeds, 0);
 
   return (
     <section>
-      <h1 className="text-3xl font-bold text-slate-950">SCDF Operations Dashboard</h1>
-      <p className="mt-1 text-slate-500">Shared incident tickets from source systems and partner organisations.</p>
+      <SectionHeader
+        title="SCDF Operations Dashboard"
+        subtitle="Shared incident tickets from source systems and partner organisations."
+        action={<Button variant="outline"><RefreshCw size={14} /> Refresh</Button>}
+      />
       <div className="mt-6 grid gap-4 lg:grid-cols-5">
         <StatCard label="Active assigned" value={assigned.filter((i) => i.status !== 'Resolved').length} sub="visible to SCDF" />
         <StatCard label="New source tickets" value={2} sub="from dispatch feeds" tone="orange" />
         <StatCard label="Awaiting assignment" value={incidents.filter((i) => i.assignedOrganisations.length === 1).length} sub="triage queue" />
         <StatCard label="Public alerts created" value={broadcasts.length} sub="last 24 hours" tone="green" />
-        <StatCard label="Responders/resources" value={resources} sub="available partners" />
+        <StatCard label="Responders available" value={resources} sub="across partner orgs" />
       </div>
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <Card className="p-5">
-          <h2 className="font-bold">Assigned Incident Tickets</h2>
-          <div className="mt-4 space-y-3">{assigned.map((incident) => <IncidentRow key={incident.id} incident={incident} />)}</div>
+          <h2 className="text-base font-bold text-sgds-gray-900">Assigned Incident Tickets</h2>
+          <div className="mt-4 space-y-3">{assigned.map((i) => <IncidentRow key={i.id} incident={i} />)}</div>
         </Card>
         <Card className="p-5">
-          <h2 className="font-bold">Notifications</h2>
-          <div className="mt-4 space-y-4">{notifications.map((item) => <div key={item.id} className="border-b border-slate-100 pb-3 text-sm"><div className="font-semibold">{item.text}</div><div className="text-xs text-slate-500">{item.time}</div></div>)}</div>
+          <h2 className="text-base font-bold text-sgds-gray-900">Notifications</h2>
+          <div className="mt-4 divide-y divide-sgds-gray-100">
+            {notifications.map((item) => (
+              <div key={item.id} className="py-3 text-sm">
+                <div className="font-semibold text-sgds-gray-900">{item.text}</div>
+                <div className="mt-0.5 text-xs text-sgds-gray-500">{item.time}</div>
+              </div>
+            ))}
+          </div>
         </Card>
       </div>
       <Card className="mt-6 p-5">
         <div className="flex items-center justify-between">
           <div>
-            <h2 className="font-bold">Resource Snapshot</h2>
-            <p className="mt-1 text-sm text-slate-500">Operational capacity available to support assigned incidents.</p>
+            <h2 className="text-base font-bold text-sgds-gray-900">Resource Snapshot</h2>
+            <p className="mt-1 text-sm text-sgds-gray-500">Operational capacity available to support assigned incidents.</p>
           </div>
-          <Badge>Live</Badge>
+          <span className="inline-flex items-center gap-1.5 border border-emerald-200 bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+            <span className="h-1.5 w-1.5 rounded-full bg-safe" />Live
+          </span>
         </div>
-        <div className="mt-4 grid gap-5 lg:grid-cols-3">
+        <div className="mt-5 grid gap-6 lg:grid-cols-3">
           <div>
-            <div className="mb-2 flex justify-between text-sm"><span>Hospital beds available</span><strong>{availableBeds}/{totalBeds}</strong></div>
+            <div className="mb-1.5 flex justify-between text-sm text-sgds-gray-700"><span>Hospital beds available</span><strong>{availableBeds}/{totalBeds}</strong></div>
             <ProgressBar value={availableBeds} max={totalBeds} tone="bg-warning" />
           </div>
           <div>
-            <div className="mb-2 flex justify-between text-sm"><span>Volunteer responders</span><strong>{resources}/{volunteerTotal}</strong></div>
+            <div className="mb-1.5 flex justify-between text-sm text-sgds-gray-700"><span>Volunteer responders</span><strong>{resources}/{volunteerTotal}</strong></div>
             <ProgressBar value={resources} max={volunteerTotal} tone="bg-safe" />
           </div>
-          <div className="grid grid-cols-3 gap-2 text-center">
-            <Info label="Ambulances" value="42" />
-            <Info label="Flood pumps" value="18" />
-            <Info label="Relief kits" value="1,840" />
+          <div className="grid grid-cols-3 gap-2">
+            <InfoCell label="Ambulances" value="42" />
+            <InfoCell label="Flood pumps" value="18" />
+            <InfoCell label="Relief kits" value="1,840" />
           </div>
         </div>
       </Card>
@@ -83,41 +108,401 @@ function OrgDashboard() {
 }
 
 function OrgIncidents() {
-  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident } = useData();
+  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, createIncident, addTimelineUpdate } = useData();
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const visible = incidents.filter((incident) => incident.createdBy === 'scdf' || incident.assignedOrganisations.includes('scdf'));
-  const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident };
+  const [showForm, setShowForm] = useState(false);
+  const visible = incidents.filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf'));
+  const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate };
+
+  const handleCreate = (data: Parameters<typeof createIncident>[0]) => {
+    createIncident(data);
+    setShowForm(false);
+  };
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-950">Incident Tickets</h1>
-          <p className="mt-1 text-slate-500">Before assignment, tickets are visible only to their creator organisation. Assigned tickets appear for partner responders.</p>
-        </div>
-        <div className="flex shrink-0 border border-slate-200 bg-white">
-          <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-slate-600'}`}><List size={16} /> List</button>
-          <button onClick={() => setView('grid')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'grid' ? 'bg-navy-950 text-white' : 'text-slate-600'}`}><Grid2X2 size={16} /> Grid</button>
-        </div>
-      </div>
-
+      <SectionHeader
+        title="Incident Tickets"
+        subtitle="Before assignment, tickets are visible only to their creator organisation."
+        action={
+          <div className="flex gap-2">
+            <Button variant="primary" onClick={() => setShowForm((v) => !v)}><Plus size={14} /> New Incident</Button>
+            <div className="flex border border-sgds-gray-200">
+              <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><List size={15} /> List</button>
+              <button onClick={() => setView('grid')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'grid' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><Grid2X2 size={15} /> Grid</button>
+            </div>
+          </div>
+        }
+      />
+      {showForm && <CreateIncidentPanel onSubmit={handleCreate} onCancel={() => setShowForm(false)} />}
       {view === 'list' ? (
-        <div className="mt-6 space-y-5">
-          {visible.map((incident) => <IncidentDetailCard key={incident.id} incident={incident} {...actions} />)}
-        </div>
+        <div className="mt-6 space-y-4">{visible.map((i) => <IncidentDetailCard key={i.id} incident={i} {...actions} />)}</div>
       ) : (
-        <div className="mt-6 grid auto-rows-max gap-5 xl:grid-cols-2">
-          {visible.map((incident) => expandedId === incident.id ? (
-            <div key={incident.id} className="xl:col-span-2">
-              <IncidentDetailCard incident={incident} onCollapse={() => setExpandedId(null)} {...actions} />
+        <div className="mt-6 grid auto-rows-max gap-4 xl:grid-cols-2">
+          {visible.map((i) => expandedId === i.id ? (
+            <div key={i.id} className="xl:col-span-2">
+              <IncidentDetailCard incident={i} onCollapse={() => setExpandedId(null)} {...actions} />
             </div>
           ) : (
-            <IncidentSummaryCard key={incident.id} incident={incident} onClick={() => setExpandedId(incident.id)} />
+            <IncidentSummaryCard key={i.id} incident={i} onClick={() => setExpandedId(i.id)} />
           ))}
         </div>
       )}
     </section>
+  );
+}
+
+type CreateIncidentData = { title: string; type: IncidentType; severity: 'Critical' | 'High' | 'Medium' | 'Low'; location: string; zone: string; description: string; publicVisibility: 'Private' | 'Public'; suggestedSteps?: string[]; resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[] };
+
+const aiDescriptionTemplates: Record<string, Record<string, string>> = {
+  Medical: {
+    Critical: 'Multiple casualties reported requiring immediate medical attention. Life-threatening injuries confirmed on-site. SCDF paramedics and ambulances dispatched. Coordinating with SGH for emergency trauma care. Scene is being secured for medical access.',
+    High: 'Casualties reported requiring urgent medical response. SCDF paramedics en route. Medical assessment in progress. Coordinating hospital availability for patient transfer.',
+    Medium: 'Medical incident requiring attention. Paramedics dispatched for assessment and treatment. Monitoring for escalation.',
+    Low: 'Minor medical incident reported. First responders on-site for assessment and treatment.'
+  },
+  Fire: {
+    Critical: 'Large-scale fire with structural involvement. Multiple units dispatched. Evacuation of surrounding area in progress. Risk of spread to adjacent structures. Water supply and pumping operations active.',
+    High: 'Fire incident with significant smoke and flames. SCDF fire engines on-site. Evacuation underway. Containment operations in progress.',
+    Medium: 'Contained fire incident. SCDF on-site. Minimal risk of spread. Evacuation of immediate area completed.',
+    Low: 'Small fire incident. SCDF dispatched for assessment and suppression.'
+  },
+  Flood: {
+    Critical: 'Flash flooding with multiple road closures and structural risk. Rescue operations underway for trapped residents. Pumping operations activated. Multiple zones affected.',
+    High: 'Significant flooding causing road closures and displacement of residents. SCDF flood teams deployed. Coordination with NEA and PUB ongoing.',
+    Medium: 'Localised flooding causing disruptions. Pumping operations deployed. Roads passable with caution.',
+    Low: 'Minor flooding reported. Monitoring water levels. Roads may have surface water.'
+  },
+  Road: {
+    Critical: 'Major road accident with multiple casualties. Significant traffic disruption. Emergency services coordinating. Road closed for emergency operations.',
+    High: 'Serious road accident with injuries. Traffic severely disrupted. Ambulances and SCDF on-site for assessment and evacuation.',
+    Medium: 'Road accident with minor injuries. Traffic management in place. Emergency services assessing the scene.',
+    Low: 'Minor road incident. Vehicles involved. Police and SCDF dispatched for assessment.'
+  },
+  Infrastructure: {
+    Critical: 'Critical infrastructure failure with immediate public safety risk. Evacuation underway. Utilities disrupted. Emergency containment operations in progress.',
+    High: 'Significant infrastructure damage. Public safety risk being assessed. Specialist teams dispatched to the site.',
+    Medium: 'Infrastructure damage reported. Assessment team dispatched. Public access restricted as a precaution.',
+    Low: 'Minor infrastructure issue reported. Maintenance team dispatched for assessment and repair.'
+  },
+  Civil: {
+    Critical: 'Large-scale civil disturbance posing public safety risk. Multiple units deployed. Area cordoned. SPF coordinating response with partner agencies.',
+    High: 'Significant civil unrest requiring police intervention. Area being secured. Public advised to avoid the zone.',
+    Medium: 'Civil disturbance reported. Police deployed for management and de-escalation of the situation.',
+    Low: 'Minor civil matter reported. Police dispatched for assessment and management.'
+  },
+  Other: {
+    Critical: 'Critical incident requiring immediate multi-agency response. All available resources being coordinated. Public safety impact being assessed.',
+    High: 'Significant incident requiring urgent response. Specialist teams dispatched. Situation actively monitored.',
+    Medium: 'Incident reported requiring attention. Assessment teams en route to the location.',
+    Low: 'Minor incident reported. Responders dispatched for assessment and management.'
+  }
+};
+
+const aiSeverityKeywords: Record<string, string[]> = {
+  Critical: ['critical', 'multiple casualties', 'mass', 'trapped', 'life-threatening', 'large-scale', 'structural collapse', 'explosion'],
+  Low: ['minor', 'small', 'no injury', 'no casualties', 'contained', 'isolated'],
+  Medium: ['moderate', 'localised', 'limited', 'controlled']
+};
+
+const coordinationStepTemplates: Record<IncidentType, Record<string, string[]>> = {
+  Medical: {
+    Critical: ['Dispatch nearest ambulances with advanced life support', 'Notify nearby hospitals and reserve trauma bays', 'Alert volunteer first-aid teams for scene support', 'Request Red Cross medical assistance if casualties > 5', 'Set up casualty collection point'],
+    High: ['Dispatch ambulances for assessment', 'Notify hospitals for standby capacity', 'Alert volunteer medical teams if additional support needed', 'Prepare medical transport coordination'],
+    Medium: ['Dispatch basic response unit for assessment', 'Monitor situation for escalation', 'Have volunteer teams on standby'],
+    Low: ['Dispatch response unit for assessment', 'Monitor until resolved']
+  },
+  Fire: {
+    Critical: ['Dispatch full fire response including pumps and ladders', 'Evacuate surrounding buildings - radius 200m', 'Request additional units for backup water supply', 'Coordinate with SPF for crowd and traffic control', 'Alert nearby Red Cross for displaced resident support'],
+    High: ['Dispatch fire engines and rescue team', 'Evacuate affected building', 'Coordinate evacuation with nearby volunteers', 'Monitor for spread to adjacent structures'],
+    Medium: ['Containment operations only - affected area', 'Monitor for structural risks', 'Have backup units on standby'],
+    Low: ['Assessment and suppression', 'Ensure full extinguishment before departure']
+  },
+  Flood: {
+    Critical: ['Deploy pumping operations team immediately', 'Coordinate rescue for trapped residents', 'Issue public advisory - avoid low-lying areas', 'Request NEA rainfall monitoring updates', 'Set up evacuation centre with volunteer support'],
+    High: ['Deploy pumps for water removal', 'Coordinate road closures with SPF', 'Alert volunteer teams for community outreach', 'Monitor water levels hourly'],
+    Medium: ['Deploy pumps to affected area', 'Monitor drainage systems', 'Have additional pumps on standby'],
+    Low: ['Assessment of flooding extent', 'Deploy pumps if needed', 'Monitor for escalation']
+  },
+  Road: {
+    Critical: ['Dispatch multiple ambulances and rescue units', 'Coordinate with SPF for road closure and traffic diversion', 'Alert nearest hospitals for mass casualty protocol', 'Request traffic police for scene management'],
+    High: ['Dispatch ambulances for injured parties', 'Coordinate with SPF for traffic management', 'Alert hospitals for potential admissions'],
+    Medium: ['Dispatch assessment unit', 'Coordinate minimal traffic control', 'Monitor situation'],
+    Low: ['Dispatch response for assessment', 'Coordinate traffic if needed']
+  },
+  Infrastructure: {
+    Critical: ['Cordon off affected area - 500m radius', 'Coordinate utility isolation - gas, electricity, water', 'Evacuate at-risk buildings', 'Request specialist assessment team', 'Alert Red Cross for affected resident support'],
+    High: ['Secure immediate area - cordon off', 'Coordinate with utility providers', 'Assess structural risks', 'Prepare for evacuation if needed'],
+    Medium: ['Secure affected site', 'Request utility assessment', 'Monitor for escalation'],
+    Low: ['Dispatch assessment team', 'Coordinate basic safety measures']
+  },
+  Civil: {
+    Critical: ['Deploy crowd control units', 'Coordinate SPF perimeter', 'Alert all partner organisations for potential escalation', 'Request additional resources if situation expands'],
+    High: ['Deploy crowd management', 'Secure area boundaries', 'Monitor crowd size and behaviour', 'Have backup units on standby'],
+    Medium: ['Deploy de-escalation team', 'Monitor situation closely', 'Prepare contingency plan'],
+    Low: ['Dispatch assessment team', 'Monitor for escalation']
+  },
+  Other: {
+    Critical: ['Assess incident type and scale immediately', 'Request multi-agency coordination', 'Alert all partner organisations', 'Prepare for worst-case scenario deployment'],
+    High: ['Assess and classify incident', 'Determine required agencies', 'Coordinate initial response'],
+    Medium: ['Dispatch assessment team', 'Monitor situation', 'Escalate if needed'],
+    Low: ['Dispatch assessment team', 'Monitor until resolved']
+  }
+};
+
+const recommendedOrganisations: Record<IncidentType, string[]> = {
+  Medical: ['sgh', 'stjohn', 'hsa'],
+  Fire: ['scdf', 'redcross'],
+  Flood: ['scdf', 'pa-jurong', 'redcross'],
+  Road: ['scdf', 'spf'],
+  Infrastructure: ['scdf', 'sgh'],
+  Civil: ['spf', 'scdf', 'pa-jurong'],
+  Other: ['scdf']
+};
+
+function classifySeverity(text: string): 'Critical' | 'High' | 'Medium' | 'Low' {
+  const lower = text.toLowerCase();
+  for (const [sev, keywords] of Object.entries(aiSeverityKeywords)) {
+    if (keywords.some((kw) => lower.includes(kw))) return sev as 'Critical' | 'High' | 'Medium' | 'Low';
+  }
+  return 'High';
+}
+
+function CreateIncidentPanel({ onSubmit, onCancel }: { onSubmit: (data: CreateIncidentData) => void; onCancel: () => void }) {
+  const { hospitals, organisations } = useData();
+  const [form, setForm] = useState<CreateIncidentData>({
+    title: '',
+    type: 'Medical',
+    severity: 'High',
+    location: '',
+    zone: '',
+    description: '',
+    publicVisibility: 'Private'
+  });
+  const [aiLoading, setAiLoading] = useState(false);
+  const [severitySuggestion, setSeveritySuggestion] = useState<string | null>(null);
+  const [coordinationLoading, setCoordinationLoading] = useState(false);
+  const [suggestedSteps, setSuggestedSteps] = useState<string[] | null>(null);
+  const [resourceInsights, setResourceInsights] = useState<{ type: string; available: number; total: number; recommended: boolean }[] | null>(null);
+
+  const set = <K extends keyof CreateIncidentData>(key: K, value: CreateIncidentData[K]) => {
+    setForm((prev) => ({ ...prev, [key]: value }));
+    setSeveritySuggestion(null);
+    if (key === 'type' || key === 'severity') {
+      setSuggestedSteps(null);
+      setResourceInsights(null);
+    }
+  };
+
+  const handleSubmit = () => {
+    if (!form.title.trim() || !form.location.trim() || !form.zone.trim() || !form.description.trim()) return;
+    onSubmit({ ...form, suggestedSteps: form.suggestedSteps || undefined, resourceInsights: form.resourceInsights || undefined });
+  };
+
+  const generateDescription = () => {
+    setAiLoading(true);
+    setTimeout(() => {
+      const draft = aiDescriptionTemplates[form.type]?.[form.severity] ?? '';
+      setForm((prev) => ({ ...prev, description: draft }));
+      setAiLoading(false);
+    }, 700);
+  };
+
+  const suggestSeverity = () => {
+    const suggested = classifySeverity(form.title + ' ' + form.description);
+    if (suggested !== form.severity) setSeveritySuggestion(suggested);
+    else setSeveritySuggestion('matches');
+  };
+
+  const applySeverity = () => {
+    if (severitySuggestion && severitySuggestion !== 'matches') {
+      setForm((prev) => ({ ...prev, severity: severitySuggestion as CreateIncidentData['severity'] }));
+    }
+    setSeveritySuggestion(null);
+  };
+
+  const generateCoordinationSuggestions = () => {
+    setCoordinationLoading(true);
+    setTimeout(() => {
+      const steps = coordinationStepTemplates[form.type]?.[form.severity] ?? ['Dispatch assessment team', 'Monitor situation', 'Coordinate with partner agencies'];
+      setSuggestedSteps(steps);
+
+      const insights: { type: string; available: number; total: number; recommended: boolean }[] = [];
+
+      const totalHospitalBeds = hospitals.reduce((s, h) => s + h.availableBeds, 0);
+      const totalBeds = hospitals.reduce((s, h) => s + h.totalBeds, 0);
+      insights.push({
+        type: 'Hospital beds',
+        available: totalHospitalBeds,
+        total: totalBeds,
+        recommended: form.type === 'Medical' || form.severity === 'Critical'
+      });
+
+      const totalVolunteers = organisations.reduce((s, o) => s + o.volunteersAvailable, 0);
+      const totalVolunteerCapacity = organisations.reduce((s, o) => s + o.volunteersTotal, 0);
+      insights.push({
+        type: 'Volunteer responders',
+        available: totalVolunteers,
+        total: totalVolunteerCapacity,
+        recommended: form.severity === 'Critical' || form.type === 'Flood' || form.type === 'Civil'
+      });
+
+      const totalIcuBeds = hospitals.reduce((s, h) => s + h.icuAvailable, 0);
+      insights.push({
+        type: 'ICU capacity',
+        available: totalIcuBeds,
+        total: totalIcuBeds + 20,
+        recommended: form.type === 'Medical' && form.severity === 'Critical'
+      });
+
+      setResourceInsights(insights);
+      setCoordinationLoading(false);
+    }, 800);
+  };
+
+  const applyCoordinationSuggestions = () => {
+    if (suggestedSteps && resourceInsights) {
+      setForm((prev) => ({ ...prev, suggestedSteps, resourceInsights }));
+    }
+    setSuggestedSteps(null);
+    setResourceInsights(null);
+  };
+
+  const inputCls = 'w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple';
+
+  return (
+    <Card className="mt-6 overflow-hidden">
+      <div className="border-b border-sgds-gray-200 bg-sgds-gray-50 px-5 py-3">
+        <h2 className="text-base font-bold text-sgds-gray-900">Create New Incident</h2>
+        <p className="mt-0.5 text-xs text-sgds-gray-500">New incidents are private by default and assigned to SCDF.</p>
+      </div>
+      <div className="grid gap-5 p-5 lg:grid-cols-2">
+        <div className="lg:col-span-2">
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Title <span className="text-critical">*</span></label>
+          <input className={inputCls} placeholder="Brief incident title" value={form.title} onChange={(e) => set('title', e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Type</label>
+          <select className={inputCls} value={form.type} onChange={(e) => set('type', e.target.value as CreateIncidentData['type'])}>
+            {(['Medical', 'Fire', 'Flood', 'Road', 'Infrastructure', 'Civil', 'Other'] as const).map((t) => <option key={t}>{t}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Severity</label>
+          <select className={inputCls} value={form.severity} onChange={(e) => set('severity', e.target.value as CreateIncidentData['severity'])}>
+            {(['Critical', 'High', 'Medium', 'Low'] as const).map((s) => <option key={s}>{s}</option>)}
+          </select>
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Location <span className="text-critical">*</span></label>
+          <input className={inputCls} placeholder="e.g. Toa Payoh Hub" value={form.location} onChange={(e) => set('location', e.target.value)} />
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Zone <span className="text-critical">*</span></label>
+          <input className={inputCls} placeholder="e.g. Central" value={form.zone} onChange={(e) => set('zone', e.target.value)} />
+        </div>
+        <div className="lg:col-span-2">
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Description <span className="text-critical">*</span></label>
+          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Describe the incident" value={form.description} onChange={(e) => set('description', e.target.value)} />
+        </div>
+        <div className="lg:col-span-2">
+          <div className="flex items-center justify-between border border-emerald-200 bg-emerald-50 p-3">
+            <div className="flex items-center gap-2">
+              <Sparkles size={15} className="text-emerald-600" />
+              <div>
+                <strong className="text-sm text-emerald-800">AI Incident Assistant</strong>
+                <small className="block text-xs text-emerald-700">Draft description, classify severity, or get AI-suggested coordination steps.</small>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button variant="outline" className="py-1.5 text-xs" onClick={suggestSeverity} disabled={!form.title.trim() && !form.description.trim()}>
+                <Wand2 size={13} /> Classify severity
+              </Button>
+              <Button variant="success" onClick={generateDescription} disabled={aiLoading}>
+                {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {aiLoading ? 'Generating…' : 'Generate description'}
+              </Button>
+              <Button variant="primary" className="py-1.5 text-xs" onClick={generateCoordinationSuggestions} disabled={coordinationLoading}>
+                {coordinationLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
+                {coordinationLoading ? 'Generating…' : 'Suggest coordination steps'}
+              </Button>
+            </div>
+          </div>
+          {severitySuggestion === 'matches' && (
+            <div className="mt-2 flex items-center justify-between border border-sgds-gray-200 bg-sgds-gray-50 p-3">
+              <p className="text-sm text-sgds-gray-600">Severity <strong>{form.severity}</strong> looks correct for this description.</p>
+              <Button variant="outline" className="py-1 text-xs" onClick={() => setSeveritySuggestion(null)}>Dismiss</Button>
+            </div>
+          )}
+          {severitySuggestion && severitySuggestion !== 'matches' && (
+            <div className="mt-2 flex items-center justify-between border border-blue-200 bg-blue-50 p-3">
+              <p className="text-sm text-blue-800">AI suggests severity: <strong>{severitySuggestion}</strong> based on incident description.</p>
+              <div className="flex gap-2">
+                <Button variant="outline" className="py-1 text-xs" onClick={() => setSeveritySuggestion(null)}>Dismiss</Button>
+                <Button variant="primary" className="py-1 text-xs" onClick={applySeverity}>Apply</Button>
+              </div>
+            </div>
+          )}
+          {(suggestedSteps || resourceInsights) && (
+            <div className="mt-2 border border-purple-200 bg-purple-50 p-4">
+              <div className="flex items-start justify-between">
+                <div className="flex items-center gap-2">
+                  <Sparkles size={15} className="text-purple-600" />
+                  <div>
+                    <strong className="text-sm text-purple-800">AI Coordination Suggestions</strong>
+                    <small className="block text-xs text-purple-700">Based on incident type, severity, and available resources.</small>
+                  </div>
+                </div>
+                <Button variant="outline" className="py-1 text-xs" onClick={() => { setSuggestedSteps(null); setResourceInsights(null); }}>Dismiss</Button>
+              </div>
+              {suggestedSteps && (
+                <div className="mt-3">
+                  <h4 className="mb-2 text-xs font-semibold text-sgds-gray-700">Recommended next steps</h4>
+                  <ul className="space-y-1.5">
+                    {suggestedSteps.map((step, i) => (
+                      <li key={i} className="flex items-start gap-2 text-xs text-sgds-gray-700">
+                        <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-safe" />
+                        <span>{step}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+              {resourceInsights && (
+                <div className="mt-3">
+                  <h4 className="mb-2 text-xs font-semibold text-sgds-gray-700">Resource availability</h4>
+                  <div className="grid gap-2 md:grid-cols-3">
+                    {resourceInsights.map((insight, i) => (
+                      <div key={i} className={`flex items-center justify-between rounded border p-2 text-xs ${insight.recommended ? 'border-purple-300 bg-purple-50' : 'border-sgds-gray-200 bg-white'}`}>
+                        <span className={insight.recommended ? 'font-semibold text-purple-800' : 'text-sgds-gray-700'}>{insight.type}</span>
+                        <span className={insight.recommended ? 'font-bold text-purple-700' : 'text-sgds-gray-600'}>{insight.available}/{insight.total}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="mt-3 flex justify-end">
+                <Button variant="primary" className="py-1.5 text-xs" onClick={applyCoordinationSuggestions}>
+                  Apply suggestions to incident
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+        <div>
+          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Visibility</label>
+          <select className={inputCls} value={form.publicVisibility} onChange={(e) => set('publicVisibility', e.target.value as 'Private' | 'Public')}>
+            <option value="Private">Private</option>
+            <option value="Public">Public</option>
+          </select>
+        </div>
+        <div className="flex items-end justify-end gap-2">
+          <Button variant="outline" onClick={onCancel}>Cancel</Button>
+          <Button variant="primary" onClick={handleSubmit} disabled={!form.title.trim() || !form.location.trim() || !form.zone.trim() || !form.description.trim()}>Create Incident</Button>
+        </div>
+      </div>
+    </Card>
   );
 }
 
@@ -127,48 +512,158 @@ interface IncidentActions {
   makeIncidentPublic: (incidentId: string) => void;
   requestVolunteers: (incidentId: string) => void;
   resolveIncident: (incidentId: string) => void;
+  addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
 }
 
-function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
+function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
+  const [showTlForm, setShowTlForm] = useState(false);
+  const [tlForm, setTlForm] = useState<{ category: TimelineCategory; actor: string; text: string }>({ category: 'NOTE', actor: '', text: '' });
+  const inputCls = 'w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple';
+
+  const submitTlEntry = () => {
+    if (!tlForm.text.trim()) return;
+    addTimelineUpdate(incident.id, { category: tlForm.category, organisation: 'SCDF', actor: tlForm.actor || undefined, text: tlForm.text });
+    setTlForm({ category: 'NOTE', actor: '', text: '' });
+    setShowTlForm(false);
+  };
+
   return (
-    <Card className="p-5">
-      <div className="grid gap-5 lg:grid-cols-[1fr_330px]">
-        <div>
-          <div className="flex flex-wrap items-center gap-2">
-            <h2 className="text-xl font-bold text-slate-950">{incident.title}</h2>
-            <Badge>{incident.severity}</Badge>
-            <Badge>{incident.status}</Badge>
-            <Badge>{incident.publicVisibility}</Badge>
-          </div>
-          <div className="mt-2 text-sm text-slate-500">{incident.id} · {incident.type} · Created by {incident.createdBy.toUpperCase()} · {incident.createdAt}</div>
-          <p className="mt-4 text-slate-700">{incident.description}</p>
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <Info label="Location" value={incident.location} />
-            <Info label="Assigned organisations" value={incident.assignedOrganisations.join(', ').toUpperCase()} />
-            <Info label="Units / volunteers" value={`${incident.unitsResponded} units, ${incident.volunteersResponded} volunteers`} />
-            <Info label="Volunteer support" value={incident.volunteerSupportNeeded ? 'Needed' : 'Not requested'} />
-          </div>
-          <h3 className="mt-5 font-bold">Responding Organisations</h3>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">{incident.respondingOrganisations.map((org) => <div key={org.organisation} className="border border-slate-200 p-3 text-sm"><strong>{org.organisation}</strong><br /><span className="text-slate-500">{org.status}</span></div>)}</div>
-          <h3 className="mt-5 font-bold">Timeline</h3>
-          <div className="mt-2 space-y-2">{incident.timeline.map((item, index) => <div key={index} className="border-l-2 border-navy-950 pl-3 text-sm"><strong>{item.time} · {item.organisation}</strong><br />{item.text}</div>)}</div>
+    <Card className="overflow-hidden">
+      <div className="border-l-4 border-critical bg-sgds-gray-50 px-5 py-3">
+        <div className="flex flex-wrap items-center gap-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</span>
+          <Badge>{incident.severity}</Badge>
+          <Badge>{incident.status}</Badge>
+          <Badge>{incident.publicVisibility}</Badge>
         </div>
-        <div className="space-y-3">
-          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-navy-950" />
-          <select onChange={(event) => assignIncident(incident.id, event.target.value)} className="w-full border border-slate-200 p-2" defaultValue="">
+        <h2 className="mt-1 text-lg font-bold text-sgds-gray-900">{incident.title}</h2>
+        <div className="mt-0.5 text-xs text-sgds-gray-500">{incident.type} · Created by {incident.createdBy.toUpperCase()} · {incident.createdAt}</div>
+      </div>
+      <div className="grid gap-6 p-5 lg:grid-cols-[1fr_300px]">
+        <div>
+          <p className="text-sm leading-6 text-sgds-gray-700">{incident.description}</p>
+          {incident.suggestedSteps && incident.suggestedSteps.length > 0 && (
+            <div className="mt-4 rounded border border-purple-200 bg-purple-50 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <Sparkles size={14} className="text-purple-600" />
+                <h3 className="text-xs font-semibold text-purple-800">AI-suggested coordination steps</h3>
+              </div>
+              <ul className="space-y-1">
+                {incident.suggestedSteps.map((step, i) => (
+                  <li key={i} className="flex items-start gap-2 text-xs text-sgds-gray-700">
+                    <CheckCircle2 size={11} className="mt-0.5 shrink-0 text-safe" />
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {incident.resourceInsights && incident.resourceInsights.length > 0 && (
+            <div className="mt-3 rounded border border-sgds-gray-200 bg-sgds-gray-50 p-3">
+              <h3 className="mb-2 text-xs font-semibold text-sgds-gray-800">Resource availability snapshot (at creation)</h3>
+              <div className="flex flex-wrap gap-2">
+                {incident.resourceInsights.map((insight, i) => (
+                  <span key={i} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${insight.recommended ? 'bg-purple-100 text-purple-700' : 'bg-sgds-gray-100 text-sgds-gray-600'}`}>
+                    {insight.type}: <strong>{insight.available}/{insight.total}</strong>
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <InfoCell label="Location" value={incident.location} />
+            <InfoCell label="Assigned organisations" value={incident.assignedOrganisations.join(', ').toUpperCase()} />
+            <InfoCell label="Units / volunteers" value={`${incident.unitsResponded} units, ${incident.volunteersResponded} volunteers`} />
+            <InfoCell label="Volunteer support" value={incident.volunteerSupportNeeded ? 'Needed' : 'Not requested'} />
+          </div>
+          <h3 className="mt-5 text-sm font-bold text-sgds-gray-900">Responding Organisations</h3>
+          <div className="mt-2 grid gap-2 md:grid-cols-2">
+            {incident.respondingOrganisations.map((org) => (
+              <div key={org.organisation} className="border border-sgds-gray-200 p-3 text-sm">
+                <strong className="text-sgds-gray-900">{org.organisation}</strong>
+                <div className="text-sgds-gray-500">{org.status}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="mt-5 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-sgds-gray-900">Incident Log</h3>
+            <button onClick={() => setShowTlForm((v) => !v)} className="flex items-center gap-1 border border-sgds-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-sgds-gray-700 hover:bg-sgds-gray-50">
+              <Plus size={12} /> Log entry
+            </button>
+          </div>
+
+          {showTlForm && (
+            <div className="mt-2 border border-sgds-gray-200 bg-sgds-gray-50 p-3">
+              <p className="mb-2 text-xs font-semibold text-sgds-gray-700">New log entry</p>
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Category</label>
+                  <select className={inputCls} value={tlForm.category} onChange={(e) => setTlForm((p) => ({ ...p, category: e.target.value as TimelineCategory }))}>
+                    {(Object.keys(timelineCategoryConfig) as TimelineCategory[]).map((k) => (
+                      <option key={k} value={k}>{timelineCategoryConfig[k].label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Officer / Actor</label>
+                  <input className={inputCls} placeholder="e.g. Chen Xiao Ling" value={tlForm.actor} onChange={(e) => setTlForm((p) => ({ ...p, actor: e.target.value }))} />
+                </div>
+              </div>
+              <div className="mt-2">
+                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Details <span className="text-critical">*</span></label>
+                <textarea className={`${inputCls} resize-none`} rows={2} placeholder="Describe the update…" value={tlForm.text} onChange={(e) => setTlForm((p) => ({ ...p, text: e.target.value }))} />
+              </div>
+              <div className="mt-2 flex justify-end gap-2">
+                <Button variant="outline" className="py-1 text-xs" onClick={() => setShowTlForm(false)}>Cancel</Button>
+                <Button variant="primary" className="py-1 text-xs" disabled={!tlForm.text.trim()} onClick={submitTlEntry}>Submit entry</Button>
+              </div>
+            </div>
+          )}
+
+          <div className="mt-3 space-y-0">
+            {incident.timeline.map((item, index) => {
+              const cfg = timelineCategoryConfig[item.category];
+              return (
+                <div key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
+                  {index < incident.timeline.length - 1 && (
+                    <div className="absolute left-[9px] top-5 bottom-0 w-px bg-sgds-gray-200" />
+                  )}
+                  <div className="relative z-10 mt-1 h-[18px] w-[18px] shrink-0 rounded-full border-2 border-sgds-purple bg-white" />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cfg.cls}`}>{cfg.label}</span>
+                      <span className="text-xs font-semibold text-sgds-gray-800">{item.organisation}</span>
+                      {item.actor && <span className="text-xs text-sgds-gray-500">· {item.actor}</span>}
+                    </div>
+                    <div className="mt-0.5 font-mono text-[10px] text-sgds-gray-400">{item.timestamp}</div>
+                    <div className="mt-1 text-sm leading-5 text-sgds-gray-700">{item.text}</div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+        <div className="space-y-2.5">
+          <div className="mb-2">
+            <div className="mb-1 flex justify-between text-xs text-sgds-gray-500">
+              <span>Status progress</span><span>{statusOrder.indexOf(incident.status) + 1}/5</span>
+            </div>
+            <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-sgds-purple" />
+          </div>
+          <select onChange={(e) => assignIncident(incident.id, e.target.value)} className="w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" defaultValue="">
             <option value="" disabled>Assign organisation</option>
-            <option value="sgh">Hospital</option>
+            <option value="sgh">Singapore General Hospital</option>
             <option value="redcross">Singapore Red Cross</option>
             <option value="spf">SPF</option>
           </select>
-          <select onChange={(event) => updateIncidentStatus(incident.id, event.target.value as Incident['status'])} className="w-full border border-slate-200 p-2" defaultValue={incident.status}>
-            {statusOrder.map((status) => <option key={status}>{status}</option>)}
+          <select onChange={(e) => updateIncidentStatus(incident.id, e.target.value as Incident['status'])} className="w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" defaultValue={incident.status}>
+            {statusOrder.map((s) => <option key={s}>{s}</option>)}
           </select>
-          <EmptyButton className="w-full" onClick={() => updateIncidentStatus(incident.id, incident.status)}>Add timeline update</EmptyButton>
-          <PrimaryButton className="w-full" onClick={() => makeIncidentPublic(incident.id)}>Make public</PrimaryButton>
-          <GreenButton className="w-full" onClick={() => requestVolunteers(incident.id)}>Request volunteers</GreenButton>
-          <button className="w-full bg-critical px-3 py-2 text-sm font-semibold text-white" onClick={() => resolveIncident(incident.id)}>Resolve ticket</button>
-          {onCollapse && <EmptyButton className="w-full" onClick={onCollapse}>Collapse summary</EmptyButton>}
+          <Button variant="primary" className="w-full" onClick={() => makeIncidentPublic(incident.id)}>Make public</Button>
+          <Button variant="success" className="w-full" onClick={() => requestVolunteers(incident.id)}>Request volunteers</Button>
+          <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Resolve ticket</Button>
+          {onCollapse && <Button variant="outline" className="w-full" onClick={onCollapse}>Collapse</Button>}
         </div>
       </div>
     </Card>
@@ -177,29 +672,22 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncide
 
 function IncidentSummaryCard({ incident, onClick }: { incident: Incident; onClick: () => void }) {
   return (
-    <button onClick={onClick} className="block text-left">
-      <Card className="h-full p-5 transition hover:border-navy-950 hover:shadow-soft">
+    <button onClick={onClick} className="block w-full text-left">
+      <Card className="h-full p-5 transition-colors hover:border-sgds-purple">
         <div className="flex items-start justify-between gap-3">
           <div>
-            <div className="text-xs font-bold uppercase tracking-wide text-slate-500">{incident.id}</div>
-            <h2 className="mt-2 text-lg font-bold leading-6 text-slate-950">{incident.title}</h2>
+            <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</div>
+            <h2 className="mt-1 text-base font-bold leading-snug text-sgds-gray-900">{incident.title}</h2>
           </div>
           <Badge>{incident.status}</Badge>
         </div>
-        <div className="mt-3 flex flex-wrap gap-2"><Badge>{incident.severity}</Badge><Badge>{incident.type}</Badge><Badge>{incident.publicVisibility}</Badge></div>
-        <p className="mt-4 line-clamp-2 text-sm leading-6 text-slate-600">{incident.description}</p>
-        <div className="mt-4 space-y-3 text-sm">
-          <div className="flex justify-between gap-3"><span className="text-slate-500">Progress</span><strong>{statusOrder.indexOf(incident.status) + 1}/5</strong></div>
-          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-navy-950" />
-          <Info label="Location" value={incident.location} />
-          <Info label="Time" value={incident.createdAt} />
-          <Info label="Assigned" value={incident.assignedOrganisations.join(', ').toUpperCase()} />
+        <div className="mt-3 flex flex-wrap gap-1.5"><Badge>{incident.severity}</Badge><Badge>{incident.type}</Badge><Badge>{incident.publicVisibility}</Badge></div>
+        <p className="mt-3 line-clamp-2 text-sm leading-6 text-sgds-gray-600">{incident.description}</p>
+        <div className="mt-4 space-y-2">
+          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-sgds-purple" />
+          <InfoCell label="Location" value={incident.location} />
         </div>
-        <div className="mt-4 grid grid-cols-2 gap-2 text-sm">
-          <Info label="Units" value={String(incident.unitsResponded)} />
-          <Info label="Volunteers" value={String(incident.volunteersResponded)} />
-        </div>
-        <div className="mt-4 text-sm font-semibold text-safe">Click to expand full ticket →</div>
+        <div className="mt-3 text-xs font-semibold text-sgds-purple">Click to expand →</div>
       </Card>
     </button>
   );
@@ -215,7 +703,6 @@ function OrgMap() {
   const markers = [
     { x: 19, y: 31, type: 'group', value: '18', color: 'bg-warning text-white', icon: Users },
     { x: 25, y: 34, type: 'medical', color: 'border-critical text-critical bg-white', icon: HeartPulse },
-    { x: 32, y: 34, type: 'volunteer', color: 'border-critical text-critical bg-white', icon: Users },
     { x: 42, y: 35, type: 'fire', color: 'border-orange-500 text-orange-500 bg-white', icon: Flame },
     { x: 51, y: 34, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
     { x: 56, y: 35, type: 'road', color: 'border-critical text-critical bg-white', icon: Car },
@@ -225,183 +712,172 @@ function OrgMap() {
     { x: 55, y: 39, type: 'group', value: '3', color: 'bg-warning text-white', icon: Users },
     { x: 23, y: 45, type: 'group', value: '7', color: 'bg-safe text-white', icon: Users },
     { x: 44, y: 46, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
-    { x: 58, y: 49, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
-    { x: 29, y: 56, type: 'infrastructure', color: 'border-critical text-critical bg-white', icon: Building2 },
-    { x: 52, y: 56, type: 'medical', color: 'border-orange-500 text-orange-500 bg-white', icon: HeartPulse },
-    { x: 61, y: 56, type: 'volunteer', color: 'border-orange-500 text-orange-500 bg-white', icon: Users },
     { x: 68, y: 56, type: 'fire', color: 'border-critical text-critical bg-white', icon: Flame },
-    { x: 73, y: 56, type: 'fire', color: 'border-orange-500 text-orange-500 bg-white', icon: Flame },
     { x: 80, y: 55, type: 'medical', color: 'border-critical text-critical bg-white', icon: HeartPulse },
-    { x: 86, y: 55, type: 'road', color: 'border-critical text-critical bg-white', icon: Car },
-    { x: 89, y: 54, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
-    { x: 93, y: 56, type: 'medical', color: 'border-orange-500 text-orange-500 bg-white', icon: HeartPulse },
     { x: 38, y: 70, type: 'critical', value: '12', color: 'bg-critical text-white', icon: Users },
     { x: 74, y: 64, type: 'critical', value: '4', color: 'bg-critical text-white', icon: Users },
     { x: 78, y: 30, type: 'group', value: '143', color: 'bg-warning text-white', icon: Users }
   ];
-
-  const startDrag = (event: MouseEvent<HTMLDivElement>) => {
+  const startDrag = (e: MouseEvent<HTMLDivElement>) => {
     if (!mapRef.current) return;
-    dragRef.current = {
-      active: true,
-      x: event.clientX,
-      y: event.clientY,
-      left: mapRef.current.scrollLeft,
-      top: mapRef.current.scrollTop
-    };
+    dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: mapRef.current.scrollLeft, top: mapRef.current.scrollTop };
     setDragging(true);
   };
-
-  const moveDrag = (event: MouseEvent<HTMLDivElement>) => {
+  const moveDrag = (e: MouseEvent<HTMLDivElement>) => {
     if (!dragRef.current.active || !mapRef.current) return;
-    mapRef.current.scrollLeft = dragRef.current.left - (event.clientX - dragRef.current.x);
-    mapRef.current.scrollTop = dragRef.current.top - (event.clientY - dragRef.current.y);
+    mapRef.current.scrollLeft = dragRef.current.left - (e.clientX - dragRef.current.x);
+    mapRef.current.scrollTop = dragRef.current.top - (e.clientY - dragRef.current.y);
   };
-
-  const stopDrag = () => {
-    dragRef.current.active = false;
-    setDragging(false);
-  };
+  const stopDrag = () => { dragRef.current.active = false; setDragging(false); };
 
   return (
     <section>
-      <div className="flex items-start justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-slate-950">Incident & Resource Map</h1>
-          <p className="mt-1 text-slate-500">Incidents · Hospitals · Volunteer Group Activities</p>
-        </div>
-        <div className="flex gap-3">
-          <PrimaryButton><RefreshCw size={15} className="inline" /> Refresh</PrimaryButton>
-          <EmptyButton><Maximize2 size={15} className="inline" /> Fullscreen</EmptyButton>
-        </div>
-      </div>
-
-      <div className="mt-5 flex flex-wrap items-center gap-3 text-sm">
-        <Filter size={16} className="text-slate-500" />
-        <span className="font-semibold text-slate-700">Show:</span>
+      <SectionHeader title="Incident & Resource Map" subtitle="Incidents · Hospitals · Volunteer Groups"
+        action={<><Button variant="primary"><RefreshCw size={14} /> Refresh</Button><Button variant="outline"><Maximize2 size={14} /> Fullscreen</Button></>}
+      />
+      <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
+        <Filter size={15} className="text-sgds-gray-500" />
+        <span className="font-semibold text-sgds-gray-700">Show:</span>
         {['All', 'Incidents (16)', 'Hospitals (6)', 'Volunteer Groups (6)'].map((item) => (
-          <button key={item} onClick={() => setShow(item)} className={`border px-4 py-2 font-semibold ${show === item ? 'border-navy-950 bg-navy-950 text-white' : 'border-slate-200 bg-white text-slate-700'}`}>{item}</button>
+          <button key={item} onClick={() => setShow(item)} className={`border px-3 py-1.5 text-sm font-semibold ${show === item ? 'border-navy-950 bg-navy-950 text-white' : 'border-sgds-gray-200 bg-white text-sgds-gray-700 hover:bg-sgds-gray-50'}`}>{item}</button>
         ))}
-        <span className="ml-2 font-semibold text-slate-700">Severity:</span>
+        <span className="ml-2 font-semibold text-sgds-gray-700">Severity:</span>
         {['All', 'Critical', 'High', 'Medium'].map((item) => (
-          <button key={item} onClick={() => setSeverity(item)} className={`px-3 py-2 ${severity === item ? 'border border-navy-950 bg-white text-slate-950' : 'text-slate-500'}`}>{item}</button>
+          <button key={item} onClick={() => setSeverity(item)} className={`px-3 py-1.5 text-sm ${severity === item ? 'border border-sgds-purple bg-sgds-purple-light font-semibold text-sgds-purple' : 'text-sgds-gray-500 hover:text-sgds-gray-800'}`}>{item}</button>
         ))}
       </div>
-
-      <div className="relative mt-5 h-[650px] overflow-hidden border border-slate-300 bg-slate-100">
-        <div
-          ref={mapRef}
-          className={`h-full w-full overflow-auto ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`}
-          onMouseDown={startDrag}
-          onMouseMove={moveDrag}
-          onMouseUp={stopDrag}
-          onMouseLeave={stopDrag}
-        >
+      <div className="relative mt-4 h-[580px] overflow-hidden border border-sgds-gray-300 bg-sgds-gray-100">
+        <div ref={mapRef} className={`h-full w-full overflow-auto ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`} onMouseDown={startDrag} onMouseMove={moveDrag} onMouseUp={stopDrag} onMouseLeave={stopDrag}>
           <div className="relative min-h-[820px] min-w-[1280px] select-none">
-          <img src="/singapore-map.png" alt="Singapore map" className="absolute inset-0 h-full w-full object-cover opacity-75" draggable={false} />
-          <div className="absolute inset-0 bg-blue-50/25" />
-          <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:56px_56px]" />
-          <div className="absolute left-0 right-0 top-[34%] h-px bg-slate-300" />
-          <div className="absolute left-0 right-0 top-[61%] h-px bg-slate-300" />
-          <div className="absolute bottom-0 top-0 left-[34%] w-px bg-slate-300" />
-          <div className="absolute bottom-0 top-0 left-[68%] w-px bg-slate-300" />
-
-          {markers.map((marker, index) => {
-            const Icon = marker.icon;
-            const isCluster = Boolean(marker.value);
-            return (
-              <button
-                key={`${marker.type}-${index}`}
-                className={`absolute grid place-items-center rounded-full shadow-soft ${isCluster ? `h-10 w-10 ${marker.color}` : `h-9 w-9 border-2 ${marker.color}`}`}
-                style={{ left: `${marker.x}%`, top: `${marker.y}%` }}
-                title={marker.type}
-              >
-                <Icon size={isCluster ? 14 : 17} />
-                {marker.value && <span className="text-[10px] font-bold leading-none">{marker.value}</span>}
-              </button>
-            );
-          })}
-
+            <img src="/singapore-map.png" alt="Singapore map" className="absolute inset-0 h-full w-full object-cover opacity-75" draggable={false} />
+            <div className="absolute inset-0 bg-blue-50/25" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:56px_56px]" />
+            {markers.map((marker, index) => {
+              const Icon = marker.icon;
+              const isCluster = Boolean(marker.value);
+              return (
+                <button key={`${marker.type}-${index}`} className={`absolute grid place-items-center rounded-full shadow-card ${isCluster ? `h-10 w-10 ${marker.color}` : `h-9 w-9 border-2 ${marker.color}`}`} style={{ left: `${marker.x}%`, top: `${marker.y}%` }} title={marker.type}>
+                  <Icon size={isCluster ? 13 : 16} />
+                  {marker.value && <span className="text-[10px] font-bold leading-none">{marker.value}</span>}
+                </button>
+              );
+            })}
           </div>
         </div>
-        <Card className="pointer-events-auto absolute left-4 top-4 p-4">
-          <div className="text-xs font-bold uppercase text-slate-500">Active Volunteer Groups</div>
-          <div className="mt-2 text-sm font-bold"><span className="text-red-600">2 Critical</span> <span className="text-orange-600">3 Urgent</span> <span className="text-safe">1 Needed</span></div>
-          <div className="mt-1 text-xs text-slate-500">187 volunteers deployed</div>
+        <Card className="absolute left-4 top-4 p-3">
+          <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">Active Volunteer Groups</div>
+          <div className="mt-1 text-sm font-bold"><span className="text-critical">2 Critical</span> <span className="text-warning">3 Urgent</span> <span className="text-safe">1 Needed</span></div>
+          <div className="text-xs text-sgds-gray-500">187 volunteers deployed</div>
         </Card>
-
-        <Card className="pointer-events-auto absolute bottom-6 left-4 p-4 text-sm">
-          <div className="mb-3 flex items-center gap-2 font-bold"><Layers size={16} /> Legend</div>
-          <div className="text-xs font-bold uppercase text-slate-500">Incidents</div>
-          <LegendItem icon={<HeartPulse size={14} />} label="Medical" color="text-critical" />
-          <LegendItem icon={<Flame size={14} />} label="Fire" color="text-orange-500" />
-          <LegendItem icon={<Waves size={14} />} label="Flood" color="text-blue-500" />
-          <LegendItem icon={<Car size={14} />} label="Road" color="text-warning" />
-          <LegendItem icon={<Building2 size={14} />} label="Infrastructure" color="text-purple-500" />
-          <div className="mt-3 text-xs font-bold uppercase text-slate-500">Other</div>
-          <LegendItem icon={<Activity size={14} />} label="Hospital" color="text-safe" />
-          <LegendItem icon={<Users size={14} />} label="Volunteer Group" color="text-safe" />
-          <LegendItem icon={<Users size={14} />} label="Urgent Group" color="text-warning" />
-          <LegendItem icon={<Users size={14} />} label="Critical Group" color="text-critical" />
+        <Card className="absolute bottom-4 left-4 p-3 text-sm">
+          <div className="mb-2 flex items-center gap-2 font-bold text-sgds-gray-900"><Layers size={15} /> Legend</div>
+          {[['Medical', HeartPulse, 'text-critical'], ['Fire', Flame, 'text-orange-500'], ['Flood', Waves, 'text-blue-500'], ['Road', Car, 'text-warning'], ['Hospital', Activity, 'text-safe']].map(([label, Icon, color]) => (
+            <div key={label as string} className="mt-1.5 flex items-center gap-2 text-xs"><span className={color as string}><Icon size={12} /></span><span>{label as string}</span></div>
+          ))}
         </Card>
-
-        <div className="pointer-events-auto absolute right-4 top-4 grid gap-2">
-          {[ZoomIn, ZoomOut, Navigation].map((Icon, index) => <button key={index} className="grid h-10 w-10 place-items-center border border-slate-200 bg-white shadow-soft"><Icon size={18} /></button>)}
+        <div className="absolute right-4 top-4 grid gap-2">
+          {[ZoomIn, ZoomOut, Navigation].map((Icon, i) => <button key={i} className="grid h-10 w-10 place-items-center border border-sgds-gray-200 bg-white shadow-card hover:bg-sgds-gray-50"><Icon size={17} /></button>)}
         </div>
-        <div className="pointer-events-auto absolute bottom-6 right-4 border border-slate-200 bg-white px-3 py-2 text-xs text-slate-500">Zoom 12</div>
+        <div className="absolute bottom-4 right-4 border border-sgds-gray-200 bg-white px-3 py-1.5 text-xs text-sgds-gray-500">Zoom 12</div>
       </div>
-
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
-        <Card className="p-5">
-          <h2 className="font-bold">Map Detail Features</h2>
-          <div className="mt-4 grid gap-3 md:grid-cols-3">
-            <Info label="Active incident markers" value="16" />
-            <Info label="Hospitals visible" value="6" />
-            <Info label="Volunteer groups" value="6" />
-          </div>
-          <p className="mt-4 text-sm text-slate-500">Drag the map surface to pan on smaller screens. Filters above the map can be used to switch between incidents, hospitals, and volunteer group activities.</p>
-        </Card>
-        <Card className="p-5">
-          <h2 className="font-bold">Filtered incidents</h2>
-          <div className="mt-4 space-y-3">{incidents.map((incident) => <IncidentRow key={incident.id} incident={incident} />)}</div>
-        </Card>
-      </div>
+      <Card className="mt-6 p-5">
+        <h2 className="text-base font-bold text-sgds-gray-900">Area incidents</h2>
+        <div className="mt-4 space-y-2">{incidents.map((i) => <IncidentRow key={i.id} incident={i} />)}</div>
+      </Card>
     </section>
   );
-}
-
-function LegendItem({ icon, label, color }: { icon: React.ReactNode; label: string; color: string }) {
-  return <div className="mt-2 flex items-center gap-2"><span className={color}>{icon}</span><span>{label}</span></div>;
 }
 
 function OrgResources() {
   const { hospitals, organisations } = useData();
   return (
     <section>
-      <h1 className="text-3xl font-bold text-slate-950">Resources</h1>
+      <SectionHeader title="Resources" subtitle="Operational capacities for active response." />
       <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card className="p-5"><h2 className="font-bold">Hospital capacities</h2><div className="mt-4 space-y-3">{hospitals.slice(0, 4).map((h) => <div key={h.id}><div className="flex justify-between text-sm"><span>{h.name}</span><strong>{h.availableBeds}/{h.totalBeds}</strong></div><ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" /></div>)}</div></Card>
-        <Card className="p-5"><h2 className="font-bold">Volunteer organisations</h2><div className="mt-4 space-y-3">{organisations.filter((o) => o.type !== 'Healthcare').map((o) => <div key={o.id} className="border-b border-slate-100 pb-2 text-sm"><strong>{o.name}</strong><br />{o.volunteersAvailable}/{o.volunteersTotal} available</div>)}</div></Card>
-        <Card className="p-5"><h2 className="font-bold">Equipment</h2><div className="mt-4 space-y-3 text-sm"><Info label="Ambulances" value="42 available" /><Info label="Flood pumps" value="18 available" /><Info label="Relief kits" value="1,840 ready" /></div></Card>
+        <Card className="p-5">
+          <h2 className="text-base font-bold text-sgds-gray-900">Hospital Capacities</h2>
+          <div className="mt-4 space-y-4">
+            {hospitals.slice(0, 4).map((h) => (
+              <div key={h.id}>
+                <div className="mb-1 flex justify-between text-sm"><span className="text-sgds-gray-700">{h.name}</span><strong className="text-sgds-gray-900">{h.availableBeds}/{h.totalBeds}</strong></div>
+                <ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" />
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <h2 className="text-base font-bold text-sgds-gray-900">Volunteer Organisations</h2>
+          <div className="mt-4 divide-y divide-sgds-gray-100">
+            {organisations.filter((o) => o.type !== 'Healthcare').map((o) => (
+              <div key={o.id} className="py-3 text-sm">
+                <div className="font-semibold text-sgds-gray-900">{o.name}</div>
+                <div className="mt-0.5 text-sgds-gray-500">{o.volunteersAvailable}/{o.volunteersTotal} available</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+        <Card className="p-5">
+          <h2 className="text-base font-bold text-sgds-gray-900">Equipment</h2>
+          <div className="mt-4 space-y-3">
+            <InfoCell label="Ambulances" value="42 available" />
+            <InfoCell label="Flood pumps" value="18 available" />
+            <InfoCell label="Relief kits" value="1,840 ready" />
+          </div>
+        </Card>
       </div>
+      <Card className="mt-6">
+        <div className="border-b border-sgds-gray-200 px-5 py-4">
+          <h2 className="text-base font-bold text-sgds-gray-900">All Organisations</h2>
+        </div>
+        <DataTable>
+          <Thead><tr><Th>Organisation</Th><Th>Type</Th><Th>Volunteers</Th><Th>Active tasks</Th><Th>Status</Th></tr></Thead>
+          <Tbody>
+            {organisations.map((o) => (
+              <Tr key={o.id}>
+                <Td className="font-semibold">{o.name}</Td>
+                <Td><Badge>{o.type}</Badge></Td>
+                <Td>{o.volunteersAvailable}/{o.volunteersTotal}</Td>
+                <Td>{o.activeTasks}</Td>
+                <Td><Badge>{o.status}</Badge></Td>
+              </Tr>
+            ))}
+          </Tbody>
+        </DataTable>
+      </Card>
     </section>
   );
 }
 
 function OrgNotifications() {
   const { notifications } = useData();
-  return <section><h1 className="text-3xl font-bold">Notifications</h1><div className="mt-6 space-y-3">{notifications.map((item) => <Card key={item.id} className="p-4"><strong>{item.text}</strong><div className="text-sm text-slate-500">{item.time}</div></Card>)}</div></section>;
+  return (
+    <section>
+      <SectionHeader title="Notifications" />
+      <div className="mt-6 space-y-3">
+        {notifications.map((item) => (
+          <Card key={item.id} className="p-4">
+            <div className="font-semibold text-sgds-gray-900">{item.text}</div>
+            <div className="mt-1 text-xs text-sgds-gray-500">{item.time}</div>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
 }
 
 function OrgSettings() {
   return (
     <section>
-      <h1 className="text-3xl font-bold">Settings</h1>
+      <SectionHeader title="Settings" />
       <Card className="mt-6 p-5">
-        <h2 className="font-bold">Auto-publication rules</h2>
-        <div className="mt-4 space-y-4">
+        <h2 className="text-base font-bold text-sgds-gray-900">Auto-publication rules</h2>
+        <p className="mt-1 text-sm text-sgds-gray-500">Select incident types that are automatically made public when created.</p>
+        <div className="mt-4 space-y-2">
           {['Cardiac Arrest', 'Flood', 'Major Fire', 'Minor Injury'].map((item, index) => (
-            <label key={item} className="flex items-center justify-between border border-slate-200 p-3"><span>{item}</span><input type="checkbox" defaultChecked={index < 3} /></label>
+            <label key={item} className="flex items-center justify-between border border-sgds-gray-200 p-3 hover:bg-sgds-gray-50">
+              <span className="text-sm text-sgds-gray-800">{item}</span>
+              <input type="checkbox" defaultChecked={index < 3} className="h-4 w-4 accent-sgds-purple" />
+            </label>
           ))}
         </div>
       </Card>
@@ -410,9 +886,13 @@ function OrgSettings() {
 }
 
 function IncidentRow({ incident }: { incident: Incident }) {
-  return <div className="border border-slate-200 p-3"><div className="flex items-center justify-between gap-3"><strong>{incident.title}</strong><Badge>{incident.status}</Badge></div><div className="mt-1 text-sm text-slate-500">{incident.location} · {incident.type} · {incident.severity}</div></div>;
-}
-
-function Info({ label, value }: { label: string; value: string }) {
-  return <div className="bg-slate-50 p-3 text-sm"><div className="text-xs uppercase text-slate-500">{label}</div><div className="font-semibold text-slate-900">{value}</div></div>;
+  return (
+    <div className="border border-sgds-gray-200 p-3">
+      <div className="flex items-center justify-between gap-3">
+        <strong className="text-sm text-sgds-gray-900">{incident.title}</strong>
+        <Badge>{incident.status}</Badge>
+      </div>
+      <div className="mt-1 text-xs text-sgds-gray-500">{incident.location} · {incident.type} · {incident.severity}</div>
+    </div>
+  );
 }

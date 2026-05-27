@@ -1,5 +1,12 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import type { Broadcast, CommunityProgramme, Hospital, Incident, ThresholdAlert, VolunteerTask } from '../types';
+import type { Broadcast, CommunityProgramme, Hospital, Incident, IncidentType, Severity, ThresholdAlert, TimelineCategory, TimelineUpdate, VolunteerTask } from '../types';
+
+function makeTlEntry(category: TimelineCategory, organisation: string, text: string, actor?: string): TimelineUpdate {
+  const now = new Date();
+  const date = now.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+  const hhmm = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: false });
+  return { id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: `${date}, ${hhmm}`, organisation, actor, category, text };
+}
 import * as seed from '../data/seed';
 
 interface DataContextValue {
@@ -13,6 +20,8 @@ interface DataContextValue {
   hospitals: Hospital[];
   thresholds: ThresholdAlert[];
   publicAlerts: Broadcast[];
+  readAlertIds: Set<string>;
+  markAlertRead: (id: string) => void;
   publishBroadcast: (broadcast: Omit<Broadcast, 'id' | 'timestamp' | 'issuer' | 'icon'> & Partial<Pick<Broadcast, 'issuer' | 'icon'>>) => void;
   deleteBroadcast: (id: string) => void;
   makeIncidentPublic: (incidentId: string) => void;
@@ -25,6 +34,8 @@ interface DataContextValue {
   updateThreshold: (id: string, threshold: number) => void;
   registerProgramme: (id: string) => void;
   signUpTask: (id: string) => void;
+  createIncident: (data: { title: string; type: IncidentType; severity: Exclude<Severity, 'Notice' | 'Info'>; location: string; zone: string; description: string; publicVisibility: 'Private' | 'Public'; suggestedSteps?: string[]; resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[] }) => void;
+  addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -36,6 +47,11 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [communityProgrammes, setCommunityProgrammes] = useState(seed.communityProgrammes);
   const [hospitals, setHospitals] = useState(seed.hospitals);
   const [thresholds, setThresholds] = useState(seed.thresholds);
+  const [readAlertIds, setReadAlertIds] = useState<Set<string>>(new Set());
+
+  const markAlertRead = (id: string) => {
+    setReadAlertIds((prev) => new Set([...prev, id]));
+  };
 
   const publicAlerts = useMemo(() => {
     const incidentAlerts: Broadcast[] = incidents
@@ -84,14 +100,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   };
 
   const updateIncidentStatus = (incidentId: string, status: Incident['status']) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, status, timeline: [...incident.timeline, { time: '02:05 pm', organisation: 'OneTogether', text: `Status updated to ${status}.` }] } : incident));
+    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, status, timeline: [...incident.timeline, makeTlEntry('STATUS', 'OneTogether', `Status updated to ${status}.`)] } : incident));
   };
 
   const requestVolunteers = (incidentId: string) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, volunteerSupportNeeded: true, timeline: [...incident.timeline, { time: '02:06 pm', organisation: 'SCDF', text: 'Volunteer support requested.' }] } : incident));
+    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, volunteerSupportNeeded: true, timeline: [...incident.timeline, makeTlEntry('VOLUNTEER', 'SCDF', 'Volunteer support requested via OneTogether platform.')] } : incident));
   };
 
   const resolveIncident = (incidentId: string) => updateIncidentStatus(incidentId, 'Resolved');
+
+  const addTimelineUpdate: DataContextValue['addTimelineUpdate'] = (incidentId, entry) => {
+    setIncidents((current) => current.map((incident) => incident.id === incidentId
+      ? { ...incident, timeline: [...incident.timeline, makeTlEntry(entry.category, entry.organisation, entry.text, entry.actor)] }
+      : incident));
+  };
+
+  const createIncident: DataContextValue['createIncident'] = (data) => {
+    const now = new Date();
+    const createdAt = now.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const time = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
+    setIncidents((current) => [{
+      ...data,
+      id: `INC-${Date.now()}`,
+      status: 'Open',
+      createdBy: 'scdf',
+      createdAt,
+      assignedOrganisations: ['scdf'],
+      respondingOrganisations: [],
+      volunteerSupportNeeded: false,
+      unitsResponded: 0,
+      volunteersResponded: 0,
+      timeline: [makeTlEntry('INITIAL', 'SCDF', 'Incident created via OneTogether platform.', 'Chen Xiao Ling')]
+    }, ...current]);
+  };
 
   const updateHospital = (id: string, patch: Partial<Hospital>) => {
     setHospitals((current) => current.map((hospital) => hospital.id === id ? { ...hospital, ...patch, updatedAt: '02:04 pm' } : hospital));
@@ -124,6 +165,8 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     hospitals,
     thresholds,
     publicAlerts,
+    readAlertIds,
+    markAlertRead,
     publishBroadcast,
     deleteBroadcast,
     makeIncidentPublic,
@@ -135,7 +178,9 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     postVolunteerTask,
     updateThreshold,
     registerProgramme,
-    signUpTask
+    signUpTask,
+    createIncident,
+    addTimelineUpdate
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;

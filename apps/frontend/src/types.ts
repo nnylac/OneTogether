@@ -24,9 +24,24 @@ export interface Organisation {
   status: 'active' | 'deployed';
 }
 
+export type TimelineCategory =
+  | 'INITIAL'
+  | 'STATUS'
+  | 'DEPLOY'
+  | 'BROADCAST'
+  | 'ASSESS'
+  | 'COORD'
+  | 'MEDICAL'
+  | 'VOLUNTEER'
+  | 'NOTE'
+  | 'CLOSE';
+
 export interface TimelineUpdate {
-  time: string;
+  id: string;
+  timestamp: string;
   organisation: string;
+  actor?: string;
+  category: TimelineCategory;
   text: string;
 }
 
@@ -48,6 +63,8 @@ export interface Incident {
   unitsResponded: number;
   volunteersResponded: number;
   timeline: TimelineUpdate[];
+  suggestedSteps?: string[];
+  resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[];
 }
 
 export interface Broadcast {

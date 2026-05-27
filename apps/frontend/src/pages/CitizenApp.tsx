@@ -1,7 +1,7 @@
 import { BookOpen, Building2, CheckCircle2, Clock, Heart, MapPin, Megaphone, Phone, Shield, Siren, X } from 'lucide-react';
 import { useState } from 'react';
 import { MobileShell } from '../components/layouts';
-import { AlertBanner, Badge, Card, Field, GreenButton, Modal, ProgressBar } from '../components/ui';
+import { Badge, Button, Card, Field, Modal, ProgressBar } from '../components/ui';
 import { useData } from '../state/DataContext';
 import type { Broadcast, CommunityProgramme, VolunteerTask } from '../types';
 
@@ -21,10 +21,11 @@ const severityStyles = {
 };
 
 export function CitizenApp() {
-  const { publicAlerts, volunteerTasks } = useData();
+  const { publicAlerts, volunteerTasks, readAlertIds } = useData();
   const [tab, setTab] = useState('alerts');
+  const unreadCount = publicAlerts.filter((a) => !readAlertIds.has(a.id)).length;
   return (
-    <MobileShell tab={tab} setTab={setTab} alertCount={publicAlerts.length} volunteerCount={volunteerTasks.length}>
+    <MobileShell tab={tab} setTab={setTab} alertCount={unreadCount} volunteerCount={volunteerTasks.length}>
       {tab === 'alerts' && <CitizenAlerts />}
       {tab === 'communities' && <CitizenCommunities />}
       {tab === 'volunteer' && <CitizenVolunteer />}
@@ -33,33 +34,62 @@ export function CitizenApp() {
   );
 }
 
+type SeverityFilter = 'All' | 'CRITICAL' | 'NOTICE' | 'INFO';
+
 function CitizenAlerts() {
-  const { publicAlerts } = useData();
+  const { publicAlerts, readAlertIds, markAlertRead } = useData();
   const [selected, setSelected] = useState<Broadcast | null>(null);
+  const [filter, setFilter] = useState<SeverityFilter>('All');
+
+  const visible = filter === 'All' ? publicAlerts : publicAlerts.filter((b) => b.severity === filter);
+
+  const open = (broadcast: Broadcast) => {
+    markAlertRead(broadcast.id);
+    setSelected(broadcast);
+  };
+
   return (
     <section>
       <div className="flex items-center justify-between">
         <h1 className="text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"><span className="mr-2">📣</span>Official Broadcasts</h1>
         <span className="text-xs font-medium text-slate-500">Tap to view full advisory</span>
       </div>
+      <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+        {(['All', 'CRITICAL', 'NOTICE', 'INFO'] as SeverityFilter[]).map((chip) => (
+          <button key={chip} onClick={() => setFilter(chip)} className={`shrink-0 rounded-full border px-3 py-1.5 text-xs font-bold uppercase tracking-wide ${filter === chip ? 'border-navy-950 bg-navy-950 text-white' : 'border-slate-200 bg-white text-slate-500'}`}>
+            {chip}
+          </button>
+        ))}
+      </div>
       <div className="mt-4 space-y-4">
-        {publicAlerts.map((broadcast) => {
+        {visible.length === 0 && (
+          <div className="rounded border border-emerald-200 bg-emerald-50 p-5 text-center text-sm text-emerald-700">
+            <span className="text-2xl">✅</span>
+            <p className="mt-2 font-semibold">You're all clear</p>
+            <p className="mt-1 text-emerald-600">No {filter !== 'All' ? filter : ''} broadcasts at this time.</p>
+          </div>
+        )}
+        {visible.map((broadcast) => {
           const emoji = broadcastEmoji[broadcast.icon] ?? '📣';
           const styles = severityStyles[broadcast.severity];
+          const isUnread = !readAlertIds.has(broadcast.id);
           return (
             <Card key={broadcast.id} className="relative overflow-hidden p-4 pl-5">
               <div className={`absolute inset-y-0 left-0 w-1.5 ${styles.rail}`} />
+              {broadcast.severity === 'CRITICAL' && isUnread && (
+                <span className="absolute right-4 top-4 h-2 w-2 rounded-full bg-critical animate-pulse" />
+              )}
               <div className="flex gap-3">
                 <div className={`grid h-12 w-12 shrink-0 place-items-center text-3xl ${styles.icon}`}>{emoji}</div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex items-start justify-between gap-2">
-                    <h2 className="text-base font-bold leading-tight text-slate-950">{broadcast.title}</h2>
+                  <div className="flex items-start justify-between gap-2 pr-4">
+                    <h2 className={`text-base font-bold leading-tight ${isUnread ? 'text-slate-950' : 'text-slate-500'}`}>{broadcast.title}</h2>
                     <span className={`shrink-0 rounded-full px-3 py-1 text-xs font-bold uppercase tracking-wide ${styles.pill}`}>{broadcast.severity}</span>
                   </div>
                   <p className="mt-3 text-sm leading-6 text-slate-500">{broadcast.message}</p>
                   <div className="mt-3 flex items-center justify-between gap-3">
                     <div className="text-xs text-slate-500">{broadcast.issuer} · {broadcast.timestamp}</div>
-                    <button onClick={() => setSelected(broadcast)} className="shrink-0 text-sm font-bold text-safe">View advisory →</button>
+                    <button onClick={() => open(broadcast)} className="shrink-0 text-sm font-bold text-safe">View advisory →</button>
                   </div>
                 </div>
               </div>
@@ -72,16 +102,70 @@ function CitizenAlerts() {
   );
 }
 
+const advisoryContent: Record<string, { warning: string; dos: [string, string][]; donts: string[] }> = {
+  Waves: {
+    warning: 'Flash floods can rise rapidly and be life-threatening. Act immediately and follow all official instructions.',
+    dos: [
+      ['Move to higher ground immediately', 'If you are in a low-lying area, move to a higher floor or higher terrain right now. Do not wait for water to enter your home.'],
+      ['Do NOT enter floodwater', 'Just 15 cm of moving water can knock an adult off their feet. 30 cm can sweep a vehicle away. Stay out of floodwater.'],
+      ['Avoid underpasses, canals and low-lying roads', 'Underpasses can fill within seconds. Do not attempt to drive or walk through submerged roads.'],
+      ['Switch off electricity at the mains', 'If water is entering your home, turn off the electrical mains switch immediately to prevent electrocution risk.'],
+      ['Call 995 if trapped or in danger', 'If you are trapped or someone is in immediate danger, call SCDF at 995. Stay on the line and follow operator instructions.']
+    ],
+    donts: [
+      '× Do NOT drive through flooded roads — your vehicle can be swept away in seconds.',
+      '× Do NOT touch electrical equipment in wet or flooded areas.',
+      '× Do NOT spread unverified updates or return to evacuated areas until agencies say it is safe.'
+    ]
+  },
+  Train: {
+    warning: 'Public transport services are disrupted. Allow extra time for your journey and follow station staff instructions.',
+    dos: [
+      ['Check the SMRT or LTA app', 'Get the latest updates on service resumption and alternative bus routes.'],
+      ['Use alternative bus services', 'Free bridging buses are deployed at affected stations. Look for staff directing passengers.'],
+      ['Allow extra travel time', 'Expect crowding at alternative stops. Plan ahead and avoid non-essential travel.'],
+      ['Follow station staff guidance', 'Station staff will direct you to safe exits and alternative transport.']
+    ],
+    donts: [
+      '× Do NOT attempt to walk along MRT tracks — it is illegal and extremely dangerous.',
+      '× Do NOT share unverified social media posts about the disruption.',
+      '× Do NOT rush or push on crowded platforms.'
+    ]
+  },
+  HeartPulse: {
+    warning: 'A medical advisory is in effect. Follow health authority guidance and seek help early if you have symptoms.',
+    dos: [
+      ['Follow MOH guidelines', 'Visit the MOH website or hotline (1800 333 9999) for the latest health advisories.'],
+      ['Stay home if unwell', 'If you have symptoms, avoid public spaces and seek medical attention promptly.'],
+      ['Call 995 for emergencies', 'For life-threatening medical emergencies, call 995 immediately.']
+    ],
+    donts: [
+      '× Do NOT self-diagnose or rely on unverified social media health information.',
+      '× Do NOT visit hospitals unnecessarily — use GP clinics for non-emergency cases.',
+      '× Do NOT ignore persistent or worsening symptoms.'
+    ]
+  }
+};
+
+const defaultAdvisory = {
+  warning: 'An official advisory has been issued. Follow all instructions from emergency services and authorities.',
+  dos: [
+    ['Stay informed', 'Monitor official channels — Gov.sg, SCDF, SPF — for updates as the situation develops.'],
+    ['Follow instructions from authorities', 'Comply with instructions from police, civil defence, and other emergency responders on the ground.'],
+    ['Call 995 for life-threatening emergencies', 'If you or someone near you is in immediate danger, call SCDF at 995.'],
+    ['Avoid the affected area', 'Unless you are a responder, stay clear of the incident zone to allow emergency services to work.']
+  ],
+  donts: [
+    '× Do NOT spread unverified information — share only official updates.',
+    '× Do NOT obstruct emergency vehicles or personnel.',
+    '× Do NOT return to an area until authorities declare it safe.'
+  ]
+};
+
 function AdvisoryModal({ broadcast, onClose }: { broadcast: Broadcast; onClose: () => void }) {
-  const instructions = [
-    ['Move to higher ground immediately', 'If you are in a low-lying area, move to a higher floor or higher terrain right now. Do not wait for water to enter your home.'],
-    ['Do NOT enter floodwater', 'Just 15 cm of moving water can knock an adult off their feet. 30 cm can sweep a vehicle away. Stay out of floodwater.'],
-    ['Avoid underpasses, canals and low-lying roads', 'Underpasses can fill within seconds. Do not attempt to drive or walk through submerged roads.'],
-    ['Switch off electricity at the mains', 'If water is entering your home, turn off the electrical mains switch immediately to prevent electrocution risk.'],
-    ['Move valuables and medications to higher shelves', 'If you have time and it is safe, move important documents, medications, and electronics to a higher level.'],
-    ['Call 995 if trapped or in danger', 'If you are trapped or someone is in immediate danger, call SCDF at 995. Stay on the line and follow operator instructions.'],
-    ['Follow official evacuation orders immediately', 'If authorities order evacuation, leave at once. Bring your IC, phone, charger, and medications. Do not delay.']
-  ];
+  const content = advisoryContent[broadcast.icon] ?? defaultAdvisory;
+  const severityLabel = broadcast.severity === 'CRITICAL' ? 'Critical Alert' : broadcast.severity === 'NOTICE' ? 'Notice' : 'Info';
+  const headerBg = broadcast.severity === 'CRITICAL' ? 'bg-critical' : broadcast.severity === 'NOTICE' ? 'bg-navy-950' : 'bg-safe';
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-slate-950/55 p-4">
@@ -89,20 +173,23 @@ function AdvisoryModal({ broadcast, onClose }: { broadcast: Broadcast; onClose: 
         <div className="relative bg-navy-950 p-5 pr-12 text-white">
           <button className="absolute right-4 top-5 text-blue-100 hover:text-white" onClick={onClose} aria-label="Close advisory"><X size={26} /></button>
           <div className="flex items-center gap-3">
-            <span className="rounded px-3 py-1 text-xs font-bold uppercase tracking-wide bg-critical text-white">Critical Alert</span>
-            <span className="text-xs font-bold uppercase tracking-wide text-blue-200">Zone</span>
+            <span className={`rounded px-3 py-1 text-xs font-bold uppercase tracking-wide text-white ${headerBg}`}>{severityLabel}</span>
+            {broadcast.zone && <span className="text-xs font-bold uppercase tracking-wide text-blue-200">{broadcast.zone}</span>}
           </div>
           <h2 className="mt-3 text-2xl font-bold">{broadcast.title}</h2>
           <p className="mt-2 text-sm text-blue-100">Issued by <strong className="text-white">{broadcast.issuer}</strong> · {broadcast.timestamp}</p>
         </div>
         <div className="space-y-6 p-5">
           <div className="border border-orange-100 bg-orange-50 p-4 text-sm leading-6 text-slate-600">
-            Flash floods can rise rapidly and be life-threatening. Act immediately and follow all official instructions.
+            {broadcast.message}
+          </div>
+          <div className="rounded border border-slate-100 bg-slate-50 p-4 text-sm leading-6 text-slate-500">
+            {content.warning}
           </div>
           <div>
             <h3 className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.18em] text-slate-500"><CheckCircle2 size={18} className="text-safe" />What you should do</h3>
             <div className="mt-5 space-y-5">
-              {instructions.map(([title, detail], index) => (
+              {content.dos.map(([title, detail], index) => (
                 <div key={title} className="flex gap-4">
                   <div className="grid h-9 w-9 shrink-0 place-items-center rounded-full bg-navy-950 text-sm font-bold text-white">{index + 1}</div>
                   <div>
@@ -116,9 +203,7 @@ function AdvisoryModal({ broadcast, onClose }: { broadcast: Broadcast; onClose: 
           <div>
             <h3 className="text-xs font-bold uppercase tracking-[0.18em] text-slate-500"><span className="mr-2 text-critical">×</span>Do not do these</h3>
             <div className="mt-4 border border-red-300 bg-red-50 p-4 text-sm leading-6 text-red-700">
-              <p>× Do NOT drive through flooded roads — your vehicle can be swept away in seconds.</p>
-              <p className="mt-2">× Do NOT touch electrical equipment in wet or flooded areas.</p>
-              <p className="mt-2">× Do NOT spread unverified updates or return to evacuated areas until agencies say it is safe.</p>
+              {content.donts.map((line, i) => <p key={i} className={i > 0 ? 'mt-2' : ''}>{line}</p>)}
             </div>
           </div>
         </div>
@@ -209,10 +294,10 @@ function ProgrammeModal({ programme, onClose, onConfirm }: { programme: Communit
       <div className="space-y-4 p-5">
         <p className="text-sm text-slate-600">{programme.description}</p>
         <div className="text-sm text-slate-600">{programme.location}<br />{programme.time}<br />Contact: {programme.contact}</div>
-        <Field label="Full Name"><input className="w-full border border-slate-200 p-3" placeholder="Your full name" /></Field>
-        <Field label="Mobile Number"><input className="w-full border border-slate-200 p-3" placeholder="+65 9123 4567" /></Field>
-        <Field label="Email"><input className="w-full border border-slate-200 p-3" placeholder="you@example.com" /></Field>
-        <GreenButton className="w-full py-3" onClick={onConfirm}>Confirm Registration</GreenButton>
+        <Field label="Full Name"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="Your full name" /></Field>
+        <Field label="Mobile Number"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="+65 9123 4567" /></Field>
+        <Field label="Email"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="you@example.com" /></Field>
+        <Button variant="success" className="w-full py-3" onClick={onConfirm}>Confirm Registration</Button>
       </div>
     </Modal>
   );
@@ -226,7 +311,7 @@ function CitizenVolunteer() {
       <div className="bg-safe p-5 text-white">
         <h1 className="text-base font-bold">Be part of the response</h1>
         <p className="mt-3 text-sm font-medium leading-6 text-emerald-50">Sign up for a specific task below, or register your skills for future deployment.</p>
-        <button className="mt-4 bg-white px-4 py-2 text-sm font-bold text-safe">Register as Volunteer →</button>
+        <button className="mt-4 border border-white bg-transparent px-4 py-2 text-sm font-semibold text-white hover:bg-white/10">Register as Volunteer →</button>
       </div>
       <h2 className="mt-8 flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.16em] text-slate-500"><Siren size={17} /> 🚨 Urgently Needed</h2>
       <div className="mt-4 space-y-4">
@@ -262,10 +347,10 @@ function TaskModal({ task, onClose, onConfirm }: { task: VolunteerTask; onClose:
       <div className="space-y-4 p-5">
         <p className="text-sm text-slate-600">{task.description}</p>
         <div className="text-sm text-slate-600">{task.location}<br />{task.time}</div>
-        <Field label="Full Name"><input className="w-full border border-slate-200 p-3" placeholder="John Tan Wei Ming" /></Field>
-        <Field label="Mobile Number"><input className="w-full border border-slate-200 p-3" placeholder="+65 9123 4567" /></Field>
-        <Field label="NRIC / FIN / Passport"><input className="w-full border border-slate-200 p-3" placeholder="S1234567A" /></Field>
-        <GreenButton className="w-full py-3" onClick={onConfirm}>Confirm Sign-Up</GreenButton>
+        <Field label="Full Name"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="John Tan Wei Ming" /></Field>
+        <Field label="Mobile Number"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="+65 9123 4567" /></Field>
+        <Field label="NRIC / FIN / Passport"><input className="w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" placeholder="S1234567A" /></Field>
+        <Button variant="success" className="w-full py-3" onClick={onConfirm}>Confirm Sign-Up</Button>
       </div>
     </Modal>
   );
