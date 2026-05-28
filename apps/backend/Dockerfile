@@ -27,6 +27,7 @@ FROM node:20-alpine AS runner
 # Run as non-root for security
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
 WORKDIR /app
+RUN chown appuser:appgroup /app
 USER appuser
 
 # Copy workspace root and backend package files
