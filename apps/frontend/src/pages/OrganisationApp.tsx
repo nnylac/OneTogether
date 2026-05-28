@@ -1,11 +1,11 @@
-import { Activity, Building2, Car, CheckCircle2, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Loader2, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Wand2, Waves, ZoomIn, ZoomOut } from 'lucide-react';
+import { Activity, Building2, Car, CheckCircle2, ChevronRight, FileText, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SidebarLayout } from '../components/layouts';
-import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr } from '../components/ui';
+import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
-import type { Incident, IncidentType, TimelineCategory } from '../types';
+import type { Incident, TimelineCategory } from '../types';
 
 const timelineCategoryConfig: Record<TimelineCategory, { label: string; cls: string }> = {
   INITIAL:   { label: 'Initial Report', cls: 'bg-blue-100 text-blue-800' },
@@ -20,7 +20,7 @@ const timelineCategoryConfig: Record<TimelineCategory, { label: string; cls: str
   CLOSE:     { label: 'Resolution',     cls: 'bg-emerald-100 text-emerald-800' },
 };
 
-const statusOrder: Incident['status'][] = ['Open', 'Triage', 'Dispatched', 'In Progress', 'Resolved'];
+const statusOrder: Incident['status'][] = ['Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed'];
 
 export function OrganisationApp() {
   return (
@@ -54,7 +54,7 @@ function OrgDashboard() {
         action={<Button variant="outline"><RefreshCw size={14} /> Refresh</Button>}
       />
       <div className="mt-6 grid gap-4 lg:grid-cols-5">
-        <StatCard label="Active assigned" value={assigned.filter((i) => i.status !== 'Resolved').length} sub="visible to SCDF" />
+        <StatCard label="Active assigned" value={assigned.filter((i) => i.status !== 'Closed').length} sub="visible to SCDF" />
         <StatCard label="New source tickets" value={2} sub="from dispatch feeds" tone="orange" />
         <StatCard label="Awaiting assignment" value={incidents.filter((i) => i.assignedOrganisations.length === 1).length} sub="triage queue" />
         <StatCard label="Public alerts created" value={broadcasts.length} sub="last 24 hours" tone="green" />
@@ -108,34 +108,24 @@ function OrgDashboard() {
 }
 
 function OrgIncidents() {
-  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, createIncident, addTimelineUpdate } = useData();
+  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep } = useData();
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const [showForm, setShowForm] = useState(false);
   const visible = incidents.filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf'));
-  const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate };
-
-  const handleCreate = (data: Parameters<typeof createIncident>[0]) => {
-    createIncident(data);
-    setShowForm(false);
-  };
+  const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep };
 
   return (
     <section>
       <SectionHeader
         title="Incident Tickets"
-        subtitle="Before assignment, tickets are visible only to their creator organisation."
+        subtitle="Tickets are synced from source systems. Assignment and response actions are managed here."
         action={
-          <div className="flex gap-2">
-            <Button variant="primary" onClick={() => setShowForm((v) => !v)}><Plus size={14} /> New Incident</Button>
-            <div className="flex border border-sgds-gray-200">
-              <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><List size={15} /> List</button>
-              <button onClick={() => setView('grid')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'grid' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><Grid2X2 size={15} /> Grid</button>
-            </div>
+          <div className="flex border border-sgds-gray-200">
+            <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><List size={15} /> List</button>
+            <button onClick={() => setView('grid')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'grid' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><Grid2X2 size={15} /> Grid</button>
           </div>
         }
       />
-      {showForm && <CreateIncidentPanel onSubmit={handleCreate} onCancel={() => setShowForm(false)} />}
       {view === 'list' ? (
         <div className="mt-6 space-y-4">{visible.map((i) => <IncidentDetailCard key={i.id} incident={i} {...actions} />)}</div>
       ) : (
@@ -153,359 +143,6 @@ function OrgIncidents() {
   );
 }
 
-type CreateIncidentData = { title: string; type: IncidentType; severity: 'Critical' | 'High' | 'Medium' | 'Low'; location: string; zone: string; description: string; publicVisibility: 'Private' | 'Public'; suggestedSteps?: string[]; resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[] };
-
-const aiDescriptionTemplates: Record<string, Record<string, string>> = {
-  Medical: {
-    Critical: 'Multiple casualties reported requiring immediate medical attention. Life-threatening injuries confirmed on-site. SCDF paramedics and ambulances dispatched. Coordinating with SGH for emergency trauma care. Scene is being secured for medical access.',
-    High: 'Casualties reported requiring urgent medical response. SCDF paramedics en route. Medical assessment in progress. Coordinating hospital availability for patient transfer.',
-    Medium: 'Medical incident requiring attention. Paramedics dispatched for assessment and treatment. Monitoring for escalation.',
-    Low: 'Minor medical incident reported. First responders on-site for assessment and treatment.'
-  },
-  Fire: {
-    Critical: 'Large-scale fire with structural involvement. Multiple units dispatched. Evacuation of surrounding area in progress. Risk of spread to adjacent structures. Water supply and pumping operations active.',
-    High: 'Fire incident with significant smoke and flames. SCDF fire engines on-site. Evacuation underway. Containment operations in progress.',
-    Medium: 'Contained fire incident. SCDF on-site. Minimal risk of spread. Evacuation of immediate area completed.',
-    Low: 'Small fire incident. SCDF dispatched for assessment and suppression.'
-  },
-  Flood: {
-    Critical: 'Flash flooding with multiple road closures and structural risk. Rescue operations underway for trapped residents. Pumping operations activated. Multiple zones affected.',
-    High: 'Significant flooding causing road closures and displacement of residents. SCDF flood teams deployed. Coordination with NEA and PUB ongoing.',
-    Medium: 'Localised flooding causing disruptions. Pumping operations deployed. Roads passable with caution.',
-    Low: 'Minor flooding reported. Monitoring water levels. Roads may have surface water.'
-  },
-  Road: {
-    Critical: 'Major road accident with multiple casualties. Significant traffic disruption. Emergency services coordinating. Road closed for emergency operations.',
-    High: 'Serious road accident with injuries. Traffic severely disrupted. Ambulances and SCDF on-site for assessment and evacuation.',
-    Medium: 'Road accident with minor injuries. Traffic management in place. Emergency services assessing the scene.',
-    Low: 'Minor road incident. Vehicles involved. Police and SCDF dispatched for assessment.'
-  },
-  Infrastructure: {
-    Critical: 'Critical infrastructure failure with immediate public safety risk. Evacuation underway. Utilities disrupted. Emergency containment operations in progress.',
-    High: 'Significant infrastructure damage. Public safety risk being assessed. Specialist teams dispatched to the site.',
-    Medium: 'Infrastructure damage reported. Assessment team dispatched. Public access restricted as a precaution.',
-    Low: 'Minor infrastructure issue reported. Maintenance team dispatched for assessment and repair.'
-  },
-  Civil: {
-    Critical: 'Large-scale civil disturbance posing public safety risk. Multiple units deployed. Area cordoned. SPF coordinating response with partner agencies.',
-    High: 'Significant civil unrest requiring police intervention. Area being secured. Public advised to avoid the zone.',
-    Medium: 'Civil disturbance reported. Police deployed for management and de-escalation of the situation.',
-    Low: 'Minor civil matter reported. Police dispatched for assessment and management.'
-  },
-  Other: {
-    Critical: 'Critical incident requiring immediate multi-agency response. All available resources being coordinated. Public safety impact being assessed.',
-    High: 'Significant incident requiring urgent response. Specialist teams dispatched. Situation actively monitored.',
-    Medium: 'Incident reported requiring attention. Assessment teams en route to the location.',
-    Low: 'Minor incident reported. Responders dispatched for assessment and management.'
-  }
-};
-
-const aiSeverityKeywords: Record<string, string[]> = {
-  Critical: ['critical', 'multiple casualties', 'mass', 'trapped', 'life-threatening', 'large-scale', 'structural collapse', 'explosion'],
-  Low: ['minor', 'small', 'no injury', 'no casualties', 'contained', 'isolated'],
-  Medium: ['moderate', 'localised', 'limited', 'controlled']
-};
-
-const coordinationStepTemplates: Record<IncidentType, Record<string, string[]>> = {
-  Medical: {
-    Critical: ['Dispatch nearest ambulances with advanced life support', 'Notify nearby hospitals and reserve trauma bays', 'Alert volunteer first-aid teams for scene support', 'Request Red Cross medical assistance if casualties > 5', 'Set up casualty collection point'],
-    High: ['Dispatch ambulances for assessment', 'Notify hospitals for standby capacity', 'Alert volunteer medical teams if additional support needed', 'Prepare medical transport coordination'],
-    Medium: ['Dispatch basic response unit for assessment', 'Monitor situation for escalation', 'Have volunteer teams on standby'],
-    Low: ['Dispatch response unit for assessment', 'Monitor until resolved']
-  },
-  Fire: {
-    Critical: ['Dispatch full fire response including pumps and ladders', 'Evacuate surrounding buildings - radius 200m', 'Request additional units for backup water supply', 'Coordinate with SPF for crowd and traffic control', 'Alert nearby Red Cross for displaced resident support'],
-    High: ['Dispatch fire engines and rescue team', 'Evacuate affected building', 'Coordinate evacuation with nearby volunteers', 'Monitor for spread to adjacent structures'],
-    Medium: ['Containment operations only - affected area', 'Monitor for structural risks', 'Have backup units on standby'],
-    Low: ['Assessment and suppression', 'Ensure full extinguishment before departure']
-  },
-  Flood: {
-    Critical: ['Deploy pumping operations team immediately', 'Coordinate rescue for trapped residents', 'Issue public advisory - avoid low-lying areas', 'Request NEA rainfall monitoring updates', 'Set up evacuation centre with volunteer support'],
-    High: ['Deploy pumps for water removal', 'Coordinate road closures with SPF', 'Alert volunteer teams for community outreach', 'Monitor water levels hourly'],
-    Medium: ['Deploy pumps to affected area', 'Monitor drainage systems', 'Have additional pumps on standby'],
-    Low: ['Assessment of flooding extent', 'Deploy pumps if needed', 'Monitor for escalation']
-  },
-  Road: {
-    Critical: ['Dispatch multiple ambulances and rescue units', 'Coordinate with SPF for road closure and traffic diversion', 'Alert nearest hospitals for mass casualty protocol', 'Request traffic police for scene management'],
-    High: ['Dispatch ambulances for injured parties', 'Coordinate with SPF for traffic management', 'Alert hospitals for potential admissions'],
-    Medium: ['Dispatch assessment unit', 'Coordinate minimal traffic control', 'Monitor situation'],
-    Low: ['Dispatch response for assessment', 'Coordinate traffic if needed']
-  },
-  Infrastructure: {
-    Critical: ['Cordon off affected area - 500m radius', 'Coordinate utility isolation - gas, electricity, water', 'Evacuate at-risk buildings', 'Request specialist assessment team', 'Alert Red Cross for affected resident support'],
-    High: ['Secure immediate area - cordon off', 'Coordinate with utility providers', 'Assess structural risks', 'Prepare for evacuation if needed'],
-    Medium: ['Secure affected site', 'Request utility assessment', 'Monitor for escalation'],
-    Low: ['Dispatch assessment team', 'Coordinate basic safety measures']
-  },
-  Civil: {
-    Critical: ['Deploy crowd control units', 'Coordinate SPF perimeter', 'Alert all partner organisations for potential escalation', 'Request additional resources if situation expands'],
-    High: ['Deploy crowd management', 'Secure area boundaries', 'Monitor crowd size and behaviour', 'Have backup units on standby'],
-    Medium: ['Deploy de-escalation team', 'Monitor situation closely', 'Prepare contingency plan'],
-    Low: ['Dispatch assessment team', 'Monitor for escalation']
-  },
-  Other: {
-    Critical: ['Assess incident type and scale immediately', 'Request multi-agency coordination', 'Alert all partner organisations', 'Prepare for worst-case scenario deployment'],
-    High: ['Assess and classify incident', 'Determine required agencies', 'Coordinate initial response'],
-    Medium: ['Dispatch assessment team', 'Monitor situation', 'Escalate if needed'],
-    Low: ['Dispatch assessment team', 'Monitor until resolved']
-  }
-};
-
-const recommendedOrganisations: Record<IncidentType, string[]> = {
-  Medical: ['sgh', 'stjohn', 'hsa'],
-  Fire: ['scdf', 'redcross'],
-  Flood: ['scdf', 'pa-jurong', 'redcross'],
-  Road: ['scdf', 'spf'],
-  Infrastructure: ['scdf', 'sgh'],
-  Civil: ['spf', 'scdf', 'pa-jurong'],
-  Other: ['scdf']
-};
-
-function classifySeverity(text: string): 'Critical' | 'High' | 'Medium' | 'Low' {
-  const lower = text.toLowerCase();
-  for (const [sev, keywords] of Object.entries(aiSeverityKeywords)) {
-    if (keywords.some((kw) => lower.includes(kw))) return sev as 'Critical' | 'High' | 'Medium' | 'Low';
-  }
-  return 'High';
-}
-
-function CreateIncidentPanel({ onSubmit, onCancel }: { onSubmit: (data: CreateIncidentData) => void; onCancel: () => void }) {
-  const { hospitals, organisations } = useData();
-  const [form, setForm] = useState<CreateIncidentData>({
-    title: '',
-    type: 'Medical',
-    severity: 'High',
-    location: '',
-    zone: '',
-    description: '',
-    publicVisibility: 'Private'
-  });
-  const [aiLoading, setAiLoading] = useState(false);
-  const [severitySuggestion, setSeveritySuggestion] = useState<string | null>(null);
-  const [coordinationLoading, setCoordinationLoading] = useState(false);
-  const [suggestedSteps, setSuggestedSteps] = useState<string[] | null>(null);
-  const [resourceInsights, setResourceInsights] = useState<{ type: string; available: number; total: number; recommended: boolean }[] | null>(null);
-
-  const set = <K extends keyof CreateIncidentData>(key: K, value: CreateIncidentData[K]) => {
-    setForm((prev) => ({ ...prev, [key]: value }));
-    setSeveritySuggestion(null);
-    if (key === 'type' || key === 'severity') {
-      setSuggestedSteps(null);
-      setResourceInsights(null);
-    }
-  };
-
-  const handleSubmit = () => {
-    if (!form.title.trim() || !form.location.trim() || !form.zone.trim() || !form.description.trim()) return;
-    onSubmit({ ...form, suggestedSteps: form.suggestedSteps || undefined, resourceInsights: form.resourceInsights || undefined });
-  };
-
-  const generateDescription = () => {
-    setAiLoading(true);
-    setTimeout(() => {
-      const draft = aiDescriptionTemplates[form.type]?.[form.severity] ?? '';
-      setForm((prev) => ({ ...prev, description: draft }));
-      setAiLoading(false);
-    }, 700);
-  };
-
-  const suggestSeverity = () => {
-    const suggested = classifySeverity(form.title + ' ' + form.description);
-    if (suggested !== form.severity) setSeveritySuggestion(suggested);
-    else setSeveritySuggestion('matches');
-  };
-
-  const applySeverity = () => {
-    if (severitySuggestion && severitySuggestion !== 'matches') {
-      setForm((prev) => ({ ...prev, severity: severitySuggestion as CreateIncidentData['severity'] }));
-    }
-    setSeveritySuggestion(null);
-  };
-
-  const generateCoordinationSuggestions = () => {
-    setCoordinationLoading(true);
-    setTimeout(() => {
-      const steps = coordinationStepTemplates[form.type]?.[form.severity] ?? ['Dispatch assessment team', 'Monitor situation', 'Coordinate with partner agencies'];
-      setSuggestedSteps(steps);
-
-      const insights: { type: string; available: number; total: number; recommended: boolean }[] = [];
-
-      const totalHospitalBeds = hospitals.reduce((s, h) => s + h.availableBeds, 0);
-      const totalBeds = hospitals.reduce((s, h) => s + h.totalBeds, 0);
-      insights.push({
-        type: 'Hospital beds',
-        available: totalHospitalBeds,
-        total: totalBeds,
-        recommended: form.type === 'Medical' || form.severity === 'Critical'
-      });
-
-      const totalVolunteers = organisations.reduce((s, o) => s + o.volunteersAvailable, 0);
-      const totalVolunteerCapacity = organisations.reduce((s, o) => s + o.volunteersTotal, 0);
-      insights.push({
-        type: 'Volunteer responders',
-        available: totalVolunteers,
-        total: totalVolunteerCapacity,
-        recommended: form.severity === 'Critical' || form.type === 'Flood' || form.type === 'Civil'
-      });
-
-      const totalIcuBeds = hospitals.reduce((s, h) => s + h.icuAvailable, 0);
-      insights.push({
-        type: 'ICU capacity',
-        available: totalIcuBeds,
-        total: totalIcuBeds + 20,
-        recommended: form.type === 'Medical' && form.severity === 'Critical'
-      });
-
-      setResourceInsights(insights);
-      setCoordinationLoading(false);
-    }, 800);
-  };
-
-  const applyCoordinationSuggestions = () => {
-    if (suggestedSteps && resourceInsights) {
-      setForm((prev) => ({ ...prev, suggestedSteps, resourceInsights }));
-    }
-    setSuggestedSteps(null);
-    setResourceInsights(null);
-  };
-
-  const inputCls = 'w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple';
-
-  return (
-    <Card className="mt-6 overflow-hidden">
-      <div className="border-b border-sgds-gray-200 bg-sgds-gray-50 px-5 py-3">
-        <h2 className="text-base font-bold text-sgds-gray-900">Create New Incident</h2>
-        <p className="mt-0.5 text-xs text-sgds-gray-500">New incidents are private by default and assigned to SCDF.</p>
-      </div>
-      <div className="grid gap-5 p-5 lg:grid-cols-2">
-        <div className="lg:col-span-2">
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Title <span className="text-critical">*</span></label>
-          <input className={inputCls} placeholder="Brief incident title" value={form.title} onChange={(e) => set('title', e.target.value)} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Type</label>
-          <select className={inputCls} value={form.type} onChange={(e) => set('type', e.target.value as CreateIncidentData['type'])}>
-            {(['Medical', 'Fire', 'Flood', 'Road', 'Infrastructure', 'Civil', 'Other'] as const).map((t) => <option key={t}>{t}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Severity</label>
-          <select className={inputCls} value={form.severity} onChange={(e) => set('severity', e.target.value as CreateIncidentData['severity'])}>
-            {(['Critical', 'High', 'Medium', 'Low'] as const).map((s) => <option key={s}>{s}</option>)}
-          </select>
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Location <span className="text-critical">*</span></label>
-          <input className={inputCls} placeholder="e.g. Toa Payoh Hub" value={form.location} onChange={(e) => set('location', e.target.value)} />
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Zone <span className="text-critical">*</span></label>
-          <input className={inputCls} placeholder="e.g. Central" value={form.zone} onChange={(e) => set('zone', e.target.value)} />
-        </div>
-        <div className="lg:col-span-2">
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Description <span className="text-critical">*</span></label>
-          <textarea className={`${inputCls} resize-none`} rows={3} placeholder="Describe the incident" value={form.description} onChange={(e) => set('description', e.target.value)} />
-        </div>
-        <div className="lg:col-span-2">
-          <div className="flex items-center justify-between border border-emerald-200 bg-emerald-50 p-3">
-            <div className="flex items-center gap-2">
-              <Sparkles size={15} className="text-emerald-600" />
-              <div>
-                <strong className="text-sm text-emerald-800">AI Incident Assistant</strong>
-                <small className="block text-xs text-emerald-700">Draft description, classify severity, or get AI-suggested coordination steps.</small>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button variant="outline" className="py-1.5 text-xs" onClick={suggestSeverity} disabled={!form.title.trim() && !form.description.trim()}>
-                <Wand2 size={13} /> Classify severity
-              </Button>
-              <Button variant="success" onClick={generateDescription} disabled={aiLoading}>
-                {aiLoading ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-                {aiLoading ? 'Generating…' : 'Generate description'}
-              </Button>
-              <Button variant="primary" className="py-1.5 text-xs" onClick={generateCoordinationSuggestions} disabled={coordinationLoading}>
-                {coordinationLoading ? <Loader2 size={13} className="animate-spin" /> : <Sparkles size={13} />}
-                {coordinationLoading ? 'Generating…' : 'Suggest coordination steps'}
-              </Button>
-            </div>
-          </div>
-          {severitySuggestion === 'matches' && (
-            <div className="mt-2 flex items-center justify-between border border-sgds-gray-200 bg-sgds-gray-50 p-3">
-              <p className="text-sm text-sgds-gray-600">Severity <strong>{form.severity}</strong> looks correct for this description.</p>
-              <Button variant="outline" className="py-1 text-xs" onClick={() => setSeveritySuggestion(null)}>Dismiss</Button>
-            </div>
-          )}
-          {severitySuggestion && severitySuggestion !== 'matches' && (
-            <div className="mt-2 flex items-center justify-between border border-blue-200 bg-blue-50 p-3">
-              <p className="text-sm text-blue-800">AI suggests severity: <strong>{severitySuggestion}</strong> based on incident description.</p>
-              <div className="flex gap-2">
-                <Button variant="outline" className="py-1 text-xs" onClick={() => setSeveritySuggestion(null)}>Dismiss</Button>
-                <Button variant="primary" className="py-1 text-xs" onClick={applySeverity}>Apply</Button>
-              </div>
-            </div>
-          )}
-          {(suggestedSteps || resourceInsights) && (
-            <div className="mt-2 border border-purple-200 bg-purple-50 p-4">
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-2">
-                  <Sparkles size={15} className="text-purple-600" />
-                  <div>
-                    <strong className="text-sm text-purple-800">AI Coordination Suggestions</strong>
-                    <small className="block text-xs text-purple-700">Based on incident type, severity, and available resources.</small>
-                  </div>
-                </div>
-                <Button variant="outline" className="py-1 text-xs" onClick={() => { setSuggestedSteps(null); setResourceInsights(null); }}>Dismiss</Button>
-              </div>
-              {suggestedSteps && (
-                <div className="mt-3">
-                  <h4 className="mb-2 text-xs font-semibold text-sgds-gray-700">Recommended next steps</h4>
-                  <ul className="space-y-1.5">
-                    {suggestedSteps.map((step, i) => (
-                      <li key={i} className="flex items-start gap-2 text-xs text-sgds-gray-700">
-                        <CheckCircle2 size={12} className="mt-0.5 shrink-0 text-safe" />
-                        <span>{step}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {resourceInsights && (
-                <div className="mt-3">
-                  <h4 className="mb-2 text-xs font-semibold text-sgds-gray-700">Resource availability</h4>
-                  <div className="grid gap-2 md:grid-cols-3">
-                    {resourceInsights.map((insight, i) => (
-                      <div key={i} className={`flex items-center justify-between rounded border p-2 text-xs ${insight.recommended ? 'border-purple-300 bg-purple-50' : 'border-sgds-gray-200 bg-white'}`}>
-                        <span className={insight.recommended ? 'font-semibold text-purple-800' : 'text-sgds-gray-700'}>{insight.type}</span>
-                        <span className={insight.recommended ? 'font-bold text-purple-700' : 'text-sgds-gray-600'}>{insight.available}/{insight.total}</span>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-              <div className="mt-3 flex justify-end">
-                <Button variant="primary" className="py-1.5 text-xs" onClick={applyCoordinationSuggestions}>
-                  Apply suggestions to incident
-                </Button>
-              </div>
-            </div>
-          )}
-        </div>
-        <div>
-          <label className="mb-1 block text-xs font-semibold text-sgds-gray-700">Visibility</label>
-          <select className={inputCls} value={form.publicVisibility} onChange={(e) => set('publicVisibility', e.target.value as 'Private' | 'Public')}>
-            <option value="Private">Private</option>
-            <option value="Public">Public</option>
-          </select>
-        </div>
-        <div className="flex items-end justify-end gap-2">
-          <Button variant="outline" onClick={onCancel}>Cancel</Button>
-          <Button variant="primary" onClick={handleSubmit} disabled={!form.title.trim() || !form.location.trim() || !form.zone.trim() || !form.description.trim()}>Create Incident</Button>
-        </div>
-      </div>
-    </Card>
-  );
-}
-
 interface IncidentActions {
   assignIncident: (incidentId: string, organisationId: string) => void;
   updateIncidentStatus: (incidentId: string, status: Incident['status']) => void;
@@ -513,18 +150,80 @@ interface IncidentActions {
   requestVolunteers: (incidentId: string) => void;
   resolveIncident: (incidentId: string) => void;
   addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
+  advanceIncidentStatus: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
+  generateSitrep: (incidentId: string) => void;
 }
 
-function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
+function StatusStepper({ incident, onAdvance }: { incident: Incident; onAdvance: (text: string) => void }) {
+  const [showAdvance, setShowAdvance] = useState(false);
+  const [advanceText, setAdvanceText] = useState('');
+  const currentIdx = statusOrder.indexOf(incident.status);
+  const nextStatus = currentIdx < statusOrder.length - 1 ? statusOrder[currentIdx + 1] : null;
+
+  const submit = () => {
+    if (!advanceText.trim()) return;
+    onAdvance(advanceText);
+    setAdvanceText('');
+    setShowAdvance(false);
+  };
+
+  return (
+    <div>
+      <div className="mb-2 flex justify-between text-xs text-sgds-gray-500">
+        <span>Operational phase</span>
+        <span>{currentIdx + 1}/{statusOrder.length}</span>
+      </div>
+      <div className="flex items-center gap-0.5">
+        {statusOrder.map((s, i) => (
+          <div key={s} title={s} className={`h-1.5 flex-1 rounded-sm ${i < currentIdx ? 'bg-sgds-purple' : i === currentIdx ? 'bg-sgds-purple opacity-60' : 'bg-sgds-gray-200'}`} />
+        ))}
+      </div>
+      <div className="mt-1.5 text-xs font-semibold text-sgds-purple">{incident.status}</div>
+      {nextStatus && (
+        <div className="mt-2">
+          {showAdvance ? (
+            <div className="border border-sgds-gray-200 bg-sgds-gray-50 p-2">
+              <textarea
+                className="w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple resize-none"
+                rows={2}
+                placeholder={`Log entry for → ${nextStatus}`}
+                value={advanceText}
+                onChange={(e) => setAdvanceText(e.target.value)}
+              />
+              <div className="mt-1.5 flex gap-1.5">
+                <Button variant="outline" className="flex-1 py-1 text-xs" onClick={() => setShowAdvance(false)}>Cancel</Button>
+                <Button variant="primary" className="flex-1 py-1 text-xs" disabled={!advanceText.trim()} onClick={submit}>
+                  → {nextStatus}
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <button onClick={() => setShowAdvance(true)} className="flex w-full items-center justify-center gap-1 border border-sgds-purple px-3 py-2 text-xs font-semibold text-sgds-purple hover:bg-sgds-purple-light">
+              <ChevronRight size={13} /> Advance to {nextStatus}
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
   const [showTlForm, setShowTlForm] = useState(false);
   const [tlForm, setTlForm] = useState<{ category: TimelineCategory; actor: string; text: string }>({ category: 'NOTE', actor: '', text: '' });
+  const [showSitrep, setShowSitrep] = useState(false);
   const inputCls = 'w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple';
+  const canGenerateSitrep = ['On Scene', 'Contained', 'Recovery'].includes(incident.status);
 
   const submitTlEntry = () => {
     if (!tlForm.text.trim()) return;
     addTimelineUpdate(incident.id, { category: tlForm.category, organisation: 'SCDF', actor: tlForm.actor || undefined, text: tlForm.text });
     setTlForm({ category: 'NOTE', actor: '', text: '' });
     setShowTlForm(false);
+  };
+
+  const handleAdvance = (text: string) => {
+    advanceIncidentStatus(incident.id, { category: 'STATUS', organisation: 'SCDF', actor: 'Chen Xiao Ling', text });
   };
 
   return (
@@ -535,6 +234,11 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncide
           <Badge>{incident.severity}</Badge>
           <Badge>{incident.status}</Badge>
           <Badge>{incident.publicVisibility}</Badge>
+          {incident.confidenceScore !== undefined && (
+            <span className="border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
+              CONF {incident.confidenceScore}%
+            </span>
+          )}
         </div>
         <h2 className="mt-1 text-lg font-bold text-sgds-gray-900">{incident.title}</h2>
         <div className="mt-0.5 text-xs text-sgds-gray-500">{incident.type} · Created by {incident.createdBy.toUpperCase()} · {incident.createdAt}</div>
@@ -542,6 +246,44 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncide
       <div className="grid gap-6 p-5 lg:grid-cols-[1fr_300px]">
         <div>
           <p className="text-sm leading-6 text-sgds-gray-700">{incident.description}</p>
+
+          {/* ICS Command Structure */}
+          {(incident.incidentCommander || incident.icsSection) && (
+            <div className="mt-4 border border-navy-100 bg-navy-50 p-3">
+              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-navy-700">ICS Command Structure</h3>
+              <div className="grid gap-2 sm:grid-cols-2">
+                {incident.incidentCommander && <InfoCell label="Incident Commander" value={incident.incidentCommander} />}
+                {incident.icsSection?.operations && <InfoCell label="Operations" value={incident.icsSection.operations} />}
+                {incident.icsSection?.planning && <InfoCell label="Planning" value={incident.icsSection.planning} />}
+                {incident.icsSection?.logistics && <InfoCell label="Logistics" value={incident.icsSection.logistics} />}
+                {incident.icsSection?.pio && <InfoCell label="PIO" value={incident.icsSection.pio} />}
+              </div>
+            </div>
+          )}
+
+          {/* SITREP */}
+          {incident.sitrep && showSitrep && (
+            <div className="mt-4 border border-indigo-200 bg-indigo-50 p-4">
+              <div className="mb-2 flex items-center justify-between">
+                <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-800">SITREP — {incident.sitrep.generatedAt}</h3>
+                <button onClick={() => setShowSitrep(false)} className="text-xs text-indigo-500 hover:text-indigo-700">Close</button>
+              </div>
+              <p className="text-xs text-indigo-900 leading-5">{incident.sitrep.situation}</p>
+              {incident.sitrep.casualties && <p className="mt-1 text-xs font-semibold text-red-700">{incident.sitrep.casualties}</p>}
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Current Actions</div>
+                  <ul className="mt-1 space-y-0.5">{incident.sitrep.currentActions.map((a, i) => <li key={i} className="text-xs text-indigo-800">· {a}</li>)}</ul>
+                </div>
+                <div>
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Next Actions</div>
+                  <ul className="mt-1 space-y-0.5">{incident.sitrep.nextActions.map((a, i) => <li key={i} className="text-xs text-indigo-800">· {a}</li>)}</ul>
+                </div>
+              </div>
+              <p className="mt-2 text-xs text-indigo-700">{incident.sitrep.resourceStatus}</p>
+            </div>
+          )}
+
           {incident.suggestedSteps && incident.suggestedSteps.length > 0 && (
             <div className="mt-4 rounded border border-purple-200 bg-purple-50 p-3">
               <div className="flex items-center gap-2 mb-2">
@@ -644,25 +386,25 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, updateIncide
             })}
           </div>
         </div>
-        <div className="space-y-2.5">
-          <div className="mb-2">
-            <div className="mb-1 flex justify-between text-xs text-sgds-gray-500">
-              <span>Status progress</span><span>{statusOrder.indexOf(incident.status) + 1}/5</span>
-            </div>
-            <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-sgds-purple" />
-          </div>
+        <div className="space-y-3">
+          <StatusStepper incident={incident} onAdvance={handleAdvance} />
           <select onChange={(e) => assignIncident(incident.id, e.target.value)} className="w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" defaultValue="">
             <option value="" disabled>Assign organisation</option>
             <option value="sgh">Singapore General Hospital</option>
             <option value="redcross">Singapore Red Cross</option>
             <option value="spf">SPF</option>
           </select>
-          <select onChange={(e) => updateIncidentStatus(incident.id, e.target.value as Incident['status'])} className="w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" defaultValue={incident.status}>
-            {statusOrder.map((s) => <option key={s}>{s}</option>)}
-          </select>
           <Button variant="primary" className="w-full" onClick={() => makeIncidentPublic(incident.id)}>Make public</Button>
           <Button variant="success" className="w-full" onClick={() => requestVolunteers(incident.id)}>Request volunteers</Button>
-          <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Resolve ticket</Button>
+          {canGenerateSitrep && (
+            <Button variant="outline" className="w-full" onClick={() => { generateSitrep(incident.id); setShowSitrep(true); }}>
+              <FileText size={14} /> {incident.sitrep ? 'Refresh SITREP' : 'Generate SITREP'}
+            </Button>
+          )}
+          {incident.sitrep && !showSitrep && (
+            <button onClick={() => setShowSitrep(true)} className="w-full text-left text-xs font-semibold text-indigo-600 hover:underline">View SITREP →</button>
+          )}
+          <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Close incident</Button>
           {onCollapse && <Button variant="outline" className="w-full" onClick={onCollapse}>Collapse</Button>}
         </div>
       </div>
@@ -684,7 +426,7 @@ function IncidentSummaryCard({ incident, onClick }: { incident: Incident; onClic
         <div className="mt-3 flex flex-wrap gap-1.5"><Badge>{incident.severity}</Badge><Badge>{incident.type}</Badge><Badge>{incident.publicVisibility}</Badge></div>
         <p className="mt-3 line-clamp-2 text-sm leading-6 text-sgds-gray-600">{incident.description}</p>
         <div className="mt-4 space-y-2">
-          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={5} tone="bg-sgds-purple" />
+          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={8} tone="bg-sgds-purple" />
           <InfoCell label="Location" value={incident.location} />
         </div>
         <div className="mt-3 text-xs font-semibold text-sgds-purple">Click to expand →</div>
@@ -789,61 +531,92 @@ function OrgMap() {
 }
 
 function OrgResources() {
-  const { hospitals, organisations } = useData();
+  const { hospitals, organisations, units, updateUnitStatus, incidents } = useData();
+  const [tab, setTab] = useState<'units' | 'hospitals' | 'orgs'>('units');
+  const scdfUnits = units.filter((u) => u.organisation === 'SCDF');
+
+  const handleDispatch = (unitId: string) => {
+    const inc = incidents.find((i) => i.status === 'Dispatched' || i.status === 'On Scene');
+    if (inc) updateUnitStatus(unitId, 'En Route', inc.id);
+    else updateUnitStatus(unitId, 'Assigned');
+  };
+
+  const handleReturn = (unitId: string) => {
+    updateUnitStatus(unitId, 'Available', undefined);
+  };
+
   return (
     <section>
-      <SectionHeader title="Resources" subtitle="Operational capacities for active response." />
-      <div className="mt-6 grid gap-6 lg:grid-cols-3">
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Hospital Capacities</h2>
-          <div className="mt-4 space-y-4">
-            {hospitals.slice(0, 4).map((h) => (
-              <div key={h.id}>
-                <div className="mb-1 flex justify-between text-sm"><span className="text-sgds-gray-700">{h.name}</span><strong className="text-sgds-gray-900">{h.availableBeds}/{h.totalBeds}</strong></div>
-                <ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" />
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Volunteer Organisations</h2>
-          <div className="mt-4 divide-y divide-sgds-gray-100">
-            {organisations.filter((o) => o.type !== 'Healthcare').map((o) => (
-              <div key={o.id} className="py-3 text-sm">
-                <div className="font-semibold text-sgds-gray-900">{o.name}</div>
-                <div className="mt-0.5 text-sgds-gray-500">{o.volunteersAvailable}/{o.volunteersTotal} available</div>
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Equipment</h2>
-          <div className="mt-4 space-y-3">
-            <InfoCell label="Ambulances" value="42 available" />
-            <InfoCell label="Flood pumps" value="18 available" />
-            <InfoCell label="Relief kits" value="1,840 ready" />
-          </div>
-        </Card>
+      <SectionHeader title="SCDF Resources" subtitle="Unit status, hospital capacities, and partner organisations." />
+      <div className="mt-5 grid gap-4 lg:grid-cols-3">
+        <StatCard label="SCDF Units Available" value={scdfUnits.filter((u) => u.status === 'Available').length} sub={`of ${scdfUnits.length} total`} tone="green" />
+        <StatCard label="Units Deployed" value={scdfUnits.filter((u) => u.status !== 'Available' && u.status !== 'Offline').length} sub="en route / on scene" tone="orange" />
+        <StatCard label="Hospital Beds Available" value={hospitals.reduce((s, h) => s + h.availableBeds, 0)} sub={`of ${hospitals.reduce((s, h) => s + h.totalBeds, 0)} total`} />
       </div>
-      <Card className="mt-6">
-        <div className="border-b border-sgds-gray-200 px-5 py-4">
-          <h2 className="text-base font-bold text-sgds-gray-900">All Organisations</h2>
-        </div>
-        <DataTable>
-          <Thead><tr><Th>Organisation</Th><Th>Type</Th><Th>Volunteers</Th><Th>Active tasks</Th><Th>Status</Th></tr></Thead>
-          <Tbody>
-            {organisations.map((o) => (
-              <Tr key={o.id}>
-                <Td className="font-semibold">{o.name}</Td>
-                <Td><Badge>{o.type}</Badge></Td>
-                <Td>{o.volunteersAvailable}/{o.volunteersTotal}</Td>
-                <Td>{o.activeTasks}</Td>
-                <Td><Badge>{o.status}</Badge></Td>
-              </Tr>
+      <div className="mt-5 flex border-b border-sgds-gray-200">
+        {[['units', 'Unit Status Board'], ['hospitals', 'Hospitals'], ['orgs', 'Organisations']].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id as typeof tab)} className={`border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${tab === id ? 'border-sgds-purple text-sgds-purple' : 'border-transparent text-sgds-gray-600 hover:text-sgds-gray-900'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'units' && (
+        <div className="mt-5">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(['Available', 'Assigned', 'En Route', 'On Scene', 'Engaged', 'Offline'] as const).map((s) => {
+              const count = scdfUnits.filter((u) => u.status === s).length;
+              return <span key={s} className="border border-sgds-gray-200 px-3 py-1.5 text-xs font-semibold text-sgds-gray-700"><span className="mr-1.5 font-bold text-sgds-gray-900">{count}</span>{s}</span>;
+            })}
+          </div>
+          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+            {scdfUnits.map((unit) => (
+              <UnitCard key={unit.id} unit={unit} onDispatch={() => handleDispatch(unit.id)} onReturn={() => handleReturn(unit.id)} />
             ))}
-          </Tbody>
-        </DataTable>
-      </Card>
+          </div>
+        </div>
+      )}
+
+      {tab === 'hospitals' && (
+        <div className="mt-5 grid gap-4 lg:grid-cols-2">
+          {hospitals.map((h) => (
+            <Card key={h.id} className="p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div><div className="text-sm font-bold text-sgds-gray-900">{h.name}</div><div className="text-xs text-sgds-gray-500">{h.address}</div></div>
+                <Badge>{h.status}</Badge>
+              </div>
+              <div className="mt-3 grid grid-cols-3 gap-2">
+                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.availableBeds}</div><div className="text-[10px] text-sgds-gray-500">Avail beds</div></div>
+                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.icuAvailable}</div><div className="text-[10px] text-sgds-gray-500">ICU</div></div>
+                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.traumaBays}</div><div className="text-[10px] text-sgds-gray-500">Trauma</div></div>
+              </div>
+              <div className="mt-3">
+                <ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" />
+                <div className="mt-1 text-right text-xs text-sgds-gray-500">{Math.round((h.availableBeds / h.totalBeds) * 100)}% available</div>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {tab === 'orgs' && (
+        <Card className="mt-5">
+          <DataTable>
+            <Thead><tr><Th>Organisation</Th><Th>Type</Th><Th>Volunteers</Th><Th>Active tasks</Th><Th>Status</Th></tr></Thead>
+            <Tbody>
+              {organisations.map((o) => (
+                <Tr key={o.id}>
+                  <Td className="font-semibold">{o.name}</Td>
+                  <Td><Badge>{o.type}</Badge></Td>
+                  <Td>{o.volunteersAvailable}/{o.volunteersTotal}</Td>
+                  <Td>{o.activeTasks}</Td>
+                  <Td><Badge>{o.status}</Badge></Td>
+                </Tr>
+              ))}
+            </Tbody>
+          </DataTable>
+        </Card>
+      )}
     </section>
   );
 }

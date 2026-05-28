@@ -1,5 +1,6 @@
-import { AlertTriangle, CheckCircle2, Shield } from 'lucide-react';
+import { AlertTriangle, Shield, Ambulance, Flame, Shield as PoliceIcon, Waves, Plane, Users, Stethoscope } from 'lucide-react';
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
+import type { ResourceUnit } from '../types';
 
 // ─── Masthead ────────────────────────────────────────────────────────────────
 
@@ -22,15 +23,15 @@ export function Masthead() {
 
 // ─── Logo ─────────────────────────────────────────────────────────────────────
 
-export function Logo({ command = false }: { command?: boolean }) {
+export function Logo({ command = false, dark = false }: { command?: boolean; dark?: boolean }) {
   return (
     <div className="flex items-center gap-2.5">
       <div className="grid h-9 w-9 place-items-center bg-navy-950 text-white">
         <Shield size={18} />
       </div>
       <div>
-        <div className="text-sm font-bold text-navy-950">OneTogether</div>
-        <div className="text-[11px] text-sgds-gray-500">{command ? 'Command Centre' : 'Singapore Emergency Platform'}</div>
+        <div className={`text-sm font-bold ${dark ? 'text-white' : 'text-navy-950'}`}>OneTogether</div>
+        <div className={`text-[11px] ${dark ? 'text-eoc-dim' : 'text-sgds-gray-500'}`}>{command ? 'Command Centre' : 'Singapore Emergency Platform'}</div>
       </div>
     </div>
   );
@@ -73,18 +74,6 @@ export function Button({
       {children}
     </button>
   );
-}
-
-export function PrimaryButton({ children, onClick, className = '' }: { children: ReactNode; onClick?: () => void; className?: string }) {
-  return <Button variant="primary" onClick={onClick} className={className}>{children}</Button>;
-}
-
-export function EmptyButton({ children, onClick, className = '' }: { children: ReactNode; onClick?: () => void; className?: string }) {
-  return <Button variant="outline" onClick={onClick} className={className}>{children}</Button>;
-}
-
-export function GreenButton({ children, onClick, className = '' }: { children: ReactNode; onClick?: () => void; className?: string }) {
-  return <Button variant="success" onClick={onClick} className={className}>{children}</Button>;
 }
 
 // ─── Card ─────────────────────────────────────────────────────────────────────
@@ -137,11 +126,23 @@ const badgeTone: Record<string, string> = {
   Low: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   NOTICE: 'bg-orange-100 text-orange-700 border-orange-200',
   INFO: 'bg-blue-100 text-blue-700 border-blue-200',
+  Reported: 'bg-sgds-gray-100 text-sgds-gray-700 border-sgds-gray-200',
+  Unverified: 'bg-amber-100 text-amber-800 border-amber-200',
+  Verified: 'bg-blue-100 text-blue-700 border-blue-200',
+  Dispatched: 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  'On Scene': 'bg-orange-100 text-orange-700 border-orange-200',
+  Contained: 'bg-teal-100 text-teal-700 border-teal-200',
+  Recovery: 'bg-purple-100 text-purple-700 border-purple-200',
+  Closed: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   Open: 'bg-sgds-gray-100 text-sgds-gray-700 border-sgds-gray-200',
   Triage: 'bg-amber-100 text-amber-800 border-amber-200',
-  Dispatched: 'bg-blue-100 text-blue-700 border-blue-200',
   'In Progress': 'bg-orange-100 text-orange-700 border-orange-200',
   Resolved: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  Available: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+  Assigned: 'bg-blue-100 text-blue-700 border-blue-200',
+  'En Route': 'bg-indigo-100 text-indigo-700 border-indigo-200',
+  Engaged: 'bg-orange-100 text-orange-700 border-orange-200',
+  Offline: 'bg-sgds-gray-100 text-sgds-gray-500 border-sgds-gray-200',
   Public: 'bg-emerald-100 text-emerald-700 border-emerald-200',
   Private: 'bg-sgds-gray-100 text-sgds-gray-600 border-sgds-gray-200',
   Normal: 'bg-emerald-100 text-emerald-700 border-emerald-200',
@@ -173,8 +174,8 @@ export function Badge({ children }: { children: ReactNode }) {
 export function ProgressBar({ value, max, tone = 'bg-safe' }: { value: number; max: number; tone?: string }) {
   const pct = Math.max(3, Math.min(100, Math.round((value / max) * 100)));
   return (
-    <div className="h-1.5 w-full rounded-full bg-sgds-gray-200">
-      <div className={`h-1.5 rounded-full transition-all ${tone}`} style={{ width: `${pct}%` }} />
+    <div className="h-1 w-full rounded-full bg-sgds-gray-200">
+      <div className={`h-1 rounded-full transition-all ${tone}`} style={{ width: `${pct}%` }} />
     </div>
   );
 }
@@ -225,17 +226,6 @@ export function Field({ label, helper, children }: { label: string; helper?: str
       {children}
       {helper && <span className="mt-1 block text-xs text-sgds-gray-500">{helper}</span>}
     </label>
-  );
-}
-
-// ─── AIAssistantBox ───────────────────────────────────────────────────────────
-
-export function AIAssistantBox({ text }: { text: string }) {
-  return (
-    <div className="border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
-      <div className="mb-1 flex items-center gap-2 font-bold"><CheckCircle2 size={15} /> AI recommended next action</div>
-      {text}
-    </div>
   );
 }
 
@@ -290,6 +280,54 @@ export function InfoCell({ label, value }: { label: string; value: string }) {
     <div className="bg-sgds-gray-50 p-3">
       <div className="text-xs font-semibold uppercase tracking-wide text-sgds-gray-500">{label}</div>
       <div className="mt-0.5 text-sm font-semibold text-sgds-gray-900">{value}</div>
+    </div>
+  );
+}
+
+// ─── UnitCard ─────────────────────────────────────────────────────────────────
+
+const unitTypeIcon: Record<ResourceUnit['type'], ReactNode> = {
+  Ambulance: <Ambulance size={14} />,
+  'Fire Engine': <Flame size={14} />,
+  Police: <PoliceIcon size={14} />,
+  Boat: <Waves size={14} />,
+  Drone: <Plane size={14} />,
+  'CERT Team': <Users size={14} />,
+  'Medical Team': <Stethoscope size={14} />
+};
+
+const unitStatusDot: Record<ResourceUnit['status'], string> = {
+  Available: 'bg-emerald-500',
+  Assigned: 'bg-blue-500',
+  'En Route': 'bg-indigo-500',
+  'On Scene': 'bg-orange-500',
+  Engaged: 'bg-amber-500',
+  Offline: 'bg-sgds-gray-400'
+};
+
+export function UnitCard({ unit, onDispatch, onReturn }: { unit: ResourceUnit; onDispatch?: () => void; onReturn?: () => void }) {
+  return (
+    <div className="flex flex-col gap-2 border border-sgds-gray-200 bg-white p-3 shadow-card">
+      <div className="flex items-center justify-between">
+        <span className="text-sm font-bold text-sgds-gray-900">{unit.callSign}</span>
+        <span className={`h-2.5 w-2.5 rounded-full ${unitStatusDot[unit.status]}`} title={unit.status} />
+      </div>
+      <div className="flex items-center gap-1.5 text-xs text-sgds-gray-600">
+        {unitTypeIcon[unit.type]}
+        <span>{unit.type}</span>
+      </div>
+      <Badge>{unit.status}</Badge>
+      <div className="text-xs text-sgds-gray-500">{unit.organisation}</div>
+      {(onDispatch || onReturn) && (
+        <div className="flex gap-1.5 pt-1">
+          {onDispatch && unit.status === 'Available' && (
+            <Button variant="primary" onClick={onDispatch} className="flex-1 py-1.5 text-xs">Dispatch</Button>
+          )}
+          {onReturn && (unit.status === 'On Scene' || unit.status === 'Engaged' || unit.status === 'Assigned' || unit.status === 'En Route') && (
+            <Button variant="outline" onClick={onReturn} className="flex-1 py-1.5 text-xs">Return</Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import type { Config } from 'tailwindcss';
 
 export default {
+  darkMode: 'class',
   content: ['./index.html', './src/**/*.{ts,tsx}'],
   theme: {
     extend: {
@@ -37,6 +38,17 @@ export default {
           green: '#0A8217',
           amber: '#F39C12',
           blue: '#1B6EC2'
+        },
+        eoc: {
+          bg: '#0f172a',
+          surface: '#1e293b',
+          border: '#334155',
+          text: '#e2e8f0',
+          dim: '#94a3b8',
+          cyan: '#22d3ee',
+          amber: '#fbbf24',
+          red: '#f87171',
+          green: '#4ade80'
         }
       },
       fontFamily: {

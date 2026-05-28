@@ -1,14 +1,11 @@
-import { Activity, AlertCircle, AlertTriangle, BarChart3, Bell, Building2, Car, CheckCircle2, Edit, Filter, Flame, HeartPulse, Layers, Maximize2, Megaphone, Minus, MoreVertical, Navigation, Plus, RefreshCw, Shield, Trash2, TrendingUp, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
-import type { LucideIcon } from 'lucide-react';
+import { Activity, AlertTriangle, Building2, Car, Edit, Filter, Flame, HeartPulse, Layers, Maximize2, Megaphone, MoreVertical, Navigation, Plus, RefreshCw, Trash2, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SidebarLayout } from '../components/layouts';
-import { AlertBanner, Badge, Button, Card, DataTable, InfoCell, Modal, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr } from '../components/ui';
+import { AlertBanner, Badge, Button, Card, DataTable, InfoCell, Modal, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
 import type { Audience, Broadcast, Hospital, VolunteerTask } from '../types';
-
-type DashboardLine = { text: string; tone?: 'red'; icon?: LucideIcon };
 
 export function GovernmentApp() {
   return (
@@ -30,120 +27,167 @@ export function GovernmentApp() {
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
-function GovDashboard() {
-  const { incidents, hospitals, volunteerTasks, broadcasts, organisations, thresholds } = useData();
-  const totalBeds = hospitals.reduce((s, h) => s + h.totalBeds, 0);
-  const availableBeds = hospitals.reduce((s, h) => s + h.availableBeds, 0);
-  const occupancy = Math.round(((totalBeds - availableBeds) / totalBeds) * 100);
-  const active = incidents.filter((i) => i.status !== 'Resolved').length + 9;
+const SEVERITY_ORDER: Record<string, number> = { Critical: 0, High: 1, Medium: 2, Low: 3 };
 
-  const metrics = [
-    { label: 'Total Incidents', value: 17, icon: AlertTriangle, iconColor: 'text-warning', lines: [{ text: `${active} active` }, { text: '13 open', tone: 'red' as const }] },
-    { label: 'Critical Cases', value: 10, icon: AlertCircle, iconColor: 'text-critical', lines: [{ text: 'severity level 1' }, { text: 'Needs attention', tone: 'red' as const }] },
-    { label: 'Hospital Beds', value: availableBeds, icon: BarChart3, iconColor: 'text-safe', lines: [{ text: `${occupancy}% occupancy` }, { text: `${totalBeds} total` }] },
-    { label: 'Resolved Today', value: 4, icon: CheckCircle2, iconColor: 'text-safe', lines: [{ text: 'of 17 total' }, { text: '24% resolution rate', icon: Minus }] },
-    { label: 'Avg Response', value: '4.2m', icon: TrendingUp, iconColor: 'text-navy-800', lines: [{ text: 'vs 5min target' }, { text: 'Within SLA', icon: Minus }] },
-    { label: 'Volunteers', value: 20, icon: Users, iconColor: 'text-safe', lines: [{ text: 'of 20 registered' }, { text: 'Ready to deploy', icon: Minus }] },
-    { label: 'Broadcasts', value: broadcasts.length, icon: Megaphone, iconColor: 'text-navy-800', lines: [{ text: 'last 24 hours' }, { text: 'Public comms', icon: Minus }] },
-    { label: 'Agencies Active', value: organisations.length, icon: Shield, iconColor: 'text-navy-800', lines: [{ text: 'coordinating now' }, { text: 'SCDF, SPF, MOH', icon: Minus }] }
+function GovDashboard() {
+  const { incidents, hospitals, units, thresholds } = useData();
+  const mapRef = useRef<HTMLDivElement>(null);
+  const dragRef = useRef({ active: false, x: 0, y: 0, left: 0, top: 0 });
+  const [dragging, setDragging] = useState(false);
+  const [cmdTab, setCmdTab] = useState<'queue' | 'log'>('queue');
+
+  const activeIncidents = incidents.filter((i) => i.status !== 'Closed').sort((a, b) => (SEVERITY_ORDER[a.severity] ?? 9) - (SEVERITY_ORDER[b.severity] ?? 9));
+  const criticalCount = incidents.filter((i) => i.severity === 'Critical' && i.status !== 'Closed').length;
+  const availableBeds = hospitals.reduce((s, h) => s + h.availableBeds, 0);
+  const availableUnits = units.filter((u) => u.status === 'Available').length;
+  const allTimeline = incidents.flatMap((i) => i.timeline.map((t) => ({ ...t, incidentTitle: i.title }))).sort((a, b) => b.timestamp.localeCompare(a.timestamp)).slice(0, 15);
+
+  const criticalThresholds = thresholds.filter((t) => t.status === 'Critical');
+
+  const markers = [
+    { x: 19, y: 31, type: 'group', value: '18', color: 'bg-warning text-white', icon: Users },
+    { x: 25, y: 34, type: 'medical', color: 'border-critical text-critical bg-white', icon: HeartPulse },
+    { x: 42, y: 35, type: 'fire', color: 'border-orange-500 text-orange-500 bg-white', icon: Flame },
+    { x: 51, y: 34, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
+    { x: 56, y: 35, type: 'road', color: 'border-critical text-critical bg-white', icon: Car },
+    { x: 63, y: 35, type: 'medical', color: 'border-critical text-critical bg-white', icon: HeartPulse },
+    { x: 71, y: 34, type: 'infrastructure', color: 'border-orange-500 text-orange-500 bg-white', icon: Building2 },
+    { x: 80, y: 33, type: 'fire', color: 'border-critical text-critical bg-white', icon: Flame },
+    { x: 55, y: 39, type: 'group', value: '3', color: 'bg-warning text-white', icon: Users },
+    { x: 23, y: 45, type: 'group', value: '7', color: 'bg-safe text-white', icon: Users },
+    { x: 44, y: 46, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
+    { x: 58, y: 49, type: 'hospital', color: 'border-warning text-warning bg-white', icon: Activity },
+    { x: 68, y: 56, type: 'fire', color: 'border-critical text-critical bg-white', icon: Flame },
+    { x: 80, y: 55, type: 'medical', color: 'border-critical text-critical bg-white', icon: HeartPulse },
+    { x: 38, y: 70, type: 'critical', value: '12', color: 'bg-critical text-white', icon: Users },
   ];
 
-  return (
-    <section>
-      <SectionHeader
-        title="Command Dashboard"
-        subtitle="Real-time national emergency overview"
-        action={
-          <>
-            <Button variant="outline"><Bell size={14} /> Thresholds</Button>
-            <Button variant="primary"><RefreshCw size={14} /> Refresh</Button>
-          </>
-        }
-      />
-      <div className="mt-5 space-y-2">
-        {thresholds.filter((t) => t.status !== 'Normal').slice(0, 3).map((alert) => (
-          <AlertBanner
-            key={alert.id}
-            status={alert.status === 'Critical' ? 'Critical' : 'Warning'}
-            title={`${alert.status.toUpperCase()}: ${alert.title.replace(' threshold', '')}`}
-            detail={`Current: ${alert.current}${alert.unit ?? ''} — threshold: ${alert.threshold}${alert.unit ?? ''}`}
-            action={
-              <Button variant={alert.status === 'Critical' ? 'danger' : 'outline'} className="shrink-0 py-1.5 text-xs">
-                AI Suggestion
-              </Button>
-            }
-          />
-        ))}
-      </div>
-      <div className="mt-5 grid gap-4 lg:grid-cols-4">
-        {metrics.map((m) => <MetricCard key={m.label} {...m} />)}
-      </div>
-      <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <ProgressPanel title="Incidents by Type" rows={[['Medical', 5], ['Flood', 2], ['Fire', 3], ['Road', 2], ['Infrastructure', 3], ['Civil', 2]]} max={17} />
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Severity Distribution</h2>
-          <div className="mt-5 grid grid-cols-3 gap-4 text-center">
-            <Bar label="Critical" value={10} color="bg-critical" />
-            <Bar label="High" value={6} color="bg-warning" />
-            <Bar label="Medium" value={1} color="bg-safe" />
-          </div>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <Mini label="Open" value={6} />
-            <Mini label="Dispatched" value={5} />
-            <Mini label="Resolved" value={4} />
-          </div>
-        </Card>
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Hospital Capacity</h2>
-          <div className="mt-4 space-y-4">
-            {hospitals.slice(0, 4).map((h) => (
-              <div key={h.id}>
-                <div className="mb-1 flex justify-between text-sm"><span className="text-sgds-gray-700">{h.name}</span><strong className="text-sgds-gray-900">{h.availableBeds}/{h.totalBeds}</strong></div>
-                <ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" />
-              </div>
-            ))}
-          </div>
-        </Card>
-        <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Resource Summary</h2>
-          <div className="mt-4 grid grid-cols-2 gap-4">
-            <StatCard label="Volunteers Available" value={20} sub="of 20 total" tone="green" />
-            <StatCard label="Hospitals Active" value={6} sub="of 6 total" />
-          </div>
-          <h3 className="mt-5 text-xs font-bold uppercase tracking-wider text-sgds-gray-500">Recent broadcasts</h3>
-          <div className="mt-3 space-y-2">
-            {broadcasts.slice(0, 3).map((b) => (
-              <div key={b.id} className="flex justify-between gap-3 text-sm">
-                <span className="text-sgds-gray-800">{b.title}<br /><small className="text-sgds-gray-500">{b.issuer}</small></span>
-                <Badge>{b.audience}</Badge>
-              </div>
-            ))}
-          </div>
-        </Card>
-      </div>
-    </section>
-  );
-}
+  const startDrag = (e: MouseEvent<HTMLDivElement>) => { if (!mapRef.current) return; dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: mapRef.current.scrollLeft, top: mapRef.current.scrollTop }; setDragging(true); };
+  const moveDrag = (e: MouseEvent<HTMLDivElement>) => { if (!dragRef.current.active || !mapRef.current) return; mapRef.current.scrollLeft = dragRef.current.left - (e.clientX - dragRef.current.x); mapRef.current.scrollTop = dragRef.current.top - (e.clientY - dragRef.current.y); };
+  const stopDrag = () => { dragRef.current.active = false; setDragging(false); };
 
-function MetricCard({ label, value, icon: Icon, iconColor, lines, outline = false, dot = false }: { label: string; value: string | number; icon: LucideIcon; iconColor: string; lines: DashboardLine[]; outline?: boolean; dot?: boolean }) {
+  const severityBorder: Record<string, string> = { Critical: 'border-l-critical', High: 'border-l-warning', Medium: 'border-l-yellow-400', Low: 'border-l-safe' };
+  const categoryColor: Record<string, string> = { INITIAL: 'text-sgds-purple', STATUS: 'text-warning', DEPLOY: 'text-safe', BROADCAST: 'text-purple-500', ASSESS: 'text-blue-500', COORD: 'text-indigo-500', MEDICAL: 'text-critical', VOLUNTEER: 'text-teal-600', NOTE: 'text-sgds-gray-500', CLOSE: 'text-sgds-gray-500' };
+
   return (
-    <Card className={`relative p-4 ${outline ? 'border-t-2 border-t-critical' : 'border-t-2 border-t-sgds-gray-200'}`}>
-      {dot && <span className="absolute right-4 top-4 h-2 w-2 animate-pulse rounded-full bg-critical" />}
-      <div className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-sgds-gray-500">
-        <Icon size={14} className={iconColor} /><span>{label}</span>
-      </div>
-      <div className="mt-2 text-3xl font-bold text-sgds-gray-900">{value}</div>
-      <div className="mt-1.5 space-y-0.5 text-xs">
-        {lines.map((line) => {
-          const LineIcon = line.icon;
-          return (
-            <div key={line.text} className={`flex items-center gap-1 ${line.tone === 'red' ? 'text-critical' : 'text-sgds-gray-500'}`}>
-              {LineIcon && <LineIcon size={11} />}<span>{line.text}</span>
+    <div className="-m-8 flex bg-sgds-gray-50" style={{ height: 'calc(100vh - 32px)' }}>
+      {/* Critical threshold strip */}
+      {criticalThresholds.length > 0 && (
+        <div className="absolute left-60 right-0 top-8 z-30 flex items-center gap-3 border-b border-red-200 bg-red-50 px-4 py-2">
+          <AlertTriangle size={13} className="shrink-0 text-critical" />
+          <span className="text-xs font-bold uppercase tracking-wide text-critical">THRESHOLD BREACH</span>
+          {criticalThresholds.slice(0, 2).map((t) => <span key={t.id} className="text-xs text-sgds-gray-700">{t.title}: {t.current}{t.unit}</span>)}
+        </div>
+      )}
+
+      {/* Map (primary panel) */}
+      <div className="relative flex-1 overflow-hidden">
+        <div ref={mapRef} className={`h-full w-full overflow-auto ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`} onMouseDown={startDrag} onMouseMove={moveDrag} onMouseUp={stopDrag} onMouseLeave={stopDrag}>
+          <div className="relative min-h-full min-w-[1280px] select-none" style={{ minHeight: '100%' }}>
+            <img src="/singapore-map.png" alt="Singapore operational map" className="absolute inset-0 h-full w-full object-cover opacity-60" draggable={false} />
+            <div className="absolute inset-0 bg-white/10" />
+            <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:56px_56px]" />
+            {markers.map((marker, index) => {
+              const Icon = marker.icon;
+              const isCluster = Boolean(marker.value);
+              return <button key={`${marker.type}-${index}`} className={`absolute grid place-items-center rounded-full shadow-lg transition-transform hover:scale-110 ${isCluster ? `h-10 w-10 font-bold text-xs ${marker.color}` : `h-9 w-9 border-2 ${marker.color}`}`} style={{ left: `${marker.x}%`, top: `${marker.y}%` }} title={marker.type}><Icon size={isCluster ? 13 : 16} />{marker.value && <span className="text-[10px] font-bold leading-none">{marker.value}</span>}</button>;
+            })}
+          </div>
+        </div>
+
+        {/* OPREP strip */}
+        <div className="absolute bottom-0 left-0 right-0 flex border-t border-sgds-gray-200 bg-white/90 backdrop-blur-sm">
+          {[
+            { label: 'ACTIVE INC', value: activeIncidents.length, tone: 'text-warning' },
+            { label: 'CRITICAL', value: criticalCount, tone: 'text-critical' },
+            { label: 'AVAIL BEDS', value: availableBeds, tone: 'text-safe' },
+            { label: 'UNITS AVAIL', value: availableUnits, tone: 'text-sgds-purple' },
+          ].map((m) => (
+            <div key={m.label} className="flex flex-1 flex-col items-center justify-center border-r border-sgds-gray-200 py-3 last:border-0">
+              <span className="text-[10px] font-bold uppercase tracking-widest text-sgds-gray-500">{m.label}</span>
+              <span className={`text-2xl font-bold tabular-nums ${m.tone}`}>{m.value}</span>
             </div>
-          );
-        })}
+          ))}
+        </div>
+
+        {/* Map legend */}
+        <div className="absolute left-4 top-4 border border-sgds-gray-200 bg-white/90 p-3 text-xs backdrop-blur-sm">
+          <div className="mb-2 font-bold uppercase tracking-widest text-sgds-gray-500">Legend</div>
+          {[['Medical', HeartPulse, 'text-critical'], ['Fire', Flame, 'text-orange-500'], ['Road', Car, 'text-warning'], ['Infrastructure', Building2, 'text-purple-500'], ['Hospital', Activity, 'text-safe'], ['Group', Users, 'text-sgds-purple']].map(([label, Icon, color]) => (
+            <div key={label as string} className="mt-1.5 flex items-center gap-2"><span className={color as string}><Icon size={11} /></span><span className="text-sgds-gray-600">{label as string}</span></div>
+          ))}
+        </div>
+
+        <div className="absolute right-4 top-4 grid gap-2">{[ZoomIn, ZoomOut].map((Icon, i) => <button key={i} className="grid h-9 w-9 place-items-center border border-sgds-gray-200 bg-white text-sgds-gray-500 hover:text-sgds-gray-900"><Icon size={15} /></button>)}</div>
       </div>
-    </Card>
+
+      {/* Command Panel */}
+      <div className="flex w-72 shrink-0 flex-col border-l border-sgds-gray-200 bg-white">
+        <div className="flex border-b border-sgds-gray-200">
+          {(['queue', 'log'] as const).map((t) => (
+            <button key={t} onClick={() => setCmdTab(t)} className={`flex-1 py-2.5 text-xs font-bold uppercase tracking-widest transition-colors ${cmdTab === t ? 'border-b-2 border-sgds-purple text-sgds-purple' : 'text-sgds-gray-500 hover:text-sgds-gray-900'}`}>
+              {t === 'queue' ? 'Incident Queue' : 'Ops Log'}
+            </button>
+          ))}
+        </div>
+
+        <div className="flex-1 overflow-y-auto">
+          {cmdTab === 'queue' ? (
+            <div className="divide-y divide-sgds-gray-100">
+              {activeIncidents.slice(0, 12).map((inc) => (
+                <div key={inc.id} className={`border-l-4 px-3 py-2.5 ${severityBorder[inc.severity] ?? 'border-l-sgds-gray-200'}`}>
+                  <div className="flex items-start justify-between gap-2">
+                    <span className="text-xs font-bold leading-snug text-sgds-gray-900">{inc.title}</span>
+                    <span className={`shrink-0 text-[10px] font-bold uppercase ${inc.severity === 'Critical' ? 'text-critical' : inc.severity === 'High' ? 'text-warning' : 'text-safe'}`}>{inc.severity}</span>
+                  </div>
+                  <div className="mt-1 flex items-center gap-2">
+                    <span className="text-[10px] text-sgds-gray-500">{inc.status}</span>
+                    <span className="text-[10px] text-sgds-gray-500">·</span>
+                    <span className="text-[10px] text-sgds-gray-500">{inc.location.split(',')[0]}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="divide-y divide-sgds-gray-100">
+              {allTimeline.map((entry) => (
+                <div key={entry.id} className="px-3 py-2">
+                  <div className="flex items-center gap-1.5">
+                    <span className={`text-[10px] font-bold ${categoryColor[entry.category] ?? 'text-sgds-gray-500'}`}>{entry.category}</span>
+                    <span className="text-[10px] text-sgds-gray-400">·</span>
+                    <span className="text-[10px] text-sgds-gray-500">{entry.timestamp.split(', ')[1]}</span>
+                  </div>
+                  <p className="mt-0.5 text-[11px] leading-snug text-sgds-gray-800">{entry.text}</p>
+                  <div className="mt-0.5 text-[10px] text-sgds-gray-500">{entry.organisation}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Hospital surge */}
+        <div className="border-t border-sgds-gray-200 p-3">
+          <div className="mb-2 text-[10px] font-bold uppercase tracking-widest text-sgds-gray-500">Hospital Surge</div>
+          <div className="space-y-1.5">
+            {hospitals.map((h) => {
+              const pct = Math.round((h.availableBeds / h.totalBeds) * 100);
+              const tone = pct < 10 ? 'bg-critical' : pct < 25 ? 'bg-warning' : 'bg-safe';
+              return (
+                <div key={h.id}>
+                  <div className="mb-0.5 flex justify-between text-[10px]">
+                    <span className="text-sgds-gray-500">{h.name.replace(' General Hospital', ' GH').replace(' Hospital', ' H')}</span>
+                    <span className={pct < 10 ? 'font-bold text-critical' : 'text-sgds-gray-500'}>{h.availableBeds}/{h.totalBeds}</span>
+                  </div>
+                  <div className="h-1 w-full rounded-full bg-sgds-gray-200">
+                    <div className={`h-1 rounded-full ${tone}`} style={{ width: `${Math.max(2, pct)}%` }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
   );
 }
 
@@ -152,7 +196,7 @@ function MetricCard({ label, value, icon: Icon, iconColor, lines, outline = fals
 function GovIncidents() {
   const { incidents } = useData();
   const [filter, setFilter] = useState('All');
-  const filters = ['All', 'Critical', 'High', 'Medium', 'Low', 'Open', 'Triage', 'Dispatched', 'In Progress', 'Resolved', 'Public', 'Private'];
+  const filters = ['All', 'Critical', 'High', 'Medium', 'Low', 'Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed', 'Public', 'Private'];
   const filtered = filter === 'All'
     ? incidents
     : incidents.filter((i) => i.severity === filter || i.status === filter || i.publicVisibility === filter || i.type === filter);
@@ -201,33 +245,58 @@ function GovIncidents() {
 // ─── Resources ────────────────────────────────────────────────────────────────
 
 function GovResources() {
-  const { organisations, hospitals, volunteerTasks, updateHospital, postVolunteerTask } = useData();
-  const [tab, setTab] = useState<'orgs' | 'hospitals' | 'tasks'>('orgs');
+  const { organisations, hospitals, volunteerTasks, units, updateHospital, postVolunteerTask } = useData();
+  const [tab, setTab] = useState<'units' | 'orgs' | 'hospitals' | 'tasks'>('units');
   const [editing, setEditing] = useState<Hospital | null>(null);
   const [posting, setPosting] = useState(false);
   const available = hospitals.reduce((s, h) => s + h.availableBeds, 0);
   const total = hospitals.reduce((s, h) => s + h.totalBeds, 0);
+  const availableUnits = units.filter((u) => u.status === 'Available').length;
+  const deployedUnits = units.filter((u) => u.status !== 'Available' && u.status !== 'Offline').length;
 
   return (
     <section>
       <SectionHeader
         title="Resource Management"
-        subtitle="Manage community organisations, hospital capacity, and volunteer tasks."
+        subtitle="Unit status board, organisations, hospital capacity, and volunteer tasks."
         action={<Button variant="primary"><RefreshCw size={14} /> Refresh All</Button>}
       />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
-        <StatCard label="Community Organisations" value={organisations.length} sub="4 active · 1 deployed" />
-        <StatCard label="Total Volunteer Pool" value="317/603" sub="29 currently deployed" tone="green" />
-        <StatCard label="Hospital Capacity" value={`${available}/${total}`} sub="0 hospitals critically low" />
+        <StatCard label="Units Available" value={availableUnits} sub={`${deployedUnits} deployed`} tone="green" />
+        <StatCard label="Community Organisations" value={organisations.length} sub="5 active · 1 deployed" />
+        <StatCard label="Hospital Capacity" value={`${available}/${total}`} sub="2 hospitals critically low" tone="orange" />
         <StatCard label="Open Volunteer Tasks" value={volunteerTasks.length} sub="2 critical urgency" tone="orange" />
       </div>
       <div className="mt-5 flex border-b border-sgds-gray-200">
-        {[['orgs', 'Community Orgs'], ['hospitals', 'Hospitals'], ['tasks', 'Volunteer Tasks']].map(([id, label]) => (
+        {[['units', 'Unit Status Board'], ['orgs', 'Community Orgs'], ['hospitals', 'Hospitals'], ['tasks', 'Volunteer Tasks']].map(([id, label]) => (
           <button key={id} onClick={() => setTab(id as typeof tab)} className={`border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${tab === id ? 'border-sgds-purple text-sgds-purple' : 'border-transparent text-sgds-gray-600 hover:text-sgds-gray-900'}`}>
             {label}
           </button>
         ))}
       </div>
+
+      {tab === 'units' && (
+        <div className="mt-4">
+          <div className="mb-4 flex flex-wrap gap-2">
+            {(['Available', 'Assigned', 'En Route', 'On Scene', 'Engaged', 'Offline'] as const).map((s) => {
+              const count = units.filter((u) => u.status === s).length;
+              return <span key={s} className="border border-sgds-gray-200 px-3 py-1.5 text-xs font-semibold text-sgds-gray-700"><span className="mr-1.5 font-bold text-sgds-gray-900">{count}</span>{s}</span>;
+            })}
+          </div>
+          {['SCDF', 'Singapore Police Force', 'Singapore General Hospital', "St John's Brigade SG", 'Singapore Red Cross'].map((org) => {
+            const orgUnits = units.filter((u) => u.organisation === org);
+            if (!orgUnits.length) return null;
+            return (
+              <div key={org} className="mb-5">
+                <h3 className="mb-3 text-xs font-bold uppercase tracking-wider text-sgds-gray-500">{org} <span className="text-sgds-gray-400">({orgUnits.length})</span></h3>
+                <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-6">
+                  {orgUnits.map((unit) => <UnitCard key={unit.id} unit={unit} />)}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {tab === 'orgs' && (
         <Card className="mt-4">
@@ -637,10 +706,6 @@ function ProgressPanel({ title, rows, max }: { title: string; rows: [string, num
       </div>
     </Card>
   );
-}
-
-function Bar({ label, value, color }: { label: string; value: number; color: string }) {
-  return <div><div className="mb-1 text-xl font-bold text-sgds-gray-900">{value}</div><div className={`mx-auto h-16 w-full ${color}`} /><div className="mt-1 text-xs text-sgds-gray-500">{label}</div></div>;
 }
 
 function Mini({ label, value }: { label: string; value: number | string }) {

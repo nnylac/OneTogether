@@ -1,8 +1,34 @@
 export type Role = 'citizen' | 'organisation' | 'government';
 export type Severity = 'Critical' | 'High' | 'Medium' | 'Low' | 'Notice' | 'Info';
-export type IncidentStatus = 'Open' | 'Triage' | 'Dispatched' | 'In Progress' | 'Resolved';
+export type IncidentStatus = 'Reported' | 'Unverified' | 'Verified' | 'Dispatched' | 'On Scene' | 'Contained' | 'Recovery' | 'Closed';
 export type IncidentType = 'Medical' | 'Fire' | 'Flood' | 'Road' | 'Infrastructure' | 'Civil' | 'Other';
 export type Audience = 'all' | 'responders' | 'zone';
+
+export interface ICSSection {
+  commander: string;
+  operations?: string;
+  planning?: string;
+  logistics?: string;
+  pio?: string;
+}
+
+export interface SITREP {
+  generatedAt: string;
+  situation: string;
+  currentActions: string[];
+  nextActions: string[];
+  resourceStatus: string;
+  casualties?: string;
+}
+
+export interface ResourceUnit {
+  id: string;
+  callSign: string;
+  type: 'Ambulance' | 'Fire Engine' | 'Police' | 'Boat' | 'Drone' | 'CERT Team' | 'Medical Team';
+  status: 'Available' | 'Assigned' | 'En Route' | 'On Scene' | 'Engaged' | 'Offline';
+  organisation: string;
+  assignedIncidentId?: string;
+}
 
 export interface User {
   id: string;
@@ -65,6 +91,11 @@ export interface Incident {
   timeline: TimelineUpdate[];
   suggestedSteps?: string[];
   resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[];
+  incidentCommander?: string;
+  icsSection?: ICSSection;
+  confidenceScore?: number;
+  verifiedAt?: string;
+  sitrep?: SITREP;
 }
 
 export interface Broadcast {

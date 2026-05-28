@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import type { Broadcast, CommunityProgramme, Hospital, Incident, IncidentType, Severity, ThresholdAlert, TimelineCategory, TimelineUpdate, VolunteerTask } from '../types';
+import type { Broadcast, CommunityProgramme, Hospital, Incident, ResourceUnit, ThresholdAlert, TimelineCategory, TimelineUpdate, VolunteerTask } from '../types';
 
 function makeTlEntry(category: TimelineCategory, organisation: string, text: string, actor?: string): TimelineUpdate {
   const now = new Date();
@@ -21,6 +21,7 @@ interface DataContextValue {
   thresholds: ThresholdAlert[];
   publicAlerts: Broadcast[];
   readAlertIds: Set<string>;
+  units: ResourceUnit[];
   markAlertRead: (id: string) => void;
   publishBroadcast: (broadcast: Omit<Broadcast, 'id' | 'timestamp' | 'issuer' | 'icon'> & Partial<Pick<Broadcast, 'issuer' | 'icon'>>) => void;
   deleteBroadcast: (id: string) => void;
@@ -34,8 +35,12 @@ interface DataContextValue {
   updateThreshold: (id: string, threshold: number) => void;
   registerProgramme: (id: string) => void;
   signUpTask: (id: string) => void;
-  createIncident: (data: { title: string; type: IncidentType; severity: Exclude<Severity, 'Notice' | 'Info'>; location: string; zone: string; description: string; publicVisibility: 'Private' | 'Public'; suggestedSteps?: string[]; resourceInsights?: { type: string; available: number; total: number; recommended: boolean }[] }) => void;
   addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
+  updateUnitStatus: (unitId: string, status: ResourceUnit['status'], assignedIncidentId?: string) => void;
+  generateSitrep: (incidentId: string) => void;
+  advanceIncidentStatus: (incidentId: string, logEntry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
+  addRespondingOrg: (incidentId: string, orgName: string, status: string) => void;
+  updateRespondingOrgStatus: (incidentId: string, orgName: string, newStatus: string) => void;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -48,6 +53,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [hospitals, setHospitals] = useState(seed.hospitals);
   const [thresholds, setThresholds] = useState(seed.thresholds);
   const [readAlertIds, setReadAlertIds] = useState<Set<string>>(new Set());
+  const [units, setUnits] = useState<ResourceUnit[]>(seed.units);
 
   const markAlertRead = (id: string) => {
     setReadAlertIds((prev) => new Set([...prev, id]));
@@ -107,31 +113,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, volunteerSupportNeeded: true, timeline: [...incident.timeline, makeTlEntry('VOLUNTEER', 'SCDF', 'Volunteer support requested via OneTogether platform.')] } : incident));
   };
 
-  const resolveIncident = (incidentId: string) => updateIncidentStatus(incidentId, 'Resolved');
+  const resolveIncident = (incidentId: string) => updateIncidentStatus(incidentId, 'Closed');
 
   const addTimelineUpdate: DataContextValue['addTimelineUpdate'] = (incidentId, entry) => {
     setIncidents((current) => current.map((incident) => incident.id === incidentId
       ? { ...incident, timeline: [...incident.timeline, makeTlEntry(entry.category, entry.organisation, entry.text, entry.actor)] }
       : incident));
-  };
-
-  const createIncident: DataContextValue['createIncident'] = (data) => {
-    const now = new Date();
-    const createdAt = now.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
-    const time = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' });
-    setIncidents((current) => [{
-      ...data,
-      id: `INC-${Date.now()}`,
-      status: 'Open',
-      createdBy: 'scdf',
-      createdAt,
-      assignedOrganisations: ['scdf'],
-      respondingOrganisations: [],
-      volunteerSupportNeeded: false,
-      unitsResponded: 0,
-      volunteersResponded: 0,
-      timeline: [makeTlEntry('INITIAL', 'SCDF', 'Incident created via OneTogether platform.', 'Chen Xiao Ling')]
-    }, ...current]);
   };
 
   const updateHospital = (id: string, patch: Partial<Hospital>) => {
@@ -154,6 +141,63 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setVolunteerTasks((current) => current.map((task) => task.id === id ? { ...task, slotsFilled: Math.min(task.slotsTotal, task.slotsFilled + 1), status: task.slotsFilled + 1 >= task.slotsTotal ? 'Full' : 'Filling' } : task));
   };
 
+  const updateUnitStatus: DataContextValue['updateUnitStatus'] = (unitId, status, assignedIncidentId) => {
+    setUnits((current) => current.map((unit) => unit.id === unitId ? { ...unit, status, assignedIncidentId: assignedIncidentId ?? unit.assignedIncidentId } : unit));
+    if (assignedIncidentId) {
+      const unit = units.find((u) => u.id === unitId);
+      if (unit) {
+        const action = status === 'En Route' ? `${unit.callSign} (${unit.type}) dispatched en route.` : status === 'On Scene' ? `${unit.callSign} (${unit.type}) arrived on scene.` : `${unit.callSign} status updated to ${status}.`;
+        addTimelineUpdate(assignedIncidentId, { category: 'DEPLOY', organisation: unit.organisation, text: action });
+      }
+    }
+  };
+
+  const STATUS_ORDER: Incident['status'][] = ['Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed'];
+
+  const advanceIncidentStatus: DataContextValue['advanceIncidentStatus'] = (incidentId, logEntry) => {
+    setIncidents((current) => current.map((incident) => {
+      if (incident.id !== incidentId) return incident;
+      const idx = STATUS_ORDER.indexOf(incident.status);
+      const next = idx < STATUS_ORDER.length - 1 ? STATUS_ORDER[idx + 1] : incident.status;
+      const tlEntry = makeTlEntry(logEntry.category, logEntry.organisation, logEntry.text, logEntry.actor);
+      const statusEntry = makeTlEntry('STATUS', 'OneTogether', `Status advanced to ${next}.`);
+      return { ...incident, status: next, timeline: [...incident.timeline, tlEntry, statusEntry] };
+    }));
+  };
+
+  const addRespondingOrg = (incidentId: string, orgName: string, status: string) => {
+    setIncidents((current) => current.map((incident) =>
+      incident.id === incidentId && !incident.respondingOrganisations.some((ro) => ro.organisation === orgName)
+        ? { ...incident, respondingOrganisations: [...incident.respondingOrganisations, { organisation: orgName, status }] }
+        : incident
+    ));
+  };
+
+  const updateRespondingOrgStatus = (incidentId: string, orgName: string, newStatus: string) => {
+    setIncidents((current) => current.map((incident) =>
+      incident.id === incidentId
+        ? { ...incident, respondingOrganisations: incident.respondingOrganisations.map((ro) => ro.organisation === orgName ? { ...ro, status: newStatus } : ro) }
+        : incident
+    ));
+  };
+
+  const generateSitrep: DataContextValue['generateSitrep'] = (incidentId) => {
+    setIncidents((current) => current.map((incident) => {
+      if (incident.id !== incidentId) return incident;
+      const recentEntries = incident.timeline.slice(-5).map((e) => e.text);
+      const sitrep = {
+        generatedAt: new Date().toLocaleString('en-SG'),
+        situation: `${incident.type} incident at ${incident.location}. Severity: ${incident.severity}. Current status: ${incident.status}. ${incident.description}`,
+        currentActions: recentEntries.slice(-3),
+        nextActions: incident.suggestedSteps?.slice(0, 3) ?? ['Continue monitoring.', 'Await further assessment.'],
+        resourceStatus: `${incident.unitsResponded} units responded, ${incident.volunteersResponded} volunteers mobilised.`,
+        casualties: incident.type === 'Medical' || incident.type === 'Civil' ? 'Casualty count pending medical assessment.' : undefined
+      };
+      const tlEntry = makeTlEntry('NOTE', 'OneTogether', 'SITREP auto-generated from operational timeline.');
+      return { ...incident, sitrep, timeline: [...incident.timeline, tlEntry] };
+    }));
+  };
+
   const value: DataContextValue = {
     users: seed.users,
     organisations: seed.organisations,
@@ -166,6 +210,7 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     thresholds,
     publicAlerts,
     readAlertIds,
+    units,
     markAlertRead,
     publishBroadcast,
     deleteBroadcast,
@@ -179,8 +224,12 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     updateThreshold,
     registerProgramme,
     signUpTask,
-    createIncident,
-    addTimelineUpdate
+    addTimelineUpdate,
+    updateUnitStatus,
+    generateSitrep,
+    advanceIncidentStatus,
+    addRespondingOrg,
+    updateRespondingOrgStatus
   };
 
   return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
