@@ -13,7 +13,7 @@ export function LoginPage() {
         <section className="py-4">
           <Logo />
           <h1 className="mt-8 max-w-xl text-4xl font-bold leading-snug text-sgds-gray-900">
-            Centralised emergency coordination for Singapore.
+            Centralised emergency coordination for Singapore. (test infra github actions - kz)
           </h1>
           <p className="mt-4 max-w-lg text-base leading-7 text-sgds-gray-600">
             OneTogether aggregates incident data from hospitals, SCDF, SPF, and approved community organisations
