@@ -69,27 +69,35 @@ jobs:
             -var="domain_name=${{ secrets.DOMAIN_NAME }}" \
             -var="db_password=${{ secrets.DB_PASSWORD }}" \
             -var="alert_email=${{ secrets.ALERT_EMAIL }}" \
-            -out=tfplan
+            -out=tfplan 2>&1 | tee /tmp/plan.txt
+          exit ${PIPESTATUS[0]}
         continue-on-error: true
 
-      # 7. Post plan output as PR comment so reviewers can see changes
+      # 7. Always print plan output to logs (visible on push AND pull_request)
+      - name: Show plan output
+        if: always()
+        run: |
+          echo "=== Terraform Plan Output ==="
+          cat /tmp/plan.txt || echo "(no plan output captured)"
+
+      # 8. Post plan output as PR comment so reviewers can see changes
       - name: Post plan to PR
         if: github.event_name == 'pull_request'
         uses: actions/github-script@v7
         with:
           script: |
-            const output = `#### Terraform Plan
-            \`\`\`
-            ${{ steps.plan.outputs.stdout }}
-            \`\`\``;
+            const fs   = require('fs');
+            const plan = fs.existsSync('/tmp/plan.txt')
+              ? fs.readFileSync('/tmp/plan.txt', 'utf8').slice(0, 60000)
+              : '(no output)';
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
               repo: context.repo.repo,
-              body: output
+              body: `#### Terraform Plan\n\`\`\`\n${plan}\n\`\`\``
             });
 
-      # 8. Fail if plan failed
+      # 9. Fail if plan failed
       - name: Check Plan Result
         if: steps.plan.outcome == 'failure'
         run: exit 1

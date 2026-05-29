@@ -119,18 +119,23 @@ jobs:
             --from-literal=AWS_REGION="ap-southeast-1" \
             --save-config --dry-run=client -o yaml | kubectl apply -f -
 
-      # 10. Update the Deployment image tag so ArgoCD syncs immediately
-      - name: Update image tag in K8s manifests
+      # 10. Ensure namespace and base manifests exist (bootstrap if ArgoCD not yet running)
+      - name: Apply base K8s manifests
+        run: |
+          kubectl apply -f infrastructure/k8s/namespace.yaml
+          kubectl apply -f infrastructure/k8s/backend/
+
+      # 11. Update the Deployment image tag
+      - name: Update image tag
         env:
           ECR_REGISTRY: ${{ steps.login-ecr.outputs.registry }}
           IMAGE_TAG:    ${{ github.sha }}
         run: |
-          # Patch the Deployment directly (ArgoCD will reconcile)
           kubectl set image deployment/backend \
             backend=$ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG \
             --namespace onetogether
 
-      # 11. Wait for rollout to complete
+      # 12. Wait for rollout to complete
       - name: Wait for rollout
         run: |
           kubectl rollout status deployment/backend \
