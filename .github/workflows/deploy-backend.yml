@@ -12,6 +12,7 @@ on:
       - "apps/backend/**"
       - "infrastructure/k8s/backend/**"
       - ".github/workflows/deploy-backend.yml"
+  workflow_dispatch:
 
 permissions:
   id-token: write

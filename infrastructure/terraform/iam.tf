@@ -473,8 +473,7 @@ resource "aws_iam_role" "github_actions" {
       Action    = "sts:AssumeRoleWithWebIdentity"
       Condition = {
         StringLike = {
-          # Replace YOUR_GITHUB_ORG with your actual GitHub organisation or username
-          "token.actions.githubusercontent.com:sub" = "repo:nnylac/${var.project}:*"
+          "token.actions.githubusercontent.com:sub" = "repo:nnylac/OneTogether:*"
         }
         StringEquals = {
           "token.actions.githubusercontent.com:aud" = "sts.amazonaws.com"
@@ -486,6 +485,13 @@ resource "aws_iam_role" "github_actions" {
   tags = local.tags
 }
 
+# PowerUserAccess covers all AWS services except IAM/Organizations.
+# Terraform needs this to plan and apply the full infrastructure stack.
+resource "aws_iam_role_policy_attachment" "github_actions_power_user" {
+  role       = aws_iam_role.github_actions.name
+  policy_arn = "arn:aws:iam::aws:policy/PowerUserAccess"
+}
+
 resource "aws_iam_role_policy" "github_actions_policy" {
   name = "${local.name}-github-actions-policy"
   role = aws_iam_role.github_actions.id
@@ -493,21 +499,30 @@ resource "aws_iam_role_policy" "github_actions_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
+      # Terraform remote state — bucket name follows bootstrap naming convention
       {
         Effect = "Allow"
-        Action = [
-          "ecr:GetAuthorizationToken",
-          "ecr:BatchCheckLayerAvailability", "ecr:GetDownloadUrlForLayer",
-          "ecr:BatchGetImage", "ecr:PutImage",
-          "ecr:InitiateLayerUpload", "ecr:UploadLayerPart", "ecr:CompleteLayerUpload"
-        ]
-        Resource = "*"
+        Action = ["s3:GetObject", "s3:PutObject", "s3:DeleteObject"]
+        Resource = "arn:aws:s3:::onetogether-tfstate-${data.aws_caller_identity.current.account_id}/*"
       },
       {
         Effect   = "Allow"
-        Action   = ["eks:DescribeCluster"]
-        Resource = aws_eks_cluster.main.arn
+        Action   = ["s3:ListBucket", "s3:GetBucketVersioning"]
+        Resource = "arn:aws:s3:::onetogether-tfstate-${data.aws_caller_identity.current.account_id}"
       },
+      # Terraform state locking
+      {
+        Effect   = "Allow"
+        Action   = ["dynamodb:GetItem", "dynamodb:PutItem", "dynamodb:DeleteItem", "dynamodb:DescribeTable"]
+        Resource = "arn:aws:dynamodb:${var.aws_region}:${data.aws_caller_identity.current.account_id}:table/onetogether-tfstate-lock"
+      },
+      # IAM — PowerUserAccess excludes this; Terraform needs it to manage roles/policies
+      {
+        Effect   = "Allow"
+        Action   = ["iam:*"]
+        Resource = "*"
+      },
+      # Frontend deployment
       {
         Effect   = "Allow"
         Action   = ["s3:PutObject", "s3:GetObject", "s3:DeleteObject", "s3:ListBucket"]
@@ -518,6 +533,7 @@ resource "aws_iam_role_policy" "github_actions_policy" {
         Action   = ["cloudfront:CreateInvalidation"]
         Resource = aws_cloudfront_distribution.frontend.arn
       },
+      # Lambda deployments
       {
         Effect   = "Allow"
         Action   = ["lambda:UpdateFunctionCode", "lambda:GetFunction"]
