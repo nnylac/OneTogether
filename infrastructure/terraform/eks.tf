@@ -95,27 +95,43 @@ resource "kubernetes_namespace" "argocd" {
   depends_on = [aws_eks_cluster.main]
 }
 
-resource "helm_release" "argocd" {
-  name       = "argocd"
-  repository = "https://argoproj.github.io/argo-helm"
-  chart      = "argo-cd"
-  version    = "6.7.3"
-  namespace  = kubernetes_namespace.argocd.metadata[0].name
+# --- cert-manager (required by AWS LB Controller v3.x for webhook TLS) ------
+resource "helm_release" "cert_manager" {
+  name             = "cert-manager"
+  repository       = "https://charts.jetstack.io"
+  chart            = "cert-manager"
+  namespace        = "cert-manager"
+  create_namespace = true
+
+  wait    = true
+  timeout = 300
 
   set {
-    name  = "server.service.type"
-    value = "ClusterIP"  # Exposed via internal ALB ingress, not directly
+    name  = "crds.enabled"
+    value = "true"
   }
 
   depends_on = [aws_eks_node_group.main]
 }
 
+# cert-manager's webhook server needs ~30s after Helm reports ready before it
+# can serve TLS for the LB controller's own webhook validation.
+resource "time_sleep" "cert_manager_ready" {
+  create_duration = "30s"
+  depends_on      = [helm_release.cert_manager]
+}
+
 # --- AWS Load Balancer Controller (required for ALB Ingress) ----------------
+# Must deploy before ArgoCD — ArgoCD's Service creation triggers the LB
+# Controller's mutating webhook, which must be running first.
 resource "helm_release" "aws_lb_controller" {
   name       = "aws-load-balancer-controller"
   repository = "https://aws.github.io/eks-charts"
   chart      = "aws-load-balancer-controller"
   namespace  = "kube-system"
+
+  wait    = true
+  timeout = 600
 
   set {
     name  = "clusterName"
@@ -127,5 +143,38 @@ resource "helm_release" "aws_lb_controller" {
     value = "true"
   }
 
-  depends_on = [aws_eks_node_group.main]
+  set {
+    name  = "serviceAccount.annotations.eks\\.amazonaws\\.com/role-arn"
+    value = aws_iam_role.aws_lb_controller.arn
+  }
+
+  # v3.x can no longer auto-discover VPC ID via instance metadata — must be explicit
+  set {
+    name  = "vpcId"
+    value = aws_vpc.main.id
+  }
+
+  set {
+    name  = "region"
+    value = var.aws_region
+  }
+
+  depends_on = [aws_eks_node_group.main, aws_iam_role_policy_attachment.aws_lb_controller, time_sleep.cert_manager_ready]
+}
+
+resource "helm_release" "argocd" {
+  name       = "argocd"
+  repository = "https://argoproj.github.io/argo-helm"
+  chart      = "argo-cd"
+  version    = "6.7.3"
+  namespace  = kubernetes_namespace.argocd.metadata[0].name
+
+  set {
+    name  = "server.service.type"
+    value = "ClusterIP"
+  }
+
+  # Depends on LB Controller so the mutating webhook is live before ArgoCD
+  # creates any Services that trigger it
+  depends_on = [helm_release.aws_lb_controller]
 }

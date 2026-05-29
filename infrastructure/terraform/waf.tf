@@ -4,6 +4,7 @@
 # ============================================================
 
 resource "aws_wafv2_web_acl" "cloudfront" {
+  count = var.enable_waf ? 1 : 0
   provider    = aws.us_east_1
   name        = "${local.name}-cloudfront-waf"
   scope       = "CLOUDFRONT"
@@ -18,7 +19,9 @@ resource "aws_wafv2_web_acl" "cloudfront" {
     name     = "AWSManagedRulesCoreRuleSet"
     priority = 1
 
-    override_action { none {} }
+    override_action {
+      none {}
+    }
 
     statement {
       managed_rule_group_statement {
@@ -39,7 +42,9 @@ resource "aws_wafv2_web_acl" "cloudfront" {
     name     = "AWSManagedRulesKnownBadInputsRuleSet"
     priority = 2
 
-    override_action { none {} }
+    override_action {
+      none {}
+    }
 
     statement {
       managed_rule_group_statement {

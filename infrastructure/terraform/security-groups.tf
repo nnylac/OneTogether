@@ -37,7 +37,7 @@ resource "aws_security_group" "alb" {
 # --- EKS nodes --------------------------------------------------------------
 resource "aws_security_group" "eks_nodes" {
   name        = "${local.name}-eks-nodes-sg"
-  description = "EKS worker node traffic — node-to-node + ALB → nodes"
+  description = "EKS worker node traffic - node-to-node and ALB to nodes"
   vpc_id      = aws_vpc.main.id
 
   # Nodes talk to each other freely (required for pod-to-pod)
@@ -121,7 +121,7 @@ resource "aws_security_group" "elasticache" {
 # --- Lambda (VPC-attached functions) ----------------------------------------
 resource "aws_security_group" "lambda" {
   name        = "${local.name}-lambda-sg"
-  description = "VPC-attached Lambda functions — outbound only"
+  description = "VPC-attached Lambda functions - outbound only"
   vpc_id      = aws_vpc.main.id
 
   # Lambdas initiate all connections; no inbound needed from VPC peers

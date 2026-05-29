@@ -50,13 +50,10 @@ aws s3api put-bucket-versioning `
   --versioning-configuration Status=Enabled
 
 # Enable server-side encryption
+# Backslash-escaped quotes required for PowerShell 5.1 + AWS CLI (PS strips bare double quotes)
 aws s3api put-bucket-encryption `
   --bucket $BucketName `
-  --server-side-encryption-configuration '{
-    "Rules": [{
-      "ApplyServerSideEncryptionByDefault": {"SSEAlgorithm": "AES256"}
-    }]
-  }'
+  --server-side-encryption-configuration '{\"Rules\":[{\"ApplyServerSideEncryptionByDefault\":{\"SSEAlgorithm\":\"AES256\"}}]}'
 
 # Block all public access
 aws s3api put-public-access-block `

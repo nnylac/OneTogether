@@ -17,8 +17,21 @@ variable "aws_region" {
 }
 
 variable "domain_name" {
-  description = "Primary domain name, e.g. onetogether.sg. Used for Route 53, ACM, and CloudFront."
+  description = "Primary domain name, e.g. onetogether.sg. Used for Route 53, ACM, and CloudFront. Leave empty string when domain_configured = false."
   type        = string
+  default     = ""
+}
+
+variable "enable_waf" {
+  description = "Set to true to attach a WAFv2 WebACL to CloudFront. Disable if CreateWebACL fails on a new account (WAFv2 CLOUDFRONT scope may need a one-time manual activation via the console)."
+  type        = bool
+  default     = false
+}
+
+variable "domain_configured" {
+  description = "Set to true only after you own the domain and have pointed its nameservers at the Route 53 hosted zone. Until then, CloudFront uses its default *.cloudfront.net certificate and no DNS records are created."
+  type        = bool
+  default     = false
 }
 
 # ---------------------------------------------------------------------------

@@ -1,18 +1,20 @@
-﻿# ============================================================
+# ============================================================
 # Route 53 — DNS for onetogether.sg
+# All resources are gated on var.domain_configured = true.
+# Set that flag only after you own the domain and have pointed
+# its nameservers at the Route 53 hosted zone (see outputs).
 # ============================================================
 
-# Public hosted zone — Terraform manages records but you register the domain
-# separately (in the AWS console or a registrar). After applying, copy the
-# NS records shown in outputs.tf to your domain registrar.
 resource "aws_route53_zone" "main" {
-  name = var.domain_name
-  tags = local.tags
+  count = var.domain_configured ? 1 : 0
+  name  = var.domain_name
+  tags  = local.tags
 }
 
-# Apex domain → CloudFront (A alias record, no TTL needed for aliases)
+# Apex domain → CloudFront
 resource "aws_route53_record" "apex" {
-  zone_id = aws_route53_zone.main.zone_id
+  count   = var.domain_configured ? 1 : 0
+  zone_id = aws_route53_zone.main[0].zone_id
   name    = var.domain_name
   type    = "A"
 
@@ -23,9 +25,10 @@ resource "aws_route53_record" "apex" {
   }
 }
 
-# www → CloudFront (redirect handled by CloudFront viewer cert SAN)
+# www → CloudFront
 resource "aws_route53_record" "www" {
-  zone_id = aws_route53_zone.main.zone_id
+  count   = var.domain_configured ? 1 : 0
+  zone_id = aws_route53_zone.main[0].zone_id
   name    = "www.${var.domain_name}"
   type    = "A"
 
@@ -38,6 +41,7 @@ resource "aws_route53_record" "www" {
 
 # ACM certificate in ap-southeast-1 for the ALB (backend API)
 resource "aws_acm_certificate" "alb" {
+  count             = var.domain_configured ? 1 : 0
   domain_name       = "api.${var.domain_name}"
   validation_method = "DNS"
 
@@ -49,15 +53,15 @@ resource "aws_acm_certificate" "alb" {
 }
 
 resource "aws_route53_record" "alb_cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.alb.domain_validation_options : dvo.domain_name => {
+  for_each = var.domain_configured ? {
+    for dvo in aws_acm_certificate.alb[0].domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       type   = dvo.resource_record_type
       record = dvo.resource_record_value
     }
-  }
+  } : {}
 
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = aws_route53_zone.main[0].zone_id
   name    = each.value.name
   type    = each.value.type
   records = [each.value.record]
@@ -65,6 +69,7 @@ resource "aws_route53_record" "alb_cert_validation" {
 }
 
 resource "aws_acm_certificate_validation" "alb" {
-  certificate_arn         = aws_acm_certificate.alb.arn
+  count                   = var.domain_configured ? 1 : 0
+  certificate_arn         = aws_acm_certificate.alb[0].arn
   validation_record_fqdns = [for r in aws_route53_record.alb_cert_validation : r.fqdn]
 }

@@ -68,6 +68,10 @@ resource "aws_s3_bucket_lifecycle_configuration" "data_lake" {
     id     = "archive-old-incidents"
     status = "Enabled"
 
+    filter {
+      prefix = ""
+    }
+
     transition {
       days          = 90
       storage_class = "GLACIER_IR"

@@ -5,5 +5,5 @@
 bucket         = "onetogether-tfstate-YOUR_ACCOUNT_ID"
 key            = "onetogether/production/terraform.tfstate"
 region         = "ap-southeast-1"
-dynamodb_table = "onetogether-tfstate-lock"
+use_lockfile   = true
 encrypt        = true

@@ -44,8 +44,8 @@ output "rds_endpoint" {
 }
 
 output "elasticache_endpoint" {
-  description = "ElastiCache Valkey endpoint"
-  value       = aws_elasticache_cluster.main.cache_nodes[0].address
+  description = "ElastiCache Valkey primary endpoint"
+  value       = aws_elasticache_replication_group.main.primary_endpoint_address
 }
 
 output "cognito_user_pool_id" {
@@ -84,8 +84,8 @@ output "github_actions_role_arn" {
 }
 
 output "route53_name_servers" {
-  description = "Copy these 4 NS records to your domain registrar after applying"
-  value       = aws_route53_zone.main.name_servers
+  description = "Copy these 4 NS records to your domain registrar, then set domain_configured = true and re-apply"
+  value       = var.domain_configured ? aws_route53_zone.main[0].name_servers : ["set domain_configured = true to create the hosted zone"]
 }
 
 output "db_secret_arn" {

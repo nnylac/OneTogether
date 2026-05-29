@@ -1,23 +1,74 @@
 
-node_modules
-dist
+# ── Dependencies ──────────────────────────────────────────────────────────────
+node_modules/
+.pnp
+.pnp.js
+
+# ── Build outputs ─────────────────────────────────────────────────────────────
+dist/
+build/
+.next/
+out/
+.nuxt/
+*.tsbuildinfo
+
+# ── Environment files (real values — commit only .env.example files) ──────────
 .env
-.DS_Store
+.env.*
+!.env.example
+!.env.*.example
+
+# ── Logs ──────────────────────────────────────────────────────────────────────
 *.log
+logs/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
 
-# Terraform � contain account IDs and secrets
-*.tfvars
-backend.hcl
+# ── OS / editor noise ─────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# ── Terraform ─────────────────────────────────────────────────────────────────
+# Provider binaries and plugin cache
 .terraform/
+
+# Lock file (pin versions in CI via -lockfile=readonly instead)
 .terraform.lock.hcl
-.tmp/
 
+# State files — contain plaintext secrets and resource IDs
+*.tfstate
+*.tfstate.*
+*.tfstate.backup
 
+# Variable files with real values (commit only *.tfvars.example)
+*.tfvars
+!*.tfvars.example
 
+# Backend config with real bucket/key/region (commit only backend.hcl.example)
+backend.hcl
+!backend.hcl.example
 
+# Terraform plan files can contain sensitive data
+*.tfplan
 
-# Local dev/planning notes — not for version control
+# ── Kubernetes / AWS credentials ──────────────────────────────────────────────
+kubeconfig
+kubeconfig.*
+*.pem
+*.key
+.kube/
+
+# ── Local planning notes ──────────────────────────────────────────────────────
+DEPLOY.md
+DEPLOYMENT.md
 claude.md
 claude2.md
-deployment.md
-DEPLOYMENT.md
+
+# ── Misc ──────────────────────────────────────────────────────────────────────
+.tmp/
+*.tmp

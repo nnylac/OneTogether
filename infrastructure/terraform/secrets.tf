@@ -6,7 +6,7 @@
 resource "aws_secretsmanager_secret" "db" {
   name                    = "${local.name}/database"
   description             = "PostgreSQL connection credentials for OneTogether"
-  recovery_window_in_days = 7  # 7-day safety window before permanent deletion
+  recovery_window_in_days = 0
 
   tags = local.tags
 }
@@ -29,7 +29,7 @@ resource "aws_secretsmanager_secret_version" "db" {
 resource "aws_secretsmanager_secret" "cache" {
   name                    = "${local.name}/cache"
   description             = "Valkey/Redis connection details"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = local.tags
 }
@@ -38,9 +38,9 @@ resource "aws_secretsmanager_secret_version" "cache" {
   secret_id = aws_secretsmanager_secret.cache.id
 
   secret_string = jsonencode({
-    host = aws_elasticache_cluster.main.cache_nodes[0].address
-    port = aws_elasticache_cluster.main.cache_nodes[0].port
-    url  = "redis://${aws_elasticache_cluster.main.cache_nodes[0].address}:${aws_elasticache_cluster.main.cache_nodes[0].port}"
+    host = aws_elasticache_replication_group.main.primary_endpoint_address
+    port = 6379
+    url  = "redis://${aws_elasticache_replication_group.main.primary_endpoint_address}:6379"
   })
 }
 
@@ -48,7 +48,7 @@ resource "aws_secretsmanager_secret_version" "cache" {
 resource "aws_secretsmanager_secret" "cognito" {
   name                    = "${local.name}/cognito"
   description             = "Cognito user pool and client IDs"
-  recovery_window_in_days = 7
+  recovery_window_in_days = 0
 
   tags = local.tags
 }

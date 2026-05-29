@@ -13,7 +13,7 @@ spec:
 
   source:
     # Replace with your actual GitHub repo URL
-    repoURL: https://github.com/YOUR_GITHUB_ORG/OneTogether.git
+    repoURL: https://github.com/nnylac/OneTogether.git
     targetRevision: main
     path: infrastructure/k8s/backend
 

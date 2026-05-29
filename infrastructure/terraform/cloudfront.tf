@@ -1,9 +1,12 @@
-﻿# ============================================================
+# ============================================================
 # CloudFront CDN + ACM certificate for the React frontend
+# ACM cert + DNS records are only created when domain_configured = true.
+# Until then, CloudFront uses its default *.cloudfront.net certificate.
 # ============================================================
 
 # ACM certificate must be in us-east-1 for CloudFront
 resource "aws_acm_certificate" "cloudfront" {
+  count             = var.domain_configured ? 1 : 0
   provider          = aws.us_east_1
   domain_name       = var.domain_name
   subject_alternative_names = ["www.${var.domain_name}"]
@@ -16,17 +19,17 @@ resource "aws_acm_certificate" "cloudfront" {
   tags = local.tags
 }
 
-# Create the CNAME records Route 53 needs to validate the cert
+# CNAME records Route 53 needs to validate the cert
 resource "aws_route53_record" "cert_validation" {
-  for_each = {
-    for dvo in aws_acm_certificate.cloudfront.domain_validation_options : dvo.domain_name => {
+  for_each = var.domain_configured ? {
+    for dvo in aws_acm_certificate.cloudfront[0].domain_validation_options : dvo.domain_name => {
       name   = dvo.resource_record_name
       type   = dvo.resource_record_type
       record = dvo.resource_record_value
     }
-  }
+  } : {}
 
-  zone_id = aws_route53_zone.main.zone_id
+  zone_id = aws_route53_zone.main[0].zone_id
   name    = each.value.name
   type    = each.value.type
   records = [each.value.record]
@@ -34,8 +37,9 @@ resource "aws_route53_record" "cert_validation" {
 }
 
 resource "aws_acm_certificate_validation" "cloudfront" {
+  count                   = var.domain_configured ? 1 : 0
   provider                = aws.us_east_1
-  certificate_arn         = aws_acm_certificate.cloudfront.arn
+  certificate_arn         = aws_acm_certificate.cloudfront[0].arn
   validation_record_fqdns = [for r in aws_route53_record.cert_validation : r.fqdn]
 }
 
@@ -74,9 +78,10 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   is_ipv6_enabled     = true
   default_root_object = "index.html"
-  aliases             = [var.domain_name, "www.${var.domain_name}"]
-  web_acl_id          = aws_wafv2_web_acl.cloudfront.arn
-  price_class         = "PriceClass_200"  # US, EU, Asia — covers Singapore
+  # Aliases require a custom cert — omit when using the default CloudFront cert
+  aliases    = var.domain_configured ? [var.domain_name, "www.${var.domain_name}"] : []
+  web_acl_id = var.enable_waf ? aws_wafv2_web_acl.cloudfront[0].arn : null
+  price_class = "PriceClass_200"  # US, EU, Asia — covers Singapore
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -110,14 +115,17 @@ resource "aws_cloudfront_distribution" "frontend" {
 
   restrictions {
     geo_restriction {
-      restriction_type = "none"  # Accessible globally
+      restriction_type = "none"
     }
   }
 
   viewer_certificate {
-    acm_certificate_arn      = aws_acm_certificate_validation.cloudfront.certificate_arn
-    ssl_support_method       = "sni-only"
-    minimum_protocol_version = "TLSv1.2_2021"
+    # When domain_configured = false: use the free *.cloudfront.net default cert.
+    # When domain_configured = true: use the validated ACM cert with the custom domain.
+    cloudfront_default_certificate = var.domain_configured ? null : true
+    acm_certificate_arn            = var.domain_configured ? aws_acm_certificate_validation.cloudfront[0].certificate_arn : null
+    ssl_support_method             = var.domain_configured ? "sni-only" : null
+    minimum_protocol_version       = var.domain_configured ? "TLSv1.2_2021" : null
   }
 
   tags = local.tags

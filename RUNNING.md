@@ -184,6 +184,12 @@ netstat -ano | findstr :5173
 lsof -i :5173
 ```
 
+**Docker build fails with EACCES / permission denied on `node_modules`**
+The backend Dockerfile runs `npm install` as a non-root user (`appuser`). If the
+`/app` directory is owned by root the install will fail with exit code 243. The fix
+is already in the Dockerfile (`RUN chown appuser:appgroup /app` before `USER appuser`).
+If you see this error after editing the Dockerfile, make sure that line is present.
+
 **Docker build fails with "no such file"**
 Docker builds must be run from the repo root (same folder as `docker-compose.yml`),
 not from inside an `apps/` folder. The Dockerfiles use paths like
