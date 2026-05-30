@@ -46,17 +46,17 @@ variable "eks_kubernetes_version" {
 variable "eks_node_instance_type" {
   description = "EC2 instance type for EKS worker nodes"
   type        = string
-  default     = "t3.medium"
+  default     = "t3.small"
 }
 
 variable "eks_desired_nodes" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "eks_min_nodes" {
   type    = number
-  default = 2
+  default = 1
 }
 
 variable "eks_max_nodes" {
@@ -69,7 +69,7 @@ variable "eks_max_nodes" {
 # ---------------------------------------------------------------------------
 variable "db_instance_class" {
   type    = string
-  default = "db.t3.medium"
+  default = "db.t3.micro"
 }
 
 variable "db_allocated_storage" {

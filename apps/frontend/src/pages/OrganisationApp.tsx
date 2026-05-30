@@ -1,11 +1,19 @@
-import { Activity, Building2, Car, CheckCircle2, ChevronRight, FileText, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
+import { Activity, Building2, Car, CheckCircle2, ChevronRight, FileText, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, Plus, RefreshCw, ShieldCheck, Sparkles, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes } from 'react-router-dom';
 import { SidebarLayout } from '../components/layouts';
 import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
-import type { Incident, TimelineCategory } from '../types';
+import type { Incident, IncidentSource, TimelineCategory } from '../types';
+
+const SOURCE_LABELS: Record<IncidentSource, { label: string; cls: string }> = {
+  scdf_feed:      { label: 'SCDF FEED',     cls: 'bg-red-100 text-red-800' },
+  hospital_feed:  { label: 'HOSPITAL FEED', cls: 'bg-blue-100 text-blue-800' },
+  spf_feed:       { label: 'SPF FEED',      cls: 'bg-indigo-100 text-indigo-800' },
+  citizen_report: { label: 'CITIZEN RPT',   cls: 'bg-amber-100 text-amber-800' },
+  manual:         { label: 'MANUAL',        cls: 'bg-gray-100 text-gray-700' },
+};
 
 const timelineCategoryConfig: Record<TimelineCategory, { label: string; cls: string }> = {
   INITIAL:   { label: 'Initial Report', cls: 'bg-blue-100 text-blue-800' },
@@ -108,17 +116,22 @@ function OrgDashboard() {
 }
 
 function OrgIncidents() {
-  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep } = useData();
+  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep, verifyIncident } = useData();
   const [view, setView] = useState<'list' | 'grid'>('list');
   const [expandedId, setExpandedId] = useState<string | null>(null);
-  const visible = incidents.filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf'));
+  const [tab, setTab] = useState<'all' | 'assigned' | 'citizen'>('all');
+
+  const allActive = incidents.filter((i) => i.status !== 'Closed');
+  const assigned = allActive.filter((i) => i.assignedOrganisations.includes('scdf') || i.createdBy === 'scdf');
+  const citizenReports = incidents.filter((i) => i.source === 'citizen_report');
+  const visible = tab === 'assigned' ? assigned : tab === 'citizen' ? citizenReports : allActive;
   const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep };
 
   return (
     <section>
       <SectionHeader
         title="Incident Tickets"
-        subtitle="Tickets are synced from source systems. Assignment and response actions are managed here."
+        subtitle="All active incidents from source systems. Source-tagged tickets show origin agency."
         action={
           <div className="flex border border-sgds-gray-200">
             <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><List size={15} /> List</button>
@@ -126,7 +139,56 @@ function OrgIncidents() {
           </div>
         }
       />
-      {view === 'list' ? (
+      <div className="mt-4 flex gap-1 border-b border-sgds-gray-200">
+        {([['all', `All Active (${allActive.length})`], ['assigned', `My Org (${assigned.length})`], ['citizen', `Citizen Reports (${citizenReports.length})`]] as const).map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} className={`border-b-2 px-4 py-2.5 text-sm font-semibold transition-colors ${tab === id ? 'border-sgds-purple text-sgds-purple' : 'border-transparent text-sgds-gray-500 hover:text-sgds-gray-900'}`}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === 'citizen' ? (
+        <div className="mt-4 space-y-3">
+          {citizenReports.length === 0 && <p className="text-sm text-sgds-gray-500 py-6 text-center">No citizen reports pending verification.</p>}
+          {citizenReports.map((inc) => (
+            <div key={inc.id} className="border border-amber-200 bg-amber-50 p-4">
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] font-bold uppercase tracking-wide text-amber-700 border border-amber-300 bg-amber-100 px-1.5 py-0.5">CITIZEN REPORT</span>
+                    <span className="text-xs text-sgds-gray-500">{inc.id}</span>
+                  </div>
+                  <h3 className="mt-1 text-sm font-bold text-sgds-gray-900">{inc.title}</h3>
+                  <p className="mt-1 text-xs text-sgds-gray-600">{inc.description}</p>
+                  <p className="mt-1 text-xs text-sgds-gray-500">{inc.location} · {inc.createdAt}</p>
+                </div>
+                <div className="shrink-0 text-right">
+                  <Badge>{inc.status}</Badge>
+                  {inc.confidenceScore !== undefined && (
+                    <div className="mt-1 text-[10px] text-sgds-gray-500">CONF {inc.confidenceScore}%</div>
+                  )}
+                </div>
+              </div>
+              {inc.status === 'Reported' && (
+                <div className="mt-3 flex gap-2">
+                  <button
+                    onClick={() => verifyIncident(inc.id)}
+                    className="flex items-center gap-1.5 border border-safe bg-white px-3 py-1.5 text-xs font-semibold text-safe hover:bg-green-50"
+                  >
+                    <ShieldCheck size={12} /> Verify + Queue for Dispatch
+                  </button>
+                  <button
+                    onClick={() => resolveIncident(inc.id)}
+                    className="border border-sgds-gray-300 bg-white px-3 py-1.5 text-xs font-semibold text-sgds-gray-600 hover:bg-sgds-gray-50"
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      ) : view === 'list' ? (
         <div className="mt-6 space-y-4">{visible.map((i) => <IncidentDetailCard key={i.id} incident={i} {...actions} />)}</div>
       ) : (
         <div className="mt-6 grid auto-rows-max gap-4 xl:grid-cols-2">
@@ -234,6 +296,11 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncident
           <Badge>{incident.severity}</Badge>
           <Badge>{incident.status}</Badge>
           <Badge>{incident.publicVisibility}</Badge>
+          {incident.source && SOURCE_LABELS[incident.source] && (
+            <span className={`px-2 py-0.5 text-[10px] font-bold uppercase tracking-wide ${SOURCE_LABELS[incident.source].cls}`}>
+              {SOURCE_LABELS[incident.source].label}
+            </span>
+          )}
           {incident.confidenceScore !== undefined && (
             <span className="border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
               CONF {incident.confidenceScore}%

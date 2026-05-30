@@ -5,6 +5,7 @@ import { Navigate, Route, Routes } from 'react-router-dom';
 import { SidebarLayout } from '../components/layouts';
 import { AlertBanner, Badge, Button, Card, DataTable, InfoCell, Modal, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
+import type { AiTaskSuggestion } from '../state/DataContext';
 import type { Audience, Broadcast, Hospital, VolunteerTask } from '../types';
 
 export function GovernmentApp() {
@@ -193,17 +194,76 @@ function GovDashboard() {
 
 // ─── Incidents ────────────────────────────────────────────────────────────────
 
+const SOURCE_BADGE: Record<string, string> = {
+  scdf_feed: 'SCDF FEED',
+  hospital_feed: 'HOSP FEED',
+  spf_feed: 'SPF FEED',
+  citizen_report: 'CITIZEN RPT',
+  manual: 'MANUAL',
+};
+
 function GovIncidents() {
-  const { incidents } = useData();
+  const { incidents, organisations, suggestTaskAssignments } = useData();
   const [filter, setFilter] = useState('All');
-  const filters = ['All', 'Critical', 'High', 'Medium', 'Low', 'Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed', 'Public', 'Private'];
-  const filtered = filter === 'All'
+  const [suggestions, setSuggestions] = useState<AiTaskSuggestion[] | null>(null);
+  const [loadingSuggestions, setLoadingSuggestions] = useState(false);
+  const filters = ['All', 'Critical', 'High', 'Medium', 'Reported', 'Unverified', 'Verified', 'On Scene', 'Contained', 'Public', 'Citizen Reports'];
+  const filtered = filter === 'Citizen Reports'
+    ? incidents.filter((i) => i.source === 'citizen_report')
+    : filter === 'All'
     ? incidents
-    : incidents.filter((i) => i.severity === filter || i.status === filter || i.publicVisibility === filter || i.type === filter);
+    : incidents.filter((i) => i.severity === filter || i.status === filter || i.publicVisibility === filter);
+
+  const handleSuggest = async () => {
+    setLoadingSuggestions(true);
+    setSuggestions(null);
+    const result = await suggestTaskAssignments();
+    setSuggestions(result ?? []);
+    setLoadingSuggestions(false);
+  };
+
+  const urgencyColor: Record<string, string> = { Critical: 'text-critical', High: 'text-warning', Medium: 'text-safe' };
 
   return (
     <section>
-      <SectionHeader title="National Incidents" subtitle="Filter by incident attributes to scan national tickets quickly." />
+      <SectionHeader
+        title="National Incidents"
+        subtitle="All incidents from connected source systems. Filter to scan by severity, status, or source."
+        action={
+          <Button variant="primary" onClick={handleSuggest} disabled={loadingSuggestions}>
+            {loadingSuggestions ? <RefreshCw size={14} className="animate-spin" /> : <Megaphone size={14} />}
+            {loadingSuggestions ? 'Analysing…' : 'AI Suggest Assignments'}
+          </Button>
+        }
+      />
+
+      {suggestions !== null && (
+        <div className="mt-5 border border-purple-200 bg-purple-50 p-4">
+          <div className="mb-3 flex items-center justify-between">
+            <h3 className="text-sm font-bold text-purple-900">AI Task Assignment Suggestions</h3>
+            <button onClick={() => setSuggestions(null)} className="text-xs text-purple-600 hover:underline">Dismiss</button>
+          </div>
+          {suggestions.length === 0 ? (
+            <p className="text-xs text-purple-700">No additional assignments needed based on current incident state.</p>
+          ) : (
+            <div className="space-y-2">
+              {suggestions.map((s, i) => (
+                <div key={i} className="border border-purple-200 bg-white p-3">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-bold text-sgds-gray-900">{s.organisation}</div>
+                      <div className="mt-0.5 text-sm font-semibold text-sgds-gray-800">{s.task}</div>
+                      <p className="mt-1 text-xs text-sgds-gray-600">{s.rationale}</p>
+                    </div>
+                    <span className={`shrink-0 text-[10px] font-bold uppercase ${urgencyColor[s.urgency] ?? 'text-sgds-gray-500'}`}>{s.urgency}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="mt-5 flex flex-wrap gap-2">
         {filters.map((item) => (
           <button key={item} onClick={() => setFilter(item)} className={`border px-3 py-1.5 text-sm font-semibold transition-colors ${filter === item ? 'border-sgds-purple bg-sgds-purple text-white' : 'border-sgds-gray-200 bg-white text-sgds-gray-600 hover:bg-sgds-gray-50'}`}>
@@ -214,10 +274,17 @@ function GovIncidents() {
       <div className="mt-5 grid gap-4 xl:grid-cols-2">
         {filtered.map((incident) => (
           <Card key={incident.id} className="overflow-hidden">
-            <div className="border-l-4 border-critical px-4 py-3">
+            <div className={`border-l-4 px-4 py-3 ${incident.severity === 'Critical' ? 'border-critical' : incident.severity === 'High' ? 'border-warning' : 'border-sgds-gray-300'}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</div>
+                    {incident.source && SOURCE_BADGE[incident.source] && (
+                      <span className="text-[9px] font-bold uppercase tracking-wide border border-sgds-gray-200 bg-sgds-gray-100 px-1.5 py-0.5 text-sgds-gray-600">
+                        {SOURCE_BADGE[incident.source]}
+                      </span>
+                    )}
+                  </div>
                   <h2 className="mt-0.5 text-base font-bold leading-snug text-sgds-gray-900">{incident.title}</h2>
                 </div>
                 <Badge>{incident.status}</Badge>
@@ -231,7 +298,7 @@ function GovIncidents() {
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 <InfoCell label="Location" value={incident.location} />
                 <InfoCell label="Created" value={incident.createdAt} />
-                <InfoCell label="Assigned" value={incident.assignedOrganisations.join(', ').toUpperCase()} />
+                <InfoCell label="Assigned" value={incident.assignedOrganisations.length > 0 ? incident.assignedOrganisations.join(', ').toUpperCase() : 'Unassigned'} />
                 <InfoCell label="Responding" value={`${incident.unitsResponded} units · ${incident.volunteersResponded} volunteers`} />
               </div>
             </div>
@@ -453,9 +520,29 @@ function GovBroadcasts() {
 }
 
 function ComposeModal({ onClose, onPreview }: { onClose: () => void; onPreview: (draft: Partial<Broadcast>) => void }) {
+  const { incidents, generateBroadcastDraft } = useData();
   const [audience, setAudience] = useState<Audience>('all');
+  const [linkedId, setLinkedId] = useState('');
   const [title, setTitle] = useState('Emergency Advisory — Immediate Action Required');
   const [message, setMessage] = useState('General emergency broadcast for the public.\n\nMembers of the public are advised to remain vigilant and follow all official instructions. Emergency services are on-site and coordinating the response. Call 995 for emergencies or 999 for police emergencies.');
+  const [drafting, setDrafting] = useState(false);
+
+  const activeIncidents = incidents.filter((i) => i.status !== 'Closed');
+
+  const handleAiDraft = async () => {
+    setDrafting(true);
+    const linked = activeIncidents.find((i) => i.id === linkedId);
+    const context = linked
+      ? { incidentType: linked.type, location: linked.location, severity: linked.severity, description: linked.description, audience }
+      : { incidentType: 'General Emergency', location: 'Singapore', severity: 'High', description: 'National emergency advisory', audience };
+    const result = await generateBroadcastDraft(context);
+    if (result) {
+      setTitle(result.title);
+      setMessage(result.message);
+    }
+    setDrafting(false);
+  };
+
   return (
     <Modal title="Compose Broadcast" onClose={onClose} width="max-w-2xl">
       <div className="space-y-4 p-5">
@@ -470,10 +557,22 @@ function ComposeModal({ onClose, onPreview }: { onClose: () => void; onPreview: 
             ))}
           </div>
         </div>
-        <label className="block text-sm font-semibold text-sgds-gray-800">Link to Incident (optional)<select className="mt-1.5 w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple"><option>No linked incident</option><option>INC-2026-0520 — Flooding at Orchard Road</option></select></label>
+        <label className="block text-sm font-semibold text-sgds-gray-800">
+          Link to Incident (optional)
+          <select className="mt-1.5 w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" value={linkedId} onChange={(e) => setLinkedId(e.target.value)}>
+            <option value="">No linked incident</option>
+            {activeIncidents.map((i) => <option key={i.id} value={i.id}>{i.id} — {i.title}</option>)}
+          </select>
+        </label>
         <div className="flex items-center justify-between border border-emerald-200 bg-emerald-50 p-3">
-          <div><strong className="text-sm text-emerald-800">AI Draft Assistant</strong><small className="block text-xs text-emerald-700">Generate a general emergency broadcast template.</small></div>
-          <Button variant="success"><RefreshCw size={13} /> Regenerate</Button>
+          <div>
+            <strong className="text-sm text-emerald-800">AI Draft Assistant</strong>
+            <small className="block text-xs text-emerald-700">{linkedId ? 'Generate broadcast from linked incident context.' : 'Generate a general emergency broadcast.'}</small>
+          </div>
+          <Button variant="success" onClick={handleAiDraft} disabled={drafting}>
+            <RefreshCw size={13} className={drafting ? 'animate-spin' : ''} />
+            {drafting ? 'Drafting…' : 'Generate Draft'}
+          </Button>
         </div>
         <label className="block text-sm font-semibold text-sgds-gray-800">Title<input className="mt-1.5 w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" value={title} onChange={(e) => setTitle(e.target.value)} /></label>
         <label className="block text-sm font-semibold text-sgds-gray-800">Message<textarea className="mt-1.5 h-36 w-full border border-sgds-gray-300 p-3 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" value={message} onChange={(e) => setMessage(e.target.value)} /></label>
@@ -501,40 +600,69 @@ function PreviewModal({ draft, onClose, onEdit, onPublish }: { draft: Partial<Br
 // ─── Analytics ────────────────────────────────────────────────────────────────
 
 function GovAnalytics() {
+  const { incidents } = useData();
+
+  const total = incidents.length;
+  const active = incidents.filter((i) => i.status !== 'Closed').length;
+  const closed = incidents.filter((i) => i.status === 'Closed').length;
+  const critical = incidents.filter((i) => i.severity === 'Critical').length;
+  const resolutionRate = total > 0 ? Math.round((closed / total) * 100) : 0;
+
+  const byType = (['Medical', 'Fire', 'Flood', 'Road', 'Infrastructure', 'Civil', 'Other'] as const).map((t) => [t, incidents.filter((i) => i.type === t).length] as [string, number]).filter(([, n]) => n > 0);
+  const maxByType = Math.max(...byType.map(([, n]) => n), 1);
+
+  const byZone = ['Central', 'North', 'South', 'East', 'West', 'National'].map((z) => ({ zone: z, count: incidents.filter((i) => i.zone === z).length })).filter((r) => r.count > 0);
+
+  const bySource = [
+    ['SCDF Feed', incidents.filter((i) => i.source === 'scdf_feed').length],
+    ['Hospital Feed', incidents.filter((i) => i.source === 'hospital_feed').length],
+    ['SPF Feed', incidents.filter((i) => i.source === 'spf_feed').length],
+    ['Citizen Reports', incidents.filter((i) => i.source === 'citizen_report').length],
+    ['Manual', incidents.filter((i) => !i.source || i.source === 'manual').length],
+  ].filter(([, n]) => (n as number) > 0) as [string, number][];
+
   return (
     <section>
-      <SectionHeader title="Analytics Dashboard" subtitle="System-wide performance statistics — last 30 days." />
+      <SectionHeader title="Analytics Dashboard" subtitle="Live statistics computed from current incident data." />
       <div className="mt-5 grid gap-4 lg:grid-cols-4">
-        <StatCard label="Total Incidents (30d)" value="1,247" sub="+12% vs last period" />
-        <StatCard label="Avg Response Time" value="4.2m" sub="-0.3m vs last period" tone="green" />
-        <StatCard label="Resolution Rate" value="94%" sub="+2% vs last period" tone="green" />
-        <StatCard label="Active Users" value="847" sub="+5% vs last period" />
+        <StatCard label="Total Incidents" value={total} sub={`${active} active · ${closed} closed`} />
+        <StatCard label="Critical Incidents" value={critical} sub="requiring immediate action" tone="orange" />
+        <StatCard label="Resolution Rate" value={`${resolutionRate}%`} sub={`${closed} of ${total} closed`} tone="green" />
+        <StatCard label="Active Incidents" value={active} sub="across all zones" />
       </div>
       <div className="mt-5 grid gap-5 lg:grid-cols-2">
-        <ProgressPanel title="Incidents by Type" rows={[['Medical', 512], ['Road Accident', 298], ['Fire', 187], ['Flood', 150], ['Infrastructure', 62], ['Civil', 38]]} max={1247} />
+        <ProgressPanel title="Incidents by Type" rows={byType} max={maxByType} />
         <Card className="p-5">
-          <h2 className="text-base font-bold text-sgds-gray-900">Performance by Planning Zone</h2>
+          <h2 className="text-base font-bold text-sgds-gray-900">Incidents by Zone</h2>
           <DataTable className="mt-4">
-            <Thead><tr><Th>Zone</Th><Th>Incidents</Th><Th>Avg Response</Th><Th>Vs Target</Th></tr></Thead>
+            <Thead><tr><Th>Zone</Th><Th>Total</Th><Th>Active</Th><Th>Share</Th></tr></Thead>
             <Tbody>
-              {[['Jurong / West', 312, '4.1m', true], ['Central / City', 287, '3.8m', true], ['North / Woodlands', 198, '5.2m', false], ['East / Tampines', 241, '4.6m', true], ['North-East / Punggol', 209, '4.9m', true]].map((r) => (
-                <Tr key={r[0] as string}>
-                  <Td className="font-semibold">{r[0] as string}</Td>
-                  <Td>{r[1] as number}</Td>
-                  <Td className="font-bold">{r[2] as string}</Td>
-                  <Td className={r[3] ? 'font-semibold text-safe' : 'font-semibold text-critical'}>{r[3] ? 'On target' : 'Over target'}</Td>
-                </Tr>
-              ))}
+              {byZone.map((r) => {
+                const zoneActive = incidents.filter((i) => i.zone === r.zone && i.status !== 'Closed').length;
+                return (
+                  <Tr key={r.zone}>
+                    <Td className="font-semibold">{r.zone}</Td>
+                    <Td>{r.count}</Td>
+                    <Td className={zoneActive > 0 ? 'font-bold text-warning' : 'text-safe'}>{zoneActive}</Td>
+                    <Td>{total > 0 ? Math.round((r.count / total) * 100) : 0}%</Td>
+                  </Tr>
+                );
+              })}
             </Tbody>
           </DataTable>
         </Card>
       </div>
       <Card className="mt-5 p-5">
-        <h2 className="text-base font-bold text-sgds-gray-900">Incident Volume by Hour (24h average)</h2>
-        <div className="mt-6 flex h-36 items-end justify-between border-b border-sgds-gray-200">
-          {Array.from({ length: 12 }).map((_, i) => <div key={i} className="w-8 bg-sgds-purple opacity-80" style={{ height: `${20 + ((i * 17) % 90)}px` }} />)}
+        <h2 className="text-base font-bold text-sgds-gray-900">Incidents by Data Source</h2>
+        <div className="mt-4 space-y-3">
+          {bySource.map(([label, value]) => (
+            <div key={label}>
+              <div className="mb-1 flex justify-between text-sm"><span className="text-sgds-gray-700">{label}</span><strong className="text-sgds-gray-900">{value}</strong></div>
+              <ProgressBar value={value} max={total} tone="bg-sgds-purple" />
+            </div>
+          ))}
         </div>
-        <p className="mt-2 text-xs text-sgds-gray-500">Peak hours: 17:00–21:00. Lowest: 02:00–05:00.</p>
+        <p className="mt-4 text-xs text-sgds-gray-500">Data reflects all incidents ingested into OneTogether from connected source systems and citizen reports.</p>
       </Card>
     </section>
   );

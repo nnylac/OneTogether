@@ -59,23 +59,24 @@ resource "aws_subnet" "database" {
   })
 }
 
-# --- Elastic IPs for NAT Gateways -------------------------------------------
+# --- Elastic IP for single NAT Gateway --------------------------------------
 resource "aws_eip" "nat" {
-  count  = length(local.azs)
+  count  = 1
   domain = "vpc"
 
   depends_on = [aws_internet_gateway.main]
-  tags       = merge(local.tags, { Name = "${local.name}-nat-eip-${count.index}" })
+  tags       = merge(local.tags, { Name = "${local.name}-nat-eip-0" })
 }
 
-# --- NAT Gateways (one per AZ so each AZ is independent) --------------------
+# --- Single NAT Gateway (all private subnets route through AZ1) -------------
+# Use 2 NAT gateways (count = length(local.azs)) for production HA
 resource "aws_nat_gateway" "main" {
-  count         = length(local.azs)
-  subnet_id     = aws_subnet.public[count.index].id  # NAT lives in the public subnet
-  allocation_id = aws_eip.nat[count.index].id
+  count         = 1
+  subnet_id     = aws_subnet.public[0].id
+  allocation_id = aws_eip.nat[0].id
 
   depends_on = [aws_internet_gateway.main]
-  tags       = merge(local.tags, { Name = "${local.name}-nat-${local.azs[count.index]}" })
+  tags       = merge(local.tags, { Name = "${local.name}-nat-0" })
 }
 
 # --- Route table: public → Internet Gateway ---------------------------------
@@ -96,14 +97,14 @@ resource "aws_route_table_association" "public" {
   route_table_id = aws_route_table.public.id
 }
 
-# --- Route tables: private → NAT Gateway (per AZ) ---------------------------
+# --- Route tables: private → single NAT Gateway (all AZs) ------------------
 resource "aws_route_table" "private" {
   count  = length(local.azs)
   vpc_id = aws_vpc.main.id
 
   route {
     cidr_block     = "0.0.0.0/0"
-    nat_gateway_id = aws_nat_gateway.main[count.index].id
+    nat_gateway_id = aws_nat_gateway.main[0].id
   }
 
   tags = merge(local.tags, { Name = "${local.name}-rt-private-${local.azs[count.index]}" })

@@ -1,4 +1,4 @@
-import { AlertTriangle, BarChart3, Bell, HeartHandshake, LayoutDashboard, LogOut, Map, Megaphone, Phone, Settings, Siren, Users, Warehouse } from 'lucide-react';
+import { AlertTriangle, BarChart3, Bell, HeartHandshake, LayoutDashboard, LogOut, Map, Megaphone, Phone, Radio, Settings, Siren, Users, Warehouse } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom';
 import { Logo, Masthead } from './ui';
@@ -20,6 +20,7 @@ export function MobileShell({
 
   const tabs = [
     { id: 'alerts', label: 'Alerts', Icon: Bell, count: alertCount },
+    { id: 'report', label: 'Report', Icon: Radio, count: undefined },
     { id: 'communities', label: 'Community', Icon: Users, count: undefined },
     { id: 'volunteer', label: 'Volunteer', Icon: HeartHandshake, count: volunteerCount },
     { id: 'contact', label: 'Contact', Icon: Phone, count: undefined }
@@ -51,7 +52,7 @@ export function MobileShell({
           </button>
         </div>
 
-        <nav className="grid grid-cols-4 border-b border-slate-100 bg-white" role="tablist">
+        <nav className="grid grid-cols-5 border-b border-slate-100 bg-white" role="tablist">
           {tabs.map(({ id, label, Icon, count }) => (
             <button
               key={id}
