@@ -12,13 +12,17 @@ export interface ICSSection {
   pio?: string;
 }
 
-export interface SITREP {
+export interface AiRecommendation {
+  priority: 'Critical' | 'High' | 'Medium';
+  action: string;
+  detail: string;
+}
+
+export interface AiAdvisory {
   generatedAt: string;
-  situation: string;
-  currentActions: string[];
-  nextActions: string[];
-  resourceStatus: string;
-  casualties?: string;
+  assessment: string;
+  recommendations: AiRecommendation[];
+  warnings: string[];
 }
 
 export interface ResourceUnit {
@@ -95,7 +99,7 @@ export interface Incident {
   icsSection?: ICSSection;
   confidenceScore?: number;
   verifiedAt?: string;
-  sitrep?: SITREP;
+  advisory?: AiAdvisory;
 }
 
 export interface Broadcast {

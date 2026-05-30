@@ -211,9 +211,10 @@ function StatusStepper({ incident, onAdvance }: { incident: Incident; onAdvance:
 function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
   const [showTlForm, setShowTlForm] = useState(false);
   const [tlForm, setTlForm] = useState<{ category: TimelineCategory; actor: string; text: string }>({ category: 'NOTE', actor: '', text: '' });
-  const [showSitrep, setShowSitrep] = useState(false);
+  const [showAdvisory, setShowAdvisory] = useState(false);
+  const [advisoryLoading, setAdvisoryLoading] = useState(false);
   const inputCls = 'w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple';
-  const canGenerateSitrep = ['On Scene', 'Contained', 'Recovery'].includes(incident.status);
+  const canGetAdvisory = ['Dispatched', 'On Scene', 'Contained', 'Recovery'].includes(incident.status);
 
   const submitTlEntry = () => {
     if (!tlForm.text.trim()) return;
@@ -261,26 +262,34 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncident
             </div>
           )}
 
-          {/* SITREP */}
-          {incident.sitrep && showSitrep && (
+          {/* AI Advisory */}
+          {incident.advisory && showAdvisory && (
             <div className="mt-4 border border-indigo-200 bg-indigo-50 p-4">
               <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-800">SITREP — {incident.sitrep.generatedAt}</h3>
-                <button onClick={() => setShowSitrep(false)} className="text-xs text-indigo-500 hover:text-indigo-700">Close</button>
+                <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-800">AI Advisory — {incident.advisory.generatedAt}</h3>
+                <button onClick={() => setShowAdvisory(false)} className="text-xs text-indigo-500 hover:text-indigo-700">Close</button>
               </div>
-              <p className="text-xs text-indigo-900 leading-5">{incident.sitrep.situation}</p>
-              {incident.sitrep.casualties && <p className="mt-1 text-xs font-semibold text-red-700">{incident.sitrep.casualties}</p>}
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Current Actions</div>
-                  <ul className="mt-1 space-y-0.5">{incident.sitrep.currentActions.map((a, i) => <li key={i} className="text-xs text-indigo-800">· {a}</li>)}</ul>
-                </div>
-                <div>
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Next Actions</div>
-                  <ul className="mt-1 space-y-0.5">{incident.sitrep.nextActions.map((a, i) => <li key={i} className="text-xs text-indigo-800">· {a}</li>)}</ul>
-                </div>
+              <p className="text-xs text-indigo-900 leading-5">{incident.advisory.assessment}</p>
+              <div className="mt-3">
+                <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Recommendations</div>
+                <ul className="mt-1 space-y-2">
+                  {incident.advisory.recommendations.map((r, i) => (
+                    <li key={i} className="flex gap-2">
+                      <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${r.priority === 'Critical' ? 'bg-red-100 text-red-700' : r.priority === 'High' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{r.priority}</span>
+                      <div>
+                        <div className="text-xs font-semibold text-indigo-900">{r.action}</div>
+                        <div className="text-xs text-indigo-700">{r.detail}</div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
               </div>
-              <p className="mt-2 text-xs text-indigo-700">{incident.sitrep.resourceStatus}</p>
+              {incident.advisory.warnings.length > 0 && (
+                <div className="mt-3">
+                  <div className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Warnings</div>
+                  <ul className="mt-1 space-y-0.5">{incident.advisory.warnings.map((w, i) => <li key={i} className="text-xs text-amber-800">⚠ {w}</li>)}</ul>
+                </div>
+              )}
             </div>
           )}
 
@@ -396,13 +405,18 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncident
           </select>
           <Button variant="primary" className="w-full" onClick={() => makeIncidentPublic(incident.id)}>Make public</Button>
           <Button variant="success" className="w-full" onClick={() => requestVolunteers(incident.id)}>Request volunteers</Button>
-          {canGenerateSitrep && (
-            <Button variant="outline" className="w-full" onClick={() => { generateSitrep(incident.id); setShowSitrep(true); }}>
-              <FileText size={14} /> {incident.sitrep ? 'Refresh SITREP' : 'Generate SITREP'}
+          {canGetAdvisory && (
+            <Button variant="outline" className="w-full" disabled={advisoryLoading} onClick={async () => {
+              setAdvisoryLoading(true);
+              await generateSitrep(incident.id);
+              setAdvisoryLoading(false);
+              setShowAdvisory(true);
+            }}>
+              <FileText size={14} /> {advisoryLoading ? 'Thinking…' : incident.advisory ? 'Refresh AI Advisory' : 'Get AI Advisory'}
             </Button>
           )}
-          {incident.sitrep && !showSitrep && (
-            <button onClick={() => setShowSitrep(true)} className="w-full text-left text-xs font-semibold text-indigo-600 hover:underline">View SITREP →</button>
+          {incident.advisory && !showAdvisory && (
+            <button onClick={() => setShowAdvisory(true)} className="w-full text-left text-xs font-semibold text-indigo-600 hover:underline">View AI Advisory →</button>
           )}
           <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Close incident</Button>
           {onCollapse && <Button variant="outline" className="w-full" onClick={onCollapse}>Collapse</Button>}

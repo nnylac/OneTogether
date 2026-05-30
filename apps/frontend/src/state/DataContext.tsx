@@ -1,5 +1,5 @@
 import { createContext, useContext, useMemo, useState } from 'react';
-import type { Broadcast, CommunityProgramme, Hospital, Incident, ResourceUnit, ThresholdAlert, TimelineCategory, TimelineUpdate, VolunteerTask } from '../types';
+import type { AiAdvisory, Broadcast, CommunityProgramme, Hospital, Incident, ResourceUnit, ThresholdAlert, TimelineCategory, TimelineUpdate, VolunteerTask } from '../types';
 
 function makeTlEntry(category: TimelineCategory, organisation: string, text: string, actor?: string): TimelineUpdate {
   const now = new Date();
@@ -37,7 +37,7 @@ interface DataContextValue {
   signUpTask: (id: string) => void;
   addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
   updateUnitStatus: (unitId: string, status: ResourceUnit['status'], assignedIncidentId?: string) => void;
-  generateSitrep: (incidentId: string) => void;
+  generateSitrep: (incidentId: string) => Promise<void>;
   advanceIncidentStatus: (incidentId: string, logEntry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
   addRespondingOrg: (incidentId: string, orgName: string, status: string) => void;
   updateRespondingOrgStatus: (incidentId: string, orgName: string, newStatus: string) => void;
@@ -181,21 +181,39 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     ));
   };
 
-  const generateSitrep: DataContextValue['generateSitrep'] = (incidentId) => {
-    setIncidents((current) => current.map((incident) => {
-      if (incident.id !== incidentId) return incident;
-      const recentEntries = incident.timeline.slice(-5).map((e) => e.text);
-      const sitrep = {
-        generatedAt: new Date().toLocaleString('en-SG'),
-        situation: `${incident.type} incident at ${incident.location}. Severity: ${incident.severity}. Current status: ${incident.status}. ${incident.description}`,
-        currentActions: recentEntries.slice(-3),
-        nextActions: incident.suggestedSteps?.slice(0, 3) ?? ['Continue monitoring.', 'Await further assessment.'],
-        resourceStatus: `${incident.unitsResponded} units responded, ${incident.volunteersResponded} volunteers mobilised.`,
-        casualties: incident.type === 'Medical' || incident.type === 'Civil' ? 'Casualty count pending medical assessment.' : undefined
+  const generateSitrep: DataContextValue['generateSitrep'] = async (incidentId) => {
+    const incident = incidents.find((i) => i.id === incidentId);
+    if (!incident) return;
+
+    let advisory: AiAdvisory;
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_URL}/ai/advisory`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(incident),
+      });
+      if (!res.ok) throw new Error(`Backend returned ${res.status}`);
+      const data = await res.json();
+      advisory = {
+        generatedAt: data.generatedAt ?? new Date().toLocaleString('en-SG'),
+        assessment: data.assessment ?? '',
+        recommendations: data.recommendations ?? [],
+        warnings: data.warnings ?? [],
       };
-      const tlEntry = makeTlEntry('NOTE', 'OneTogether', 'SITREP auto-generated from operational timeline.');
-      return { ...incident, sitrep, timeline: [...incident.timeline, tlEntry] };
-    }));
+    } catch {
+      advisory = {
+        generatedAt: new Date().toLocaleString('en-SG'),
+        assessment: `${incident.type} incident at ${incident.location} is currently ${incident.status}. Immediate coordination required across assigned agencies.`,
+        recommendations: [
+          { priority: 'High', action: 'Confirm resource sufficiency', detail: 'Verify current units are adequate and request reinforcements if needed.' },
+          { priority: 'High', action: 'Establish clear command', detail: 'Ensure an incident commander is designated and all agencies are under unified command.' },
+          { priority: 'Medium', action: 'Issue public advisory', detail: 'Communicate safety instructions to affected public via official channels.' },
+        ],
+        warnings: ['Monitor for escalation and adjust deployment accordingly.', 'Ensure inter-agency communications are functioning on all channels.'],
+      };
+    }
+
+    setIncidents((current) => current.map((i) => i.id === incidentId ? { ...i, advisory } : i));
   };
 
   const value: DataContextValue = {

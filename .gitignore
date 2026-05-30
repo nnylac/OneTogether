@@ -66,8 +66,9 @@ kubeconfig.*
 # ── Local planning notes ──────────────────────────────────────────────────────
 DEPLOY.md
 DEPLOYMENT.md
-claude.md
-claude2.md
+HACKATHON.md
+claude*.md
+tst.py
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 .tmp/

@@ -1,4 +1,4 @@
-import { AlertTriangle, Shield, Ambulance, Flame, Shield as PoliceIcon, Waves, Plane, Users, Stethoscope } from 'lucide-react';
+import { AlertTriangle, Shield, Ambulance, Flame, Waves, Plane, Users, Stethoscope } from 'lucide-react';
 import type { ReactNode, TdHTMLAttributes, ThHTMLAttributes } from 'react';
 import type { ResourceUnit } from '../types';
 
@@ -289,7 +289,7 @@ export function InfoCell({ label, value }: { label: string; value: string }) {
 const unitTypeIcon: Record<ResourceUnit['type'], ReactNode> = {
   Ambulance: <Ambulance size={14} />,
   'Fire Engine': <Flame size={14} />,
-  Police: <PoliceIcon size={14} />,
+  Police: <Shield size={14} />,
   Boat: <Waves size={14} />,
   Drone: <Plane size={14} />,
   'CERT Team': <Users size={14} />,
