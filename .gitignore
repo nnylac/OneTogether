@@ -63,6 +63,9 @@ kubeconfig.*
 *.key
 .kube/
 
+# ── Local tooling ─────────────────────────────────────────────────────────────
+.claude/
+
 # ── Local planning notes ──────────────────────────────────────────────────────
 DEPLOY.md
 DEPLOYMENT.md
