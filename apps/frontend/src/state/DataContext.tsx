@@ -7,7 +7,15 @@ function makeTlEntry(category: TimelineCategory, organisation: string, text: str
   const hhmm = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: false });
   return { id: `tl-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`, timestamp: `${date}, ${hhmm}`, organisation, actor, category, text };
 }
+
 import * as seed from '../data/seed';
+
+export interface AiTaskSuggestion {
+  organisation: string;
+  task: string;
+  rationale: string;
+  urgency: 'Critical' | 'High' | 'Medium';
+}
 
 interface DataContextValue {
   users: typeof seed.users;
@@ -23,7 +31,7 @@ interface DataContextValue {
   readAlertIds: Set<string>;
   units: ResourceUnit[];
   markAlertRead: (id: string) => void;
-  publishBroadcast: (broadcast: Omit<Broadcast, 'id' | 'timestamp' | 'issuer' | 'icon'> & Partial<Pick<Broadcast, 'issuer' | 'icon'>>) => void;
+  publishBroadcast: (b: Omit<Broadcast, 'id' | 'timestamp' | 'issuer' | 'icon'> & Partial<Pick<Broadcast, 'issuer' | 'icon'>>) => void;
   deleteBroadcast: (id: string) => void;
   makeIncidentPublic: (incidentId: string) => void;
   assignIncident: (incidentId: string, organisationId: string) => void;
@@ -41,6 +49,10 @@ interface DataContextValue {
   advanceIncidentStatus: (incidentId: string, logEntry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
   addRespondingOrg: (incidentId: string, orgName: string, status: string) => void;
   updateRespondingOrgStatus: (incidentId: string, orgName: string, newStatus: string) => void;
+  submitCitizenReport: (report: { type: IncidentType; location: string; zone: string; description: string; estimatedAffected?: number }) => string;
+  verifyIncident: (incidentId: string) => void;
+  generateBroadcastDraft: (ctx: { incidentType: string; location: string; severity: string; description: string; audience: string }) => Promise<{ title: string; message: string } | null>;
+  suggestTaskAssignments: () => Promise<AiTaskSuggestion[] | null>;
 }
 
 const DataContext = createContext<DataContextValue | null>(null);
@@ -55,130 +67,145 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
   const [readAlertIds, setReadAlertIds] = useState<Set<string>>(new Set());
   const [units, setUnits] = useState<ResourceUnit[]>(seed.units);
 
-  const markAlertRead = (id: string) => {
-    setReadAlertIds((prev) => new Set([...prev, id]));
-  };
-
   const publicAlerts = useMemo(() => {
     const incidentAlerts: Broadcast[] = incidents
-      .filter((incident) => incident.publicVisibility === 'Public')
-      .map((incident) => ({
-        id: `incident-${incident.id}`,
-        title: incident.title,
-        severity: incident.severity === 'Critical' ? 'CRITICAL' : 'NOTICE',
-        audience: 'all',
-        zone: incident.zone,
-        message: incident.description,
-        issuer: incident.createdBy.toUpperCase(),
-        timestamp: incident.createdAt,
-        icon: incident.type === 'Flood' ? 'Waves' : 'ShieldAlert',
-        linkedIncidentId: incident.id
+      .filter((i) => i.publicVisibility === 'Public')
+      .map((i) => ({
+        id: `incident-${i.id}`, title: i.title,
+        severity: i.severity === 'Critical' ? 'CRITICAL' : 'NOTICE',
+        audience: 'all', zone: i.zone, message: i.description,
+        issuer: i.createdBy.toUpperCase(), timestamp: i.createdAt,
+        icon: i.type === 'Flood' ? 'Waves' : 'ShieldAlert', linkedIncidentId: i.id,
       }));
-    const byId = new Map([...broadcasts, ...incidentAlerts].map((item) => [item.id, item]));
+    const byId = new Map([...broadcasts, ...incidentAlerts].map((b) => [b.id, b]));
     return [...byId.values()];
   }, [broadcasts, incidents]);
 
-  const publishBroadcast: DataContextValue['publishBroadcast'] = (broadcast) => {
-    setBroadcasts((current) => [
-      {
-        ...broadcast,
-        id: `b${Date.now()}`,
-        issuer: broadcast.issuer ?? 'Raj Kumar',
-        timestamp: '20 May 2026, 02:03 pm',
-        icon: broadcast.icon ?? 'Megaphone'
-      },
-      ...current
-    ]);
+  const markAlertRead = (id: string) => setReadAlertIds((p) => new Set([...p, id]));
+
+  const publishBroadcast: DataContextValue['publishBroadcast'] = (b) => {
+    const now = new Date();
+    const newB: Broadcast = {
+      ...b, id: `b${Date.now()}`,
+      issuer: b.issuer ?? 'Raj Kumar',
+      timestamp: now.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' + now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true }),
+      icon: b.icon ?? 'Megaphone',
+    };
+    setBroadcasts((cur) => [newB, ...cur]);
+    apiPost('broadcasts', newB);
   };
 
   const deleteBroadcast = (id: string) => {
-    setBroadcasts((current) => current.filter((broadcast) => broadcast.id !== id));
+    setBroadcasts((cur) => cur.filter((b) => b.id !== id));
+    apiDelete(`broadcasts/${id}`);
   };
 
-  const makeIncidentPublic = (incidentId: string) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, publicVisibility: 'Public' } : incident));
+  const makeIncidentPublic = (id: string) => {
+    setIncidents((cur) => cur.map((i) => i.id === id ? { ...i, publicVisibility: 'Public' } : i));
+    apiPost(`incidents/${id}/make-public`);
   };
 
-  const assignIncident = (incidentId: string, organisationId: string) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId && !incident.assignedOrganisations.includes(organisationId)
-      ? { ...incident, assignedOrganisations: [...incident.assignedOrganisations, organisationId] }
-      : incident));
+  const assignIncident = (id: string, orgId: string) => {
+    setIncidents((cur) => cur.map((i) => i.id === id && !i.assignedOrganisations.includes(orgId) ? { ...i, assignedOrganisations: [...i.assignedOrganisations, orgId] } : i));
+    apiPost(`incidents/${id}/assign`, { organisationId: orgId });
   };
 
-  const updateIncidentStatus = (incidentId: string, status: Incident['status']) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, status, timeline: [...incident.timeline, makeTlEntry('STATUS', 'OneTogether', `Status updated to ${status}.`)] } : incident));
+  const updateIncidentStatus = (id: string, status: Incident['status']) => {
+    setIncidents((cur) => cur.map((i) => i.id === id ? { ...i, status, timeline: [...i.timeline, makeTlEntry('STATUS', 'OneTogether', `Status updated to ${status}.`)] } : i));
+    apiPatch(`incidents/${id}`, { status });
   };
 
-  const requestVolunteers = (incidentId: string) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId ? { ...incident, volunteerSupportNeeded: true, timeline: [...incident.timeline, makeTlEntry('VOLUNTEER', 'SCDF', 'Volunteer support requested via OneTogether platform.')] } : incident));
+  const requestVolunteers = (id: string) => {
+    setIncidents((cur) => cur.map((i) => i.id === id ? { ...i, volunteerSupportNeeded: true, timeline: [...i.timeline, makeTlEntry('VOLUNTEER', 'SCDF', 'Volunteer support requested via OneTogether platform.')] } : i));
+    apiPatch(`incidents/${id}`, { volunteerSupportNeeded: true });
   };
 
-  const resolveIncident = (incidentId: string) => updateIncidentStatus(incidentId, 'Closed');
+  const resolveIncident = (id: string) => updateIncidentStatus(id, 'Closed');
 
-  const addTimelineUpdate: DataContextValue['addTimelineUpdate'] = (incidentId, entry) => {
-    setIncidents((current) => current.map((incident) => incident.id === incidentId
-      ? { ...incident, timeline: [...incident.timeline, makeTlEntry(entry.category, entry.organisation, entry.text, entry.actor)] }
-      : incident));
+  const addTimelineUpdate: DataContextValue['addTimelineUpdate'] = (id, entry) => {
+    const tl = makeTlEntry(entry.category, entry.organisation, entry.text, entry.actor);
+    setIncidents((cur) => cur.map((i) => i.id === id ? { ...i, timeline: [...i.timeline, tl] } : i));
+    apiPost(`incidents/${id}/timeline`, tl);
   };
 
   const updateHospital = (id: string, patch: Partial<Hospital>) => {
-    setHospitals((current) => current.map((hospital) => hospital.id === id ? { ...hospital, ...patch, updatedAt: '02:04 pm' } : hospital));
+    setHospitals((cur) => cur.map((h) => h.id === id ? { ...h, ...patch, updatedAt: new Date().toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true }) } : h));
+    apiPatch(`hospitals/${id}`, patch);
   };
 
   const postVolunteerTask: DataContextValue['postVolunteerTask'] = (task) => {
-    setVolunteerTasks((current) => [{ ...task, id: `vt${Date.now()}`, slotsFilled: 0, status: 'Open' }, ...current]);
+    const newTask = { ...task, id: `vt${Date.now()}`, slotsFilled: 0, status: 'Open' as const };
+    setVolunteerTasks((cur) => [newTask, ...cur]);
+    apiPost('volunteer-tasks', newTask);
   };
 
   const updateThreshold = (id: string, threshold: number) => {
-    setThresholds((current) => current.map((alert) => alert.id === id ? { ...alert, threshold, status: alert.current >= threshold ? 'Critical' : 'Normal' } : alert));
+    setThresholds((cur) => cur.map((t) => t.id === id ? { ...t, threshold, status: t.current >= threshold ? 'Critical' : 'Normal' } : t));
+    apiPatch(`thresholds/${id}`, { threshold });
   };
 
   const registerProgramme = (id: string) => {
-    setCommunityProgrammes((current) => current.map((programme) => programme.id === id ? { ...programme, registered: Math.min(programme.capacity, programme.registered + 1) } : programme));
+    setCommunityProgrammes((cur) => cur.map((p) => p.id === id ? { ...p, registered: Math.min(p.capacity, p.registered + 1) } : p));
+    apiPost(`community-programmes/${id}/register`);
   };
 
   const signUpTask = (id: string) => {
-    setVolunteerTasks((current) => current.map((task) => task.id === id ? { ...task, slotsFilled: Math.min(task.slotsTotal, task.slotsFilled + 1), status: task.slotsFilled + 1 >= task.slotsTotal ? 'Full' : 'Filling' } : task));
+    setVolunteerTasks((cur) => cur.map((t) => t.id === id ? { ...t, slotsFilled: Math.min(t.slotsTotal, t.slotsFilled + 1), status: t.slotsFilled + 1 >= t.slotsTotal ? 'Full' : 'Filling' } : t));
+    apiPost(`volunteer-tasks/${id}/signup`);
   };
 
   const updateUnitStatus: DataContextValue['updateUnitStatus'] = (unitId, status, assignedIncidentId) => {
-    setUnits((current) => current.map((unit) => unit.id === unitId ? { ...unit, status, assignedIncidentId: assignedIncidentId ?? unit.assignedIncidentId } : unit));
+    setUnits((cur) => cur.map((u) => u.id === unitId ? { ...u, status, assignedIncidentId: assignedIncidentId ?? u.assignedIncidentId } : u));
+    apiPatch(`units/${unitId}`, { status, assignedIncidentId });
     if (assignedIncidentId) {
       const unit = units.find((u) => u.id === unitId);
       if (unit) {
-        const action = status === 'En Route' ? `${unit.callSign} (${unit.type}) dispatched en route.` : status === 'On Scene' ? `${unit.callSign} (${unit.type}) arrived on scene.` : `${unit.callSign} status updated to ${status}.`;
-        addTimelineUpdate(assignedIncidentId, { category: 'DEPLOY', organisation: unit.organisation, text: action });
+        const text = status === 'En Route' ? `${unit.callSign} (${unit.type}) dispatched en route.` : status === 'On Scene' ? `${unit.callSign} (${unit.type}) arrived on scene.` : `${unit.callSign} status updated to ${status}.`;
+        addTimelineUpdate(assignedIncidentId, { category: 'DEPLOY', organisation: unit.organisation, text });
       }
     }
   };
 
   const STATUS_ORDER: Incident['status'][] = ['Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed'];
 
-  const advanceIncidentStatus: DataContextValue['advanceIncidentStatus'] = (incidentId, logEntry) => {
-    setIncidents((current) => current.map((incident) => {
-      if (incident.id !== incidentId) return incident;
-      const idx = STATUS_ORDER.indexOf(incident.status);
-      const next = idx < STATUS_ORDER.length - 1 ? STATUS_ORDER[idx + 1] : incident.status;
-      const tlEntry = makeTlEntry(logEntry.category, logEntry.organisation, logEntry.text, logEntry.actor);
-      const statusEntry = makeTlEntry('STATUS', 'OneTogether', `Status advanced to ${next}.`);
-      return { ...incident, status: next, timeline: [...incident.timeline, tlEntry, statusEntry] };
+  const advanceIncidentStatus: DataContextValue['advanceIncidentStatus'] = (id, logEntry) => {
+    setIncidents((cur) => cur.map((i) => {
+      if (i.id !== id) return i;
+      const next = STATUS_ORDER[Math.min(STATUS_ORDER.indexOf(i.status) + 1, STATUS_ORDER.length - 1)];
+      const tl1 = makeTlEntry(logEntry.category, logEntry.organisation, logEntry.text, logEntry.actor);
+      const tl2 = makeTlEntry('STATUS', 'OneTogether', `Status advanced to ${next}.`);
+      return { ...i, status: next, timeline: [...i.timeline, tl1, tl2] };
     }));
+    apiPost(`incidents/${id}/advance-status`, logEntry);
   };
 
-  const addRespondingOrg = (incidentId: string, orgName: string, status: string) => {
-    setIncidents((current) => current.map((incident) =>
-      incident.id === incidentId && !incident.respondingOrganisations.some((ro) => ro.organisation === orgName)
-        ? { ...incident, respondingOrganisations: [...incident.respondingOrganisations, { organisation: orgName, status }] }
-        : incident
-    ));
+  const addRespondingOrg = (id: string, orgName: string, status: string) => {
+    setIncidents((cur) => cur.map((i) => i.id === id && !i.respondingOrganisations.some((r) => r.organisation === orgName) ? { ...i, respondingOrganisations: [...i.respondingOrganisations, { organisation: orgName, status }] } : i));
   };
 
-  const updateRespondingOrgStatus = (incidentId: string, orgName: string, newStatus: string) => {
-    setIncidents((current) => current.map((incident) =>
-      incident.id === incidentId
-        ? { ...incident, respondingOrganisations: incident.respondingOrganisations.map((ro) => ro.organisation === orgName ? { ...ro, status: newStatus } : ro) }
-        : incident
-    ));
+  const updateRespondingOrgStatus = (id: string, orgName: string, newStatus: string) => {
+    setIncidents((cur) => cur.map((i) => i.id === id ? { ...i, respondingOrganisations: i.respondingOrganisations.map((r) => r.organisation === orgName ? { ...r, status: newStatus } : r) } : i));
+  };
+
+  const submitCitizenReport: DataContextValue['submitCitizenReport'] = (report) => {
+    const now = new Date();
+    const dateStr = now.toLocaleDateString('en-SG', { day: 'numeric', month: 'short', year: 'numeric' });
+    const timeStr = now.toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit', hour12: true });
+    const id = `INC-2026-${String(Date.now()).slice(-4)}`;
+    const incident: Incident = {
+      id, title: `${report.type} Incident — ${report.location.split(',')[0]}`,
+      type: report.type, severity: 'Medium', status: 'Reported',
+      source: 'citizen_report' as IncidentSource,
+      createdBy: 'citizen', createdAt: `${dateStr}, ${timeStr}`,
+      location: report.location, zone: report.zone, description: report.description,
+      assignedOrganisations: [], respondingOrganisations: [],
+      volunteerSupportNeeded: false, publicVisibility: 'Private',
+      unitsResponded: 0, volunteersResponded: report.estimatedAffected ?? 0, confidenceScore: 20,
+      timeline: [makeTlEntry('INITIAL', 'OneTogether', `Citizen report submitted. ${report.description}${report.estimatedAffected ? ` Est. ${report.estimatedAffected} affected.` : ''} Pending verification.`)],
+    };
+    setIncidents((cur) => [incident, ...cur]);
+    apiPost('incidents', incident);
+    return id;
   };
 
   const generateSitrep: DataContextValue['generateSitrep'] = async (incidentId) => {
@@ -216,47 +243,24 @@ export function DataProvider({ children }: { children: React.ReactNode }) {
     setIncidents((current) => current.map((i) => i.id === incidentId ? { ...i, advisory } : i));
   };
 
-  const value: DataContextValue = {
-    users: seed.users,
-    organisations: seed.organisations,
-    notifications: seed.notifications,
-    incidents,
-    broadcasts,
-    volunteerTasks,
-    communityProgrammes,
-    hospitals,
-    thresholds,
-    publicAlerts,
-    readAlertIds,
-    units,
-    markAlertRead,
-    publishBroadcast,
-    deleteBroadcast,
-    makeIncidentPublic,
-    assignIncident,
-    updateIncidentStatus,
-    requestVolunteers,
-    resolveIncident,
-    updateHospital,
-    postVolunteerTask,
-    updateThreshold,
-    registerProgramme,
-    signUpTask,
-    addTimelineUpdate,
-    updateUnitStatus,
-    generateSitrep,
-    advanceIncidentStatus,
-    addRespondingOrg,
-    updateRespondingOrgStatus
-  };
-
-  return <DataContext.Provider value={value}>{children}</DataContext.Provider>;
+  return (
+    <DataContext.Provider value={{
+      users: seed.users, organisations: seed.organisations, notifications: seed.notifications,
+      incidents, broadcasts, volunteerTasks, communityProgrammes, hospitals, thresholds,
+      publicAlerts, readAlertIds, units,
+      markAlertRead, publishBroadcast, deleteBroadcast, makeIncidentPublic, assignIncident,
+      updateIncidentStatus, requestVolunteers, resolveIncident, updateHospital, postVolunteerTask,
+      updateThreshold, registerProgramme, signUpTask, addTimelineUpdate, updateUnitStatus,
+      generateSitrep, advanceIncidentStatus, addRespondingOrg, updateRespondingOrgStatus,
+      submitCitizenReport, verifyIncident, generateBroadcastDraft, suggestTaskAssignments,
+    }}>
+      {children}
+    </DataContext.Provider>
+  );
 }
 
 export function useData() {
-  const context = useContext(DataContext);
-  if (!context) {
-    throw new Error('useData must be used within DataProvider');
-  }
-  return context;
+  const ctx = useContext(DataContext);
+  if (!ctx) throw new Error('useData must be used within DataProvider');
+  return ctx;
 }

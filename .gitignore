@@ -63,7 +63,7 @@ kubeconfig.*
 *.key
 .kube/
 
-# ── Local planning notes ──────────────────────────────────────────────────────
+# ── Local planning / notes (never commit) ─────────────────────────────────────
 DEPLOY.md
 DEPLOYMENT.md
 HACKATHON.md
