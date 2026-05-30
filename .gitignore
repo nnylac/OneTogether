@@ -63,11 +63,29 @@ kubeconfig.*
 *.key
 .kube/
 
-# ── Local planning notes ──────────────────────────────────────────────────────
+# ── Local planning / notes (never commit) ─────────────────────────────────────
 DEPLOY.md
 DEPLOYMENT.md
-claude.md
-claude2.md
+HACKATHON.md
+[Cc][Ll][Aa][Uu][Dd][Ee]*.md
+*.py
+
+
+
+# ── Vite ──────────────────────────────────────────────────────────────────────
+.vite/
+
+# ── Test / coverage ───────────────────────────────────────────────────────────
+coverage/
+.nyc_output/
+
+# ── Linter / formatter caches ─────────────────────────────────────────────────
+.eslintcache
+.prettiercache
+.stylelintcache
+
+# ── Lambda build artefacts (Terraform zips these before upload) ───────────────
+infrastructure/lambdas/**/*.zip
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 .tmp/

@@ -5,6 +5,7 @@
 resource "aws_ecr_repository" "backend" {
   name                 = "${local.name}-backend"
   image_tag_mutability = "MUTABLE"  # Allows the 'latest' tag to be updated on each deploy
+  force_delete         = true       # allows terraform destroy even when images exist
 
   # Scan images for known CVEs on push
   image_scanning_configuration {

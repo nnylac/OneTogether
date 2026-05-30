@@ -71,12 +71,15 @@ export interface TimelineUpdate {
   text: string;
 }
 
+export type IncidentSource = 'scdf_feed' | 'hospital_feed' | 'spf_feed' | 'citizen_report' | 'manual';
+
 export interface Incident {
   id: string;
   title: string;
   type: IncidentType;
   severity: Exclude<Severity, 'Notice' | 'Info'>;
   status: IncidentStatus;
+  source?: IncidentSource;
   createdBy: string;
   createdAt: string;
   location: string;

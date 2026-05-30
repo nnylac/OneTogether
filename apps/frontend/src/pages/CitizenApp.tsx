@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   BookOpen,
   Building2,
   CheckCircle2,
@@ -9,6 +10,7 @@ import {
   MapPin,
   Megaphone,
   Phone,
+  Send,
   Shield,
   ShieldAlert,
   Train,
@@ -19,7 +21,7 @@ import { type ElementType, useState } from 'react';
 import { MobileShell } from '../components/layouts';
 import { Field, ProgressBar } from '../components/ui';
 import { useData } from '../state/DataContext';
-import type { Broadcast, CommunityProgramme, VolunteerTask } from '../types';
+import type { Broadcast, CommunityProgramme, IncidentType, VolunteerTask } from '../types';
 
 // Maps broadcast icon key → Lucide component
 const broadcastIconMap: Record<string, ElementType> = {
@@ -59,6 +61,7 @@ export function CitizenApp() {
   return (
     <MobileShell tab={tab} setTab={setTab} alertCount={unreadCount} volunteerCount={volunteerTasks.length}>
       {tab === 'alerts' && <CitizenAlerts />}
+      {tab === 'report' && <CitizenReport />}
       {tab === 'communities' && <CitizenCommunities />}
       {tab === 'volunteer' && <CitizenVolunteer />}
       {tab === 'contact' && <CitizenContact />}
@@ -298,6 +301,134 @@ function AdvisoryModal({ broadcast, onClose }: { broadcast: Broadcast; onClose: 
         </div>
       </div>
     </div>
+  );
+}
+
+// ─── Report ──────────────────────────────────────────────────────────────────
+
+const INCIDENT_TYPES: IncidentType[] = ['Medical', 'Fire', 'Flood', 'Road', 'Infrastructure', 'Civil', 'Other'];
+const ZONES = ['Central', 'North', 'South', 'East', 'West', 'National'];
+
+function CitizenReport() {
+  const { submitCitizenReport } = useData();
+  const [type, setType] = useState<IncidentType>('Medical');
+  const [location, setLocation] = useState('');
+  const [zone, setZone] = useState('Central');
+  const [description, setDescription] = useState('');
+  const [affected, setAffected] = useState('');
+  const [submitted, setSubmitted] = useState<string | null>(null);
+  const [error, setError] = useState('');
+
+  const submit = () => {
+    if (!location.trim() || !description.trim()) {
+      setError('Please fill in location and description.');
+      return;
+    }
+    const refId = submitCitizenReport({
+      type,
+      location: location.trim(),
+      zone,
+      description: description.trim(),
+      estimatedAffected: affected ? Number(affected) : undefined,
+    });
+    setSubmitted(refId);
+  };
+
+  if (submitted) {
+    return (
+      <section className="space-y-4">
+        <div className="flex flex-col items-center justify-center rounded-2xl border border-emerald-100 bg-emerald-50 p-8 text-center">
+          <CheckCircle2 size={40} className="text-emerald-500 mb-3" />
+          <h2 className="text-base font-semibold text-slate-900">Report Submitted</h2>
+          <p className="mt-1 text-sm text-slate-500">Your report has been received and will be reviewed by our duty officers.</p>
+          <div className="mt-4 rounded-lg border border-emerald-200 bg-white px-4 py-3">
+            <p className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Reference Number</p>
+            <p className="mt-1 text-lg font-bold tracking-tight text-slate-900">{submitted}</p>
+          </div>
+          <p className="mt-4 text-xs text-slate-400">If this is a life-threatening emergency, call <strong>995</strong> immediately.</p>
+          <button onClick={() => { setSubmitted(null); setLocation(''); setDescription(''); setAffected(''); setError(''); }} className="mt-5 text-xs font-semibold text-sgds-purple hover:underline">
+            Submit another report
+          </button>
+        </div>
+      </section>
+    );
+  }
+
+  return (
+    <section className="space-y-4">
+      <div>
+        <h2 className="text-base font-semibold text-slate-900">Report an Incident</h2>
+        <p className="mt-0.5 text-xs text-slate-400">Help responders by sharing what you see. For life-threatening emergencies, call 995 first.</p>
+      </div>
+
+      <div className="rounded-xl border border-amber-100 bg-amber-50 p-3 flex items-start gap-3">
+        <AlertTriangle size={15} className="mt-0.5 shrink-0 text-amber-600" />
+        <p className="text-xs text-amber-800">This form is for non-emergency reporting. <strong>Call 995 (SCDF) or 999 (Police)</strong> if immediate help is needed.</p>
+      </div>
+
+      <div className="space-y-3">
+        <div>
+          <p className="mb-2 text-xs font-semibold text-slate-700">Incident Type</p>
+          <div className="grid grid-cols-4 gap-1.5">
+            {INCIDENT_TYPES.map((t) => (
+              <button key={t} onClick={() => setType(t)} className={`rounded-lg border py-2 text-[11px] font-semibold transition-colors ${type === t ? 'border-sgds-purple bg-sgds-purple text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="Location / Address">
+          <input
+            className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sgds-purple/20 focus:border-sgds-purple transition-colors"
+            placeholder="e.g. Blk 45 Jurong West St 42, near playground"
+            value={location}
+            onChange={(e) => setLocation(e.target.value)}
+          />
+        </Field>
+
+        <div>
+          <p className="mb-1.5 text-xs font-semibold text-slate-700">Area / Zone</p>
+          <div className="flex flex-wrap gap-1.5">
+            {ZONES.map((z) => (
+              <button key={z} onClick={() => setZone(z)} className={`rounded-full border px-3 py-1 text-xs font-semibold transition-colors ${zone === z ? 'border-sgds-purple bg-sgds-purple text-white' : 'border-slate-200 bg-white text-slate-500'}`}>
+                {z}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <Field label="What happened? *">
+          <textarea
+            className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sgds-purple/20 focus:border-sgds-purple transition-colors resize-none"
+            rows={4}
+            placeholder="Describe what you see — what happened, who is involved, any visible hazards…"
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+          />
+        </Field>
+
+        <Field label="Estimated people affected (optional)">
+          <input
+            type="number"
+            min="0"
+            className="w-full rounded-lg border border-slate-200 bg-white px-3.5 py-2.5 text-sm text-slate-900 placeholder:text-slate-300 focus:outline-none focus:ring-2 focus:ring-sgds-purple/20 focus:border-sgds-purple transition-colors"
+            placeholder="0"
+            value={affected}
+            onChange={(e) => setAffected(e.target.value)}
+          />
+        </Field>
+
+        {error && <p className="text-xs text-red-600">{error}</p>}
+
+        <button
+          onClick={submit}
+          className="flex w-full items-center justify-center gap-2 rounded-lg bg-sgds-purple py-3 text-sm font-semibold text-white hover:bg-sgds-purple-dark transition-colors"
+        >
+          <Send size={14} /> Submit Report
+        </button>
+      </div>
+    </section>
   );
 }
 

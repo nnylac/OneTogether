@@ -4,8 +4,9 @@
 
 # --- Frontend static site bucket (served via CloudFront) --------------------
 resource "aws_s3_bucket" "frontend" {
-  bucket = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
-  tags   = local.tags
+  bucket        = "${local.name}-frontend-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true  # allows terraform destroy to empty and delete the bucket
+  tags          = local.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "frontend" {
@@ -34,8 +35,9 @@ resource "aws_s3_bucket_server_side_encryption_configuration" "frontend" {
 
 # --- Data Lake (incident reports, AI advisory history) ----------------------
 resource "aws_s3_bucket" "data_lake" {
-  bucket = "${local.name}-data-lake-${data.aws_caller_identity.current.account_id}"
-  tags   = local.tags
+  bucket        = "${local.name}-data-lake-${data.aws_caller_identity.current.account_id}"
+  force_destroy = true  # allows terraform destroy to empty and delete the bucket
+  tags          = local.tags
 }
 
 resource "aws_s3_bucket_public_access_block" "data_lake" {

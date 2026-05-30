@@ -20,8 +20,8 @@ resource "aws_db_instance" "main" {
   vpc_security_group_ids = [aws_security_group.rds.id]
   publicly_accessible    = false  # Only accessible from within the VPC
 
-  # High availability: creates a synchronous standby in the second AZ
-  multi_az = true
+  # Single-AZ for dev/prototype — set to true when going to production
+  multi_az = false
 
   # Storage
   storage_type      = "gp3"
@@ -32,10 +32,9 @@ resource "aws_db_instance" "main" {
   backup_window           = "03:00-04:00"  # 3-4 AM SGT (UTC+8), low traffic
   maintenance_window      = "Mon:04:00-Mon:05:00"
 
-  # Protect production data from accidental Terraform destroys
-  deletion_protection      = true
-  skip_final_snapshot      = false
-  final_snapshot_identifier = "${local.name}-postgres-final-snapshot"
+  # Set deletion_protection = true and skip_final_snapshot = false before going to production
+  deletion_protection       = false
+  skip_final_snapshot       = true
 
   # Ship slow-query and error logs to CloudWatch
   enabled_cloudwatch_logs_exports = ["postgresql", "upgrade"]
