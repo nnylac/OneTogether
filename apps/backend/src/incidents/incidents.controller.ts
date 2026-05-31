@@ -93,6 +93,11 @@ export class IncidentsController {
   ) {
     return this.service.getNearbyInfrastructure(id, radius ? parseInt(radius, 10) : 2000);
   }
+
+  @Get(':id/ai-resource-suggestions')
+  aiResourceSuggestions(@Param('id') id: string) {
+    return this.service.getAiResourceSuggestions(id);
+  }
 }
 
 @Controller('units')

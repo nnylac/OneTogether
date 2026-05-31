@@ -2,6 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { GeocodingService } from './geocoding.service';
 import { OverpassService } from './overpass.service';
+import { AiService } from '../ai/ai.service';
 
 @Injectable()
 export class IncidentsService {
@@ -9,6 +10,7 @@ export class IncidentsService {
     private prisma: PrismaService,
     private geocoding: GeocodingService,
     private overpass: OverpassService,
+    private ai: AiService,
   ) {}
 
   async findAll() {
@@ -97,6 +99,48 @@ export class IncidentsService {
       inc = await this.prisma.incident.findUnique({ where: { id } }) ?? inc;
     }
     return this.overpass.getNearby(inc.latitude!, inc.longitude!, inc.type, radius);
+  }
+
+  async getAiResourceSuggestions(id: string): Promise<{ name: string; type: string; reason: string; priority: string }[]> {
+    const inc = await this.prisma.incident.findUnique({
+      where: { id },
+      include: { timeline: { take: 10, orderBy: { timestamp: 'desc' } }, resources: { include: { unit: true } } },
+    });
+    if (!inc) return [];
+
+    const assignedUnits = inc.resources.map(r => `${r.unit?.callSign} (${r.unit?.type})`).join(', ') || 'none';
+    const recentTimeline = inc.timeline.map(e => e.text).join('; ') || 'none';
+
+    const prompt = `You are a Singapore national emergency operations advisor.
+
+For the following incident, list up to 5 specific nearby resources or facilities that responders should know about.
+Only include resources that are operationally necessary for THIS specific incident type and severity.
+
+Incident: ${inc.title}
+Type: ${inc.type} | Severity: ${inc.severity} | Status: ${inc.status}
+Location: ${inc.location}
+Description: ${String(inc.description).slice(0, 200)}
+Assigned units: ${assignedUnits}
+Recent events: ${recentTimeline}
+
+Return ONLY a JSON array with this exact structure, no markdown fences:
+[
+  { "name": "facility name", "type": "hospital|fire_station|police|clinic|shelter|other", "reason": "brief operational reason", "priority": "critical|recommended" }
+]
+
+Rules:
+- Only include facilities relevant to ${inc.type} incidents
+- "critical" = immediately needed for this response
+- "recommended" = useful supporting resource
+- Be specific (e.g. "KK Women's and Children's Hospital" not just "hospital")
+- Max 5 items`;
+
+    try {
+      const text = await this.ai.ask(prompt);
+      return this.ai.parseJson<{ name: string; type: string; reason: string; priority: string }[]>(text, []);
+    } catch {
+      return [];
+    }
   }
 
   async update(id: string, data: Partial<{
