@@ -1,7 +1,8 @@
 import { Activity, Building2, Car, CheckCircle2, ChevronRight, FileText, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { IncidentRoomPage } from './IncidentRoomPage';
 import { SidebarLayout } from '../components/layouts';
 import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
@@ -28,6 +29,7 @@ export function OrganisationApp() {
       <Routes>
         <Route path="/" element={<OrgDashboard />} />
         <Route path="/incidents" element={<OrgIncidents />} />
+        <Route path="/incidents/:id" element={<IncidentRoomPage />} />
         <Route path="/map" element={<OrgMap />} />
         <Route path="/resources" element={<OrgResources />} />
         <Route path="/notifications" element={<OrgNotifications />} />
@@ -418,6 +420,7 @@ function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncident
           {incident.advisory && !showAdvisory && (
             <button onClick={() => setShowAdvisory(true)} className="w-full text-left text-xs font-semibold text-indigo-600 hover:underline">View AI Advisory →</button>
           )}
+          <OpenRoomButton incidentId={incident.id} />
           <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Close incident</Button>
           {onCollapse && <Button variant="outline" className="w-full" onClick={onCollapse}>Collapse</Button>}
         </div>
@@ -443,8 +446,23 @@ function IncidentSummaryCard({ incident, onClick }: { incident: Incident; onClic
           <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={8} tone="bg-sgds-purple" />
           <InfoCell label="Location" value={incident.location} />
         </div>
-        <div className="mt-3 text-xs font-semibold text-sgds-purple">Click to expand →</div>
+        <div className="mt-3 flex items-center justify-between">
+          <span className="text-xs font-semibold text-sgds-purple">Click to expand →</span>
+          <OpenRoomButton incidentId={incident.id} />
+        </div>
       </Card>
+    </button>
+  );
+}
+
+function OpenRoomButton({ incidentId }: { incidentId: string }) {
+  const nav = useNavigate();
+  return (
+    <button
+      onClick={(e) => { e.stopPropagation(); nav(`/organisation/incidents/${incidentId}`); }}
+      className="text-xs bg-indigo-600 hover:bg-indigo-700 text-white px-2 py-1 rounded font-semibold transition-colors"
+    >
+      Open Room →
     </button>
   );
 }
