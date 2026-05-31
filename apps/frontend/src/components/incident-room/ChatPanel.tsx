@@ -41,7 +41,6 @@ export function ChatPanel({ messages, typingUsers, aiThinking, currentUserId, on
     setInput(value);
     const lower = value.toLowerCase();
     setShowSuggestions(lower.startsWith('@ai') || lower.startsWith('/'));
-
     if (typingTimer.current) clearTimeout(typingTimer.current);
     typingTimer.current = setTimeout(onTyping, 300);
   }
@@ -56,10 +55,7 @@ export function ChatPanel({ messages, typingUsers, aiThinking, currentUserId, on
   }
 
   function handleKey(e: KeyboardEvent<HTMLTextAreaElement>) {
-    if (e.key === 'Enter' && !e.shiftKey) {
-      e.preventDefault();
-      handleSend();
-    }
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleSend(); }
   }
 
   function applySuggestion(label: string) {
@@ -73,33 +69,23 @@ export function ChatPanel({ messages, typingUsers, aiThinking, currentUserId, on
   ];
 
   return (
-    <div className="flex flex-col h-full bg-gray-950">
-      {/* Message list */}
-      <div
-        ref={listRef}
-        onScroll={handleScroll}
-        className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5"
-      >
+    <div className="flex flex-col h-full bg-white">
+      <div ref={listRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-4 py-3 space-y-0.5">
         {messages.length === 0 && (
-          <div className="text-center text-gray-600 text-sm mt-8">
+          <div className="text-center text-gray-400 text-sm mt-8">
             No messages yet. Use <span className="font-mono text-blue-500">@ai</span> to call the AI assistant.
           </div>
         )}
-        {messages.map((m) => (
-          <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />
-        ))}
+        {messages.map((m) => <MessageBubble key={m.id} message={m} currentUserId={currentUserId} />)}
         {aiThinking && (
           <div className="flex gap-3 my-2">
             <div className="w-7 h-7 rounded-full bg-blue-600 flex items-center justify-center shrink-0">
               <Bot size={14} className="text-white" />
             </div>
-            <div className="bg-blue-950/60 border border-blue-800/50 rounded-lg px-3 py-2 flex items-center gap-1.5">
+            <div className="bg-blue-50 border border-blue-200 rounded-lg px-3 py-2 flex items-center gap-1.5">
               {[0, 1, 2].map((i) => (
-                <span
-                  key={i}
-                  className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
-                  style={{ animationDelay: `${i * 150}ms` }}
-                />
+                <span key={i} className="w-1.5 h-1.5 bg-blue-400 rounded-full animate-bounce"
+                  style={{ animationDelay: `${i * 150}ms` }} />
               ))}
             </div>
           </div>
@@ -107,56 +93,39 @@ export function ChatPanel({ messages, typingUsers, aiThinking, currentUserId, on
         <div ref={bottomRef} />
       </div>
 
-      {/* Scroll-to-bottom button */}
       {!atBottom && (
-        <button
-          onClick={() => { setAtBottom(true); bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
-          className="absolute bottom-24 right-6 bg-gray-700 hover:bg-gray-600 text-white rounded-full p-1.5 shadow-lg"
-        >
+        <button onClick={() => { setAtBottom(true); bottomRef.current?.scrollIntoView({ behavior: 'smooth' }); }}
+          className="absolute bottom-24 right-6 bg-gray-200 hover:bg-gray-300 text-gray-700 rounded-full p-1.5 shadow-lg">
           <ChevronDown size={16} />
         </button>
       )}
 
-      {/* Typing indicator */}
       {allTyping.length > 0 && (
-        <div className="px-4 py-1 text-xs text-gray-500">
-          {allTyping.join(', ')} {allTyping.length === 1 ? 'is' : 'are'} typing…
+        <div className="px-4 py-1 text-xs text-gray-400">
+          {allTyping.join(', ')} {allTyping.length === 1 ? 'is' : 'are'} typing...
         </div>
       )}
 
-      {/* Autocomplete suggestions */}
       {showSuggestions && (
-        <div className="mx-4 mb-1 bg-gray-800 border border-gray-700 rounded-lg overflow-hidden">
+        <div className="mx-4 mb-1 bg-white border border-gray-200 shadow-lg rounded-lg overflow-hidden">
           {AI_COMMANDS.map((cmd) => (
-            <button
-              key={cmd.label}
-              onClick={() => applySuggestion(cmd.label)}
-              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-700 text-left"
-            >
-              <Bot size={14} className="text-blue-400 shrink-0" />
-              <span className="text-sm font-mono text-blue-300">{cmd.label}</span>
-              <span className="text-xs text-gray-500 ml-1">{cmd.desc}</span>
+            <button key={cmd.label} onClick={() => applySuggestion(cmd.label)}
+              className="w-full flex items-center gap-3 px-3 py-2 hover:bg-gray-50 text-left">
+              <Bot size={14} className="text-blue-500 shrink-0" />
+              <span className="text-sm font-mono text-blue-600">{cmd.label}</span>
+              <span className="text-xs text-gray-400 ml-1">{cmd.desc}</span>
             </button>
           ))}
         </div>
       )}
 
-      {/* Input */}
-      <div className="p-3 border-t border-gray-800 flex gap-2 items-end">
-        <textarea
-          value={input}
-          onChange={(e) => handleInput(e.target.value)}
-          onKeyDown={handleKey}
-          placeholder='Message… or type @ai for AI commands'
-          rows={1}
-          className="flex-1 bg-gray-800 text-gray-100 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-600 max-h-32"
-          style={{ fieldSizing: 'content' } as React.CSSProperties}
-        />
-        <button
-          onClick={handleSend}
-          disabled={!input.trim()}
-          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl p-2 transition-colors"
-        >
+      <div className="p-3 border-t border-gray-200 flex gap-2 items-end">
+        <textarea value={input} onChange={(e) => handleInput(e.target.value)} onKeyDown={handleKey}
+          placeholder="Message... or type @ai for AI commands" rows={1}
+          className="flex-1 bg-gray-100 text-gray-900 rounded-xl px-3 py-2 text-sm resize-none focus:outline-none focus:ring-1 focus:ring-indigo-500 placeholder-gray-400 max-h-32"
+          style={{ fieldSizing: 'content' } as React.CSSProperties} />
+        <button onClick={handleSend} disabled={!input.trim()}
+          className="bg-indigo-600 hover:bg-indigo-500 disabled:opacity-40 text-white rounded-xl p-2 transition-colors">
           <Send size={16} />
         </button>
       </div>

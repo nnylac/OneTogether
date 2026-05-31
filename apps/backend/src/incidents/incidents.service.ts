@@ -1,9 +1,15 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { GeocodingService } from './geocoding.service';
+import { OverpassService } from './overpass.service';
 
 @Injectable()
 export class IncidentsService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private geocoding: GeocodingService,
+    private overpass: OverpassService,
+  ) {}
 
   async findAll() {
     const incidents = await this.prisma.incident.findMany({
@@ -30,6 +36,7 @@ export class IncidentsService {
         resources: { include: { unit: { include: { organisation: true } } } },
         uploads: { orderBy: { createdAt: 'asc' } },
         participants: true,
+        pois: { orderBy: { createdAt: 'asc' } },
         _count: { select: { participants: true } },
       },
     });
@@ -47,12 +54,49 @@ export class IncidentsService {
     createdBy: string;
     publicVisibility?: string;
   }) {
-    return this.prisma.incident.create({
-      data: {
-        ...data,
-        assignedOrgIds: JSON.stringify([]),
-      },
+    const incident = await this.prisma.incident.create({
+      data: { ...data, assignedOrgIds: JSON.stringify([]) },
     });
+    // Fire-and-forget geocoding
+    void this.geocoding.geocodeAddress(data.location).then((coords) => {
+      if (coords) {
+        void this.prisma.incident.update({
+          where: { id: incident.id },
+          data: { latitude: coords.lat, longitude: coords.lng },
+        });
+      }
+    });
+    return incident;
+  }
+
+  async setLocation(id: string, latitude: number, longitude: number, boundaryGeoJson?: string) {
+    return this.prisma.incident.update({
+      where: { id },
+      data: { latitude, longitude, ...(boundaryGeoJson !== undefined ? { boundaryGeoJson } : {}) },
+    });
+  }
+
+  async geocodeIncident(id: string) {
+    const inc = await this.prisma.incident.findUnique({ where: { id } });
+    if (!inc) throw new NotFoundException(`Incident ${id} not found`);
+    const coords = await this.geocoding.geocodeAddress(inc.location);
+    if (!coords) return { ...inc, queriedAs: null };
+    const updated = await this.prisma.incident.update({
+      where: { id },
+      data: { latitude: coords.lat, longitude: coords.lng },
+    });
+    return { ...updated, queriedAs: coords.queriedAs };
+  }
+
+  async getNearbyInfrastructure(id: string, radius = 2000) {
+    let inc = await this.prisma.incident.findUnique({ where: { id } });
+    if (!inc) throw new NotFoundException(`Incident ${id} not found`);
+    if (inc.latitude == null) {
+      const geocoded = await this.geocodeIncident(id);
+      if (geocoded.latitude == null) return [];
+      inc = await this.prisma.incident.findUnique({ where: { id } }) ?? inc;
+    }
+    return this.overpass.getNearby(inc.latitude!, inc.longitude!, inc.type, radius);
   }
 
   async update(id: string, data: Partial<{

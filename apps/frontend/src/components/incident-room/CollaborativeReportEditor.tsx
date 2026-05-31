@@ -1,442 +1,336 @@
-import { useState, useRef, useCallback, type KeyboardEvent, useEffect } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import ImageExtension from '@tiptap/extension-image';
+import Placeholder from '@tiptap/extension-placeholder';
+import Underline from '@tiptap/extension-underline';
 import {
-  Bold, Italic, List, CheckSquare, Heading1, Heading2, Heading3,
-  Code, Minus, Sparkles, CheckCircle2, X, Loader, Download,
+  Bold, Italic, Underline as UnderlineIcon, List, ListOrdered,
+  Heading1, Heading2, Heading3, Minus, Sparkles, Download,
+  X, Loader, CheckCircle2, ImageIcon,
 } from 'lucide-react';
-import type { RemoteCursor, AiSuggestion, DbReport } from '../../hooks/useReport';
+import type { DbReport } from '../../hooks/useReport';
+import type { DbResourceAssignment, DbUpload } from '../../api/incidents.api';
+import { uploadFile, getUploadUrl } from './UploadsPanel';
 
-// ── Shared document styles (used by both overlay preview and print) ────────
-const DOC_FONT = `font-family: 'Inter', system-ui, -apple-system, sans-serif`;
-const DOC_SIZE = 'font-size: 15px';
-const DOC_LINE = 'line-height: 1.8';
-const DOC_PAD  = 'padding: 3rem 3.5rem';
-
-// ── Markdown → HTML renderer ───────────────────────────────────────────────
-function renderMarkdown(md: string): string {
-  let html = md
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/```([\s\S]*?)```/g, '<pre class="md-pre"><code>$1</code></pre>')
-    .replace(/`([^`]+)`/g, '<code class="md-code">$1</code>')
-    .replace(/^### (.+)$/gm, '<h3 class="md-h3">$1</h3>')
-    .replace(/^## (.+)$/gm, '<h2 class="md-h2">$1</h2>')
-    .replace(/^# (.+)$/gm, '<h1 class="md-h1">$1</h1>')
-    .replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>')
-    .replace(/\*(.+?)\*/g, '<em>$1</em>')
-    .replace(/^- \[x\] (.+)$/gm, '<li class="md-check checked"><span class="cb">✓</span>$1</li>')
-    .replace(/^- \[ \] (.+)$/gm, '<li class="md-check"><span class="cb">○</span>$1</li>')
-    .replace(/^- (.+)$/gm, '<li class="md-li">$1</li>')
-    .replace(/^\d+\. (.+)$/gm, '<li class="md-oli">$1</li>')
-    .replace(/^> (.+)$/gm, '<blockquote class="md-bq">$1</blockquote>')
-    .replace(/^---$/gm, '<hr class="md-hr" />')
-    .replace(/\n\n+/g, '</p><p class="md-p">')
-    .replace(/\n/g, '<br />');
-
-  html = html
-    .replace(/(<li class="md-li">.*?<\/li>)/gs, '<ul class="md-ul">$1</ul>')
-    .replace(/(<li class="md-oli">.*?<\/li>)/gs, '<ol class="md-ol">$1</ol>')
-    .replace(/(<li class="md-check[^>]*>.*?<\/li>)/gs, '<ul class="md-checklist">$1</ul>');
-
-  return `<p class="md-p">${html}</p>`;
+interface Props {
+  report: DbReport;
+  myColor: string;
+  onContentChange: (content: string) => void;
+  onTitleChange: (title: string) => void;
+  currentUserId: string;
+  currentUserName: string;
+  resources?: DbResourceAssignment[];
+  uploads?: DbUpload[];
+  onUploaded?: (upload: DbUpload) => void;
 }
 
-const PREVIEW_CSS = `
-  .md-h1{font-size:1.7rem;font-weight:700;color:#111827;margin:1.4rem 0 .5rem;border-bottom:1px solid #e5e7eb;padding-bottom:.4rem}
-  .md-h2{font-size:1.3rem;font-weight:600;color:#1f2937;margin:1.2rem 0 .4rem}
-  .md-h3{font-size:1.05rem;font-weight:600;color:#374151;margin:1rem 0 .3rem}
-  .md-p{color:#374151;line-height:1.8;margin:.3rem 0;min-height:1em}
-  .md-pre{background:#f9fafb;border:1px solid #e5e7eb;border-radius:.4rem;padding:.7rem 1rem;overflow-x:auto;margin:.6rem 0}
-  .md-pre code{color:#1d4ed8;font-size:.85rem;font-family:monospace}
-  .md-code{background:#f3f4f6;color:#1d4ed8;padding:.1rem .3rem;border-radius:.2rem;font-size:.85em;font-family:monospace}
-  .md-ul,.md-ol{padding-left:1.4rem;margin:.3rem 0;color:#374151}
-  .md-li,.md-oli{margin:.15rem 0}
-  .md-checklist{list-style:none;padding-left:.4rem;margin:.3rem 0}
-  .md-check{display:flex;align-items:center;gap:.5rem;color:#374151;margin:.15rem 0}
-  .md-check.checked{color:#059669}
-  .cb{font-size:.75rem;width:1rem;text-align:center;font-weight:600}
-  .md-bq{border-left:3px solid #6366f1;padding:.3rem .8rem;color:#6b7280;background:#f5f3ff;margin:.4rem 0;border-radius:0 .25rem .25rem 0}
-  .md-hr{border:none;border-top:1px solid #e5e7eb;margin:1rem 0}
-`;
+type AiMode = 'generate' | 'improve' | 'rephrase';
 
-// ── Cursor overlay (mirror-div technique) ─────────────────────────────────
-function CursorOverlay({ cursors, textareaRef }: {
-  cursors: RemoteCursor[];
-  textareaRef: React.RefObject<HTMLTextAreaElement | null>;
-}) {
-  const [positions, setPositions] = useState<{ cursor: RemoteCursor; top: number; left: number }[]>([]);
-
-  useEffect(() => {
-    const ta = textareaRef.current;
-    if (!ta || cursors.length === 0) { setPositions([]); return; }
-    const style = window.getComputedStyle(ta);
-    const mirror = document.createElement('div');
-    Object.assign(mirror.style, {
-      position: 'absolute', visibility: 'hidden', pointerEvents: 'none',
-      overflow: 'auto', width: `${ta.offsetWidth}px`,
-      font: style.font, lineHeight: style.lineHeight,
-      padding: style.padding, border: style.border,
-      whiteSpace: 'pre-wrap', wordWrap: 'break-word',
-    });
-    document.body.appendChild(mirror);
-    const computed = cursors.map(cursor => {
-      mirror.textContent = ta.value.substring(0, cursor.position);
-      const span = document.createElement('span');
-      span.textContent = '|';
-      mirror.appendChild(span);
-      const rect = span.getBoundingClientRect();
-      const taRect = ta.getBoundingClientRect();
-      return { cursor, top: rect.top - taRect.top + ta.scrollTop, left: rect.left - taRect.left };
-    });
-    document.body.removeChild(mirror);
-    setPositions(computed);
-  }, [cursors, textareaRef]);
-
-  return (
-    <div className="absolute inset-0 pointer-events-none overflow-hidden">
-      {positions.map(({ cursor, top, left }) => (
-        <div key={cursor.userId} style={{ position: 'absolute', top, left }}>
-          <div style={{ width: 2, height: 20, backgroundColor: cursor.color }} />
-          <div style={{ backgroundColor: cursor.color, position: 'absolute', top: -18, left: 0 }}
-            className="px-1 py-0.5 text-white text-[9px] font-semibold rounded whitespace-nowrap">
-            {cursor.userName}
-          </div>
-        </div>
-      ))}
-    </div>
-  );
-}
-
-// ── AI Selection Panel ─────────────────────────────────────────────────────
-const AI_PRESETS = [
-  { label: 'Improve', q: 'Improve the clarity and professionalism of this section.' },
-  { label: 'Expand', q: 'Expand this section with more operational detail.' },
-  { label: 'Summarise', q: 'Make this more concise without losing key information.' },
-  { label: 'Fix grammar', q: 'Fix any grammar and spelling issues.' },
+const AI_MODES: { id: AiMode; label: string; desc: string }[] = [
+  { id: 'generate', label: 'Generate full report', desc: 'Write a complete incident report from all available context' },
+  { id: 'improve', label: 'Improve existing', desc: 'Enhance structure, clarity and completeness of current content' },
+  { id: 'rephrase', label: 'Rephrase & structure', desc: 'Reformat and restructure the content professionally' },
 ];
 
-function AiSelectionPanel({ selection, aiSuggestion, aiThinking, onRequest, onAccept, onDismiss }: {
-  selection: { text: string } | null;
-  aiSuggestion: AiSuggestion | null;
-  aiThinking: boolean;
-  onRequest: (text: string, question: string) => void;
-  onAccept: (original: string, replacement: string) => void;
-  onDismiss: () => void;
-}) {
-  const [question, setQuestion] = useState('');
-  if (!selection && !aiSuggestion && !aiThinking) return null;
+export function CollaborativeReportEditor({
+  report, myColor, onContentChange, onTitleChange,
+  currentUserId, currentUserName, resources = [], uploads = [], onUploaded,
+}: Props) {
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastRemoteContent = useRef(report.content);
+  const isLocalUpdate = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  return (
-    <div className="w-64 shrink-0 border-l border-gray-200 bg-white flex flex-col overflow-hidden">
-      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200">
-        <span className="text-xs font-semibold text-indigo-600 flex items-center gap-1.5">
-          <Sparkles size={12} />AI Assistant
-        </span>
-        <button onClick={onDismiss} className="text-gray-400 hover:text-gray-600"><X size={14} /></button>
-      </div>
-      {selection && !aiSuggestion && !aiThinking && (
-        <div className="p-3 space-y-3 overflow-y-auto">
-          <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Selected text</p>
-            <p className="text-xs text-gray-600 bg-indigo-50 rounded p-2 line-clamp-3 border border-indigo-100 italic">
-              "{selection.text}"
-            </p>
-          </div>
-          <div className="flex flex-wrap gap-1.5">
-            {AI_PRESETS.map(p => (
-              <button key={p.label} onClick={() => onRequest(selection.text, p.q)}
-                className="text-xs bg-gray-50 hover:bg-indigo-50 text-gray-600 hover:text-indigo-600 px-2 py-1 rounded border border-gray-200 hover:border-indigo-200 transition-colors">
-                {p.label}
-              </button>
-            ))}
-          </div>
-          <div>
-            <textarea value={question} onChange={e => setQuestion(e.target.value)}
-              placeholder="Or ask anything about this section…" rows={2}
-              className="w-full text-xs bg-gray-50 text-gray-700 rounded px-2 py-1.5 resize-none border border-gray-200 focus:outline-none focus:ring-1 focus:ring-indigo-400 placeholder-gray-400" />
-            <button onClick={() => { if (question.trim()) onRequest(selection.text, question); }}
-              disabled={!question.trim()}
-              className="mt-1.5 w-full text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-40 text-white py-1.5 rounded transition-colors">
-              Ask AI
-            </button>
-          </div>
-        </div>
-      )}
-      {aiThinking && (
-        <div className="flex-1 flex items-center justify-center">
-          <div className="text-center"><Loader size={18} className="text-indigo-500 animate-spin mx-auto mb-2" />
-            <p className="text-xs text-gray-400">Generating…</p></div>
-        </div>
-      )}
-      {aiSuggestion && !aiThinking && (
-        <div className="p-3 space-y-3 overflow-y-auto flex-1">
-          <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Original</p>
-            <p className="text-xs text-gray-400 bg-gray-50 rounded p-2 line-clamp-3 border border-gray-100 line-through italic">{aiSuggestion.selectedText}</p>
-          </div>
-          <div>
-            <p className="text-[10px] text-gray-400 uppercase tracking-wider mb-1">Suggestion</p>
-            <p className="text-xs text-gray-700 bg-indigo-50 rounded p-2 border border-indigo-100 whitespace-pre-wrap">{aiSuggestion.suggestion}</p>
-          </div>
-          <div className="flex gap-2">
-            <button onClick={() => onAccept(aiSuggestion.selectedText, aiSuggestion.suggestion)}
-              className="flex-1 text-xs font-semibold bg-green-600 hover:bg-green-700 text-white py-1.5 rounded flex items-center justify-center gap-1 transition-colors">
-              <CheckCircle2 size={11} />Accept
-            </button>
-            <button onClick={onDismiss} className="flex-1 text-xs font-semibold bg-gray-100 hover:bg-gray-200 text-gray-600 py-1.5 rounded transition-colors">
-              Dismiss
-            </button>
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}
+  const [title, setTitle] = useState(report.title);
+  const [isDragging, setIsDragging] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
 
-// ── Toolbar ────────────────────────────────────────────────────────────────
-function insertAtCursor(ta: HTMLTextAreaElement, before: string, after = '') {
-  const s = ta.selectionStart, e = ta.selectionEnd;
-  const sel = ta.value.substring(s, e);
-  const val = ta.value.substring(0, s) + before + sel + after + ta.value.substring(e);
-  return { value: val, pos: s + before.length + sel.length + after.length };
-}
-function linePrefix(ta: HTMLTextAreaElement, prefix: string) {
-  const s = ta.selectionStart;
-  const ls = ta.value.lastIndexOf('\n', s - 1) + 1;
-  const val = ta.value.substring(0, ls) + prefix + ta.value.substring(ls);
-  return { value: val, pos: s + prefix.length };
-}
+  const [aiModal, setAiModal] = useState(false);
+  const [aiMode, setAiMode] = useState<AiMode>('generate');
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiPreview, setAiPreview] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
 
-function Toolbar({ onInsert, onExportPdf, currentUserName, cursors, myColor }: {
-  onInsert: (patch: { value: string; pos: number }) => void;
-  onExportPdf: () => void;
-  currentUserName: string;
-  cursors: RemoteCursor[];
-  myColor: string;
-}) {
-  function withTA(fn: (ta: HTMLTextAreaElement) => { value: string; pos: number }) {
-    const ta = document.activeElement as HTMLTextAreaElement;
-    if (!ta || ta.tagName !== 'TEXTAREA') return;
-    onInsert(fn(ta));
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: { levels: [1, 2, 3] } }),
+      ImageExtension.configure({ inline: false, allowBase64: false }),
+      Placeholder.configure({ placeholder: 'Start writing your incident report...' }),
+      Underline,
+    ],
+    content: report.content || '',
+    editorProps: {
+      attributes: { class: 'prose prose-sm max-w-none focus:outline-none min-h-[400px] px-12 py-8 text-gray-800' },
+    },
+    onUpdate: ({ editor }) => {
+      isLocalUpdate.current = true;
+      const html = editor.getHTML();
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        onContentChange(html);
+        isLocalUpdate.current = false;
+      }, 400);
+    },
+  });
+
+  useEffect(() => {
+    if (!editor || !report) return;
+    if (report.content !== lastRemoteContent.current && !isLocalUpdate.current) {
+      if (report.content !== editor.getHTML()) {
+        editor.commands.setContent(report.content || '');
+        lastRemoteContent.current = report.content;
+      }
+    }
+  }, [report.content, editor]);
+
+  useEffect(() => { setTitle(report.title); }, [report.title]);
+
+  const handleTitleBlur = useCallback(() => {
+    if (title.trim() !== report.title) onTitleChange(title);
+  }, [title, report.title, onTitleChange]);
+
+  async function uploadAndInsertImage(file: File) {
+    setUploadingImage(true);
+    try {
+      const upload = await uploadFile(report.incidentId, file, currentUserId);
+      onUploaded?.(upload);
+      editor?.chain().focus().setImage({ src: getUploadUrl(upload.url), alt: upload.originalName }).run();
+    } catch { /* silently fail */ }
+    finally { setUploadingImage(false); }
   }
-  const btn = (icon: React.ReactNode, title: string, action: () => void) => (
-    <button title={title} onClick={action}
-      className="p-1.5 text-gray-500 hover:text-gray-900 hover:bg-gray-100 rounded transition-colors">
-      {icon}
-    </button>
-  );
+
+  function handleDrop(e: React.DragEvent<HTMLDivElement>) {
+    const file = e.dataTransfer.files[0];
+    if (file?.type.startsWith('image/')) {
+      e.preventDefault(); e.stopPropagation();
+      setIsDragging(false);
+      void uploadAndInsertImage(file);
+    }
+  }
+
+  function handleDragOver(e: React.DragEvent<HTMLDivElement>) {
+    if (e.dataTransfer.types.includes('Files')) { e.preventDefault(); setIsDragging(true); }
+  }
+
+  function handleDragLeave(e: React.DragEvent<HTMLDivElement>) {
+    if (!e.currentTarget.contains(e.relatedTarget as Node)) setIsDragging(false);
+  }
+
+  async function handleAiGenerate() {
+    setAiLoading(true); setAiError(null); setAiPreview(null);
+    try {
+      const res = await fetch(
+        `${import.meta.env.VITE_API_URL}/incidents/${report.incidentId}/reports/${report.id}/ai-generate`,
+        {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ mode: aiMode, currentContent: editor?.getHTML() ?? '' }),
+        },
+      );
+      if (!res.ok) throw new Error('AI generation failed');
+      const data = await res.json() as { html: string };
+      setAiPreview(data.html);
+    } catch { setAiError('AI generation failed. Check your connection and try again.'); }
+    finally { setAiLoading(false); }
+  }
+
+  function applyAiContent() {
+    if (!aiPreview || !editor) return;
+    editor.commands.setContent(aiPreview);
+    onContentChange(aiPreview);
+    setAiModal(false); setAiPreview(null);
+  }
+
+  if (!editor) return null;
+
+  const btn = (active: boolean) =>
+    `p-1.5 rounded transition-colors ${active ? 'bg-gray-200 text-gray-900' : 'text-gray-500 hover:text-gray-900 hover:bg-gray-100'}`;
 
   return (
-    <div className="flex items-center gap-0.5 px-3 py-1.5 bg-white border-b border-gray-200 flex-wrap sticky top-0 z-10">
-      {btn(<Heading1 size={14} />, 'Heading 1', () => withTA(ta => linePrefix(ta, '# ')))}
-      {btn(<Heading2 size={14} />, 'Heading 2', () => withTA(ta => linePrefix(ta, '## ')))}
-      {btn(<Heading3 size={14} />, 'Heading 3', () => withTA(ta => linePrefix(ta, '### ')))}
-      <div className="w-px h-4 bg-gray-200 mx-1" />
-      {btn(<Bold size={14} />, 'Bold', () => withTA(ta => insertAtCursor(ta, '**', '**')))}
-      {btn(<Italic size={14} />, 'Italic', () => withTA(ta => insertAtCursor(ta, '*', '*')))}
-      <div className="w-px h-4 bg-gray-200 mx-1" />
-      {btn(<List size={14} />, 'Bullet list', () => withTA(ta => linePrefix(ta, '- ')))}
-      {btn(<CheckSquare size={14} />, 'Checklist', () => withTA(ta => linePrefix(ta, '- [ ] ')))}
-      {btn(<Code size={14} />, 'Code block', () => withTA(ta => insertAtCursor(ta, '\n```\n', '\n```\n')))}
-      {btn(<Minus size={14} />, 'Divider', () => withTA(ta => insertAtCursor(ta, '\n---\n')))}
+    <div className="flex flex-col h-full bg-white">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-3 py-1.5 bg-white border-b border-gray-200 flex-wrap sticky top-0 z-10">
+        <button title="Heading 1" onClick={() => editor.chain().focus().toggleHeading({ level: 1 }).run()}
+          className={btn(editor.isActive('heading', { level: 1 }))}><Heading1 size={14} /></button>
+        <button title="Heading 2" onClick={() => editor.chain().focus().toggleHeading({ level: 2 }).run()}
+          className={btn(editor.isActive('heading', { level: 2 }))}><Heading2 size={14} /></button>
+        <button title="Heading 3" onClick={() => editor.chain().focus().toggleHeading({ level: 3 }).run()}
+          className={btn(editor.isActive('heading', { level: 3 }))}><Heading3 size={14} /></button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button title="Bold" onClick={() => editor.chain().focus().toggleBold().run()}
+          className={btn(editor.isActive('bold'))}><Bold size={14} /></button>
+        <button title="Italic" onClick={() => editor.chain().focus().toggleItalic().run()}
+          className={btn(editor.isActive('italic'))}><Italic size={14} /></button>
+        <button title="Underline" onClick={() => editor.chain().focus().toggleUnderline().run()}
+          className={btn(editor.isActive('underline'))}><UnderlineIcon size={14} /></button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button title="Bullet list" onClick={() => editor.chain().focus().toggleBulletList().run()}
+          className={btn(editor.isActive('bulletList'))}><List size={14} /></button>
+        <button title="Numbered list" onClick={() => editor.chain().focus().toggleOrderedList().run()}
+          className={btn(editor.isActive('orderedList'))}><ListOrdered size={14} /></button>
+        <button title="Divider" onClick={() => editor.chain().focus().setHorizontalRule().run()}
+          className={btn(false)}><Minus size={14} /></button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button title="Insert image" onClick={() => fileInputRef.current?.click()} className={btn(false)}>
+          <ImageIcon size={14} />
+        </button>
+        <input ref={fileInputRef} type="file" accept="image/*" className="hidden"
+          onChange={(e) => { const f = e.target.files?.[0]; if (f) void uploadAndInsertImage(f); }} />
 
-      {/* Collaborators + export on right */}
-      <div className="ml-auto flex items-center gap-2">
-        {/* Collaborator avatars */}
-        <div className="flex -space-x-1">
-          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white border border-white"
+        <div className="ml-auto flex items-center gap-2">
+          {uploadingImage && (
+            <span className="text-xs text-gray-400 flex items-center gap-1">
+              <Loader size={11} className="animate-spin" /> Uploading...
+            </span>
+          )}
+          {report.status === 'finalized' && (
+            <span className="text-xs bg-green-100 text-green-700 border border-green-300 px-2 py-0.5 rounded font-semibold">Finalized</span>
+          )}
+          <div className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white"
             title={currentUserName} style={{ backgroundColor: myColor }}>
             {currentUserName.charAt(0).toUpperCase()}
           </div>
-          {cursors.map(c => (
-            <div key={c.userId} title={c.userName}
-              className="w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold text-white border border-white"
-              style={{ backgroundColor: c.color }}>
-              {c.userName.charAt(0).toUpperCase()}
-            </div>
-          ))}
+          <button onClick={() => { setAiModal(true); setAiPreview(null); setAiError(null); }}
+            className="flex items-center gap-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-2.5 py-1.5 rounded transition-colors">
+            <Sparkles size={12} /> AI Report
+          </button>
+          <button onClick={() => window.print()} title="Export PDF"
+            className="p-1.5 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded transition-colors">
+            <Download size={14} />
+          </button>
         </div>
-        <button onClick={onExportPdf}
-          className="flex items-center gap-1.5 text-xs font-semibold text-gray-600 hover:text-gray-900 bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded transition-colors">
-          <Download size={12} />Export PDF
-        </button>
       </div>
-    </div>
-  );
-}
 
-// ── Main editor ────────────────────────────────────────────────────────────
-interface Props {
-  report: DbReport;
-  cursors: RemoteCursor[];
-  aiSuggestion: AiSuggestion | null;
-  aiThinking: boolean;
-  myColor: string;
-  onContentChange: (v: string) => void;
-  onCursorMove: (pos: number) => void;
-  onAiRequest: (text: string, question: string) => void;
-  onAiAccept: (original: string, replacement: string) => void;
-  onAiDismiss: () => void;
-  onTitleChange: (t: string) => void;
-  currentUserName: string;
-}
+      {/* Title */}
+      <div className="px-12 pt-8 pb-2 border-b border-gray-100">
+        <input value={title} onChange={(e) => setTitle(e.target.value)} onBlur={handleTitleBlur}
+          placeholder="Report title"
+          className="w-full text-2xl font-bold text-gray-900 placeholder-gray-300 focus:outline-none bg-transparent" />
+      </div>
 
-export function CollaborativeReportEditor({
-  report, cursors, aiSuggestion, aiThinking, myColor,
-  onContentChange, onCursorMove, onAiRequest, onAiAccept, onAiDismiss,
-  onTitleChange, currentUserName,
-}: Props) {
-  const [selection, setSelection] = useState<{ text: string } | null>(null);
-  const [editingTitle, setEditingTitle] = useState(false);
-  const [titleDraft, setTitleDraft] = useState(report.title);
-  const taRef = useRef<HTMLTextAreaElement>(null);
-  const hasAiPanel = selection || aiSuggestion || aiThinking;
-
-  function handleSelect() {
-    const ta = taRef.current;
-    if (!ta) return;
-    const s = ta.selectionStart, e = ta.selectionEnd;
-    if (e > s) setSelection({ text: ta.value.substring(s, e) });
-    else if (!aiSuggestion) setSelection(null);
-    onCursorMove(ta.selectionStart);
-  }
-
-  function applyInsert(patch: { value: string; pos: number }) {
-    onContentChange(patch.value);
-    setTimeout(() => {
-      const ta = taRef.current;
-      if (!ta) return;
-      ta.focus();
-      ta.selectionStart = ta.selectionEnd = patch.pos;
-    }, 0);
-  }
-
-  function handleExportPdf() {
-    window.print();
-  }
-
-  return (
-    <>
-      {/* Print-only styles */}
-      <style>{`
-        @media print {
-          body * { visibility: hidden !important; }
-          .report-printable, .report-printable * { visibility: visible !important; }
-          .report-printable { position: fixed !important; inset: 0 !important; padding: 2cm !important; background: white !important; }
-          ${PREVIEW_CSS}
-          .md-h1{color:#000}.md-h2{color:#111}.md-h3{color:#222}.md-p{color:#333}
-        }
-        ${PREVIEW_CSS}
-      `}</style>
-
-      <div className="h-full flex flex-col overflow-hidden bg-gray-100">
-        {/* Toolbar */}
-        <Toolbar
-          onInsert={applyInsert}
-          onExportPdf={handleExportPdf}
-          currentUserName={currentUserName}
-          cursors={cursors}
-          myColor={myColor}
-        />
-
-        {/* Selection AI hint bar */}
-        {selection && !aiSuggestion && !aiThinking && (
-          <div className="px-4 py-1.5 bg-indigo-50 border-b border-indigo-100 flex items-center gap-2 shrink-0 bg-white">
-            <Sparkles size={11} className="text-indigo-500" />
-            <span className="text-xs text-indigo-700">"{selection.text.slice(0, 40)}{selection.text.length > 40 ? '…' : ''}" selected</span>
-            <button onClick={() => {/* keep selection, panel will open */}}
-              className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 ml-1">
-              Ask AI →
-            </button>
+      {/* Editor area */}
+      <div
+        className={`flex-1 overflow-y-auto relative ${isDragging ? 'ring-2 ring-inset ring-indigo-400 bg-indigo-50/30' : ''}`}
+        onDrop={handleDrop} onDragOver={handleDragOver} onDragLeave={handleDragLeave}
+      >
+        {isDragging && (
+          <div className="absolute inset-0 z-10 flex items-center justify-center pointer-events-none">
+            <div className="bg-white border-2 border-dashed border-indigo-400 rounded-xl px-8 py-4 text-sm text-indigo-600 font-semibold shadow-lg">
+              Drop image to insert
+            </div>
           </div>
         )}
+        <EditorContent editor={editor} className="h-full" />
+      </div>
 
-        {/* Main content area */}
-        <div className="flex-1 overflow-hidden flex">
-          {/* Document + overlay */}
-          <div className="flex-1 overflow-y-auto">
-            {/* White document card */}
-            <div className="max-w-3xl mx-auto my-8 bg-white shadow-md report-printable" style={{ minHeight: 800 }}>
-              {/* Document title */}
-              <div className="px-14 pt-10 pb-4 border-b border-gray-100">
-                {editingTitle ? (
-                  <input autoFocus value={titleDraft}
-                    onChange={e => setTitleDraft(e.target.value)}
-                    onBlur={() => { onTitleChange(titleDraft); setEditingTitle(false); }}
-                    onKeyDown={e => e.key === 'Enter' && (onTitleChange(titleDraft), setEditingTitle(false))}
-                    className="w-full text-2xl font-bold text-gray-900 border-none outline-none bg-transparent border-b-2 border-indigo-400"
-                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}
-                  />
-                ) : (
-                  <h1 onClick={() => setEditingTitle(true)}
-                    className="text-2xl font-bold text-gray-900 cursor-text hover:text-indigo-800 transition-colors"
-                    style={{ fontFamily: 'Inter, system-ui, sans-serif' }}>
-                    {report.title || 'Untitled Report'}
-                  </h1>
-                )}
-                <p className="text-xs text-gray-400 mt-1">
-                  {report.status === 'finalized'
-                    ? `Finalized by ${report.finalizedBy}`
-                    : `Draft · v${report.version} · Click title to rename`}
+      {/* AI Report Modal */}
+      {aiModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+          <div className="bg-white rounded-xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col border border-gray-200">
+            <div className="flex items-center justify-between px-5 py-4 border-b border-gray-200">
+              <div>
+                <h2 className="font-semibold text-gray-900 flex items-center gap-2">
+                  <Sparkles size={16} className="text-indigo-500" /> AI Report Generator
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Context: {resources.length} resources &middot; {uploads.length} uploads
                 </p>
               </div>
+              <button onClick={() => setAiModal(false)} className="text-gray-400 hover:text-gray-600 p-1"><X size={18} /></button>
+            </div>
 
-              {/* Editing surface — overlay technique */}
-              <div className="relative" style={{ minHeight: 600 }}>
-                {/* Preview layer (rendered markdown, pointer-events: none) */}
-                <div
-                  className="absolute inset-0 pointer-events-none"
-                  style={{
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: 15,
-                    lineHeight: 1.8,
-                    padding: '2.5rem 3.5rem',
-                    color: '#374151',
-                    whiteSpace: 'pre-wrap',
-                    wordBreak: 'break-word',
-                  }}
-                  dangerouslySetInnerHTML={{ __html: report.content ? renderMarkdown(report.content) : '' }}
-                />
-
-                {/* Textarea layer (transparent text, visible caret) */}
-                <textarea
-                  ref={taRef}
-                  value={report.content}
-                  onChange={e => onContentChange(e.target.value)}
-                  onSelect={handleSelect}
-                  onMouseUp={handleSelect}
-                  onKeyUp={e => onCursorMove((e.target as HTMLTextAreaElement).selectionStart)}
-                  placeholder="Start writing your incident report…&#10;&#10;Use the toolbar above for headings, lists, and formatting.&#10;Select any text and use AI to improve sections."
-                  className="relative w-full bg-transparent resize-none focus:outline-none placeholder-gray-300"
-                  style={{
-                    fontFamily: 'Inter, system-ui, sans-serif',
-                    fontSize: 15,
-                    lineHeight: 1.8,
-                    padding: '2.5rem 3.5rem',
-                    color: 'transparent',
-                    caretColor: myColor,
-                    minHeight: 600,
-                    zIndex: 10,
-                  }}
-                />
-
-                {/* Cursor overlay for remote users */}
-                <CursorOverlay cursors={cursors} textareaRef={taRef} />
+            {!aiPreview && !aiLoading && (
+              <div className="p-5 space-y-3 flex-1 overflow-y-auto">
+                <p className="text-sm font-medium text-gray-700 mb-1">What would you like to do?</p>
+                {AI_MODES.map((m) => (
+                  <label key={m.id}
+                    className={`flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                      aiMode === m.id ? 'border-indigo-400 bg-indigo-50' : 'border-gray-200 hover:border-gray-300 hover:bg-gray-50'
+                    }`}>
+                    <input type="radio" name="aiMode" value={m.id} checked={aiMode === m.id}
+                      onChange={() => setAiMode(m.id)} className="mt-0.5 accent-indigo-600" />
+                    <div>
+                      <p className="text-sm font-semibold text-gray-800">{m.label}</p>
+                      <p className="text-xs text-gray-500 mt-0.5">{m.desc}</p>
+                    </div>
+                  </label>
+                ))}
+                {aiError && <div className="bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-sm text-red-700">{aiError}</div>}
               </div>
+            )}
+
+            {aiLoading && (
+              <div className="flex-1 flex items-center justify-center py-16">
+                <div className="text-center">
+                  <Loader size={24} className="text-indigo-500 animate-spin mx-auto mb-3" />
+                  <p className="text-sm text-gray-500">Generating report from incident context...</p>
+                </div>
+              </div>
+            )}
+
+            {aiPreview && !aiLoading && (
+              <div className="flex-1 overflow-y-auto">
+                <div className="px-3 py-2 bg-green-50 border-b border-green-200 flex items-center gap-2">
+                  <CheckCircle2 size={14} className="text-green-600" />
+                  <span className="text-xs text-green-700 font-semibold">Report generated - review before applying</span>
+                </div>
+                <div className="p-6 prose prose-sm max-w-none text-gray-800"
+                  dangerouslySetInnerHTML={{ __html: aiPreview }} />
+              </div>
+            )}
+
+            <div className="px-5 py-4 border-t border-gray-200 flex justify-end gap-3">
+              {!aiPreview && !aiLoading && (
+                <>
+                  <button onClick={() => setAiModal(false)}
+                    className="text-sm text-gray-600 hover:text-gray-800 px-4 py-2 rounded border border-gray-200 hover:bg-gray-50 transition-colors">
+                    Cancel
+                  </button>
+                  <button onClick={() => void handleAiGenerate()}
+                    className="text-sm font-semibold bg-indigo-600 hover:bg-indigo-500 text-white px-4 py-2 rounded transition-colors flex items-center gap-2">
+                    <Sparkles size={14} /> Generate
+                  </button>
+                </>
+              )}
+              {aiPreview && !aiLoading && (
+                <>
+                  <button onClick={() => { setAiPreview(null); setAiError(null); }}
+                    className="text-sm text-gray-600 hover:text-gray-800 px-4 py-2 rounded border border-gray-200 hover:bg-gray-50 transition-colors">
+                    Regenerate
+                  </button>
+                  <button onClick={applyAiContent}
+                    className="text-sm font-semibold bg-green-600 hover:bg-green-500 text-white px-4 py-2 rounded transition-colors flex items-center gap-2">
+                    <CheckCircle2 size={14} /> Apply to Report
+                  </button>
+                </>
+              )}
             </div>
           </div>
-
-          {/* AI Panel */}
-          {hasAiPanel && (
-            <AiSelectionPanel
-              selection={selection}
-              aiSuggestion={aiSuggestion}
-              aiThinking={aiThinking}
-              onRequest={onAiRequest}
-              onAccept={onAiAccept}
-              onDismiss={() => { onAiDismiss(); setSelection(null); }}
-            />
-          )}
         </div>
-      </div>
-    </>
+      )}
+
+      <style>{`
+        .ProseMirror p.is-editor-empty:first-child::before {
+          content: attr(data-placeholder); float: left; color: #9ca3af; pointer-events: none; height: 0;
+        }
+        .ProseMirror h1 { font-size: 1.7rem; font-weight: 700; margin: 1.4rem 0 0.5rem; border-bottom: 1px solid #e5e7eb; padding-bottom: 0.4rem; }
+        .ProseMirror h2 { font-size: 1.3rem; font-weight: 600; margin: 1.2rem 0 0.4rem; }
+        .ProseMirror h3 { font-size: 1.05rem; font-weight: 600; margin: 1rem 0 0.3rem; }
+        .ProseMirror ul { list-style: disc; padding-left: 1.4rem; margin: 0.3rem 0; }
+        .ProseMirror ol { list-style: decimal; padding-left: 1.4rem; margin: 0.3rem 0; }
+        .ProseMirror li { margin: 0.15rem 0; }
+        .ProseMirror blockquote { border-left: 3px solid #6366f1; padding: 0.3rem 0.8rem; color: #6b7280; background: #f5f3ff; margin: 0.4rem 0; }
+        .ProseMirror hr { border: none; border-top: 1px solid #e5e7eb; margin: 1rem 0; }
+        .ProseMirror img { max-width: 100%; height: auto; border-radius: 0.375rem; margin: 0.75rem 0; }
+        .ProseMirror code { background: #f3f4f6; color: #1d4ed8; padding: 0.1rem 0.3rem; border-radius: 0.2rem; font-size: 0.85em; font-family: monospace; }
+        .ProseMirror pre { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 0.4rem; padding: 0.7rem 1rem; overflow-x: auto; margin: 0.6rem 0; }
+        .ProseMirror pre code { background: none; padding: 0; }
+        @media print {
+          .ProseMirror h1 { font-size: 1.7rem; font-weight: 700; }
+          .ProseMirror h2 { font-size: 1.3rem; font-weight: 600; }
+          .ProseMirror h3 { font-size: 1.05rem; font-weight: 600; }
+        }
+      `}</style>
+    </div>
   );
 }

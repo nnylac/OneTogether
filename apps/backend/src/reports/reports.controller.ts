@@ -1,9 +1,13 @@
 import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
 import { ReportsService } from './reports.service';
+import { ReportAiService } from '../ai/report-ai.service';
 
 @Controller('incidents/:incidentId/reports')
 export class ReportsController {
-  constructor(private svc: ReportsService) {}
+  constructor(
+    private svc: ReportsService,
+    private reportAi: ReportAiService,
+  ) {}
 
   @Get()
   list(@Param('incidentId') incidentId: string) {
@@ -35,5 +39,13 @@ export class ReportsController {
     @Body() body: { userId: string; userName: string },
   ) {
     return this.svc.finalize(id, body.userId, body.userName, incidentId);
+  }
+
+  @Post(':id/ai-generate')
+  aiGenerate(
+    @Param('incidentId') incidentId: string,
+    @Body() body: { mode: 'generate' | 'improve' | 'rephrase'; currentContent: string },
+  ) {
+    return this.reportAi.generateReport(incidentId, body.mode ?? 'generate', body.currentContent ?? '');
   }
 }

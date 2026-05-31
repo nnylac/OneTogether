@@ -1,5 +1,5 @@
 import {
-  Controller, Post, Get, Param, UploadedFile, UseInterceptors, Body,
+  Controller, Post, Get, Patch, Param, UploadedFile, UseInterceptors, Body,
   BadRequestException,
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
@@ -65,7 +65,20 @@ export class UploadsController {
 
     // Notify room participants
     this.gateway.server?.to(`incident:${incidentId}`).emit('new-upload', upload);
+    return upload;
+  }
 
+  @Patch(':uploadId/location')
+  async setLocation(
+    @Param('id') incidentId: string,
+    @Param('uploadId') uploadId: string,
+    @Body() body: { latitude: number; longitude: number },
+  ) {
+    const upload = await this.prisma.incidentUpload.update({
+      where: { id: uploadId },
+      data: { latitude: body.latitude, longitude: body.longitude },
+    });
+    this.gateway.server?.to(`incident:${incidentId}`).emit('upload-location-updated', upload);
     return upload;
   }
 }

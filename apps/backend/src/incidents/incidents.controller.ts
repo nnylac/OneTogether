@@ -72,6 +72,27 @@ export class IncidentsController {
   unassignUnit(@Param('id') id: string, @Param('unitId') unitId: string) {
     return this.service.unassignUnit(id, unitId);
   }
+
+  @Patch(':id/location')
+  setLocation(
+    @Param('id') id: string,
+    @Body() body: { latitude: number; longitude: number; boundaryGeoJson?: string },
+  ) {
+    return this.service.setLocation(id, body.latitude, body.longitude, body.boundaryGeoJson);
+  }
+
+  @Post(':id/geocode')
+  geocode(@Param('id') id: string) {
+    return this.service.geocodeIncident(id);
+  }
+
+  @Get(':id/nearby-infrastructure')
+  nearbyInfrastructure(
+    @Param('id') id: string,
+    @Query('radius') radius?: string,
+  ) {
+    return this.service.getNearbyInfrastructure(id, radius ? parseInt(radius, 10) : 2000);
+  }
 }
 
 @Controller('units')

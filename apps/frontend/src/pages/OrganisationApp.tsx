@@ -1,4 +1,4 @@
-﻿import { Activity, AlertTriangle, Building2, Car, ChevronDown, ChevronRight, ExternalLink, Filter, Flame, Grid2X2, HeartPulse, Layers, List, MapPin, Maximize2, Navigation, Plus, RefreshCw, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
+﻿import { Activity, AlertTriangle, Building2, Car, ExternalLink, Filter, Flame, Grid2X2, HeartPulse, Layers, List, MapPin, Maximize2, Navigation, Plus, RefreshCw, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
@@ -111,7 +111,6 @@ function OrgDashboard() {
 
 function OrgIncidents() {
   const { incidents } = useData();
-  const [expandedId, setExpandedId] = useState<string | null>(null);
   const [filter, setFilter] = useState<'all' | 'active' | 'critical'>('all');
   const nav = useNavigate();
 
@@ -162,8 +161,6 @@ function OrgIncidents() {
           <IncidentRow
             key={incident.id}
             incident={incident}
-            expanded={expandedId === incident.id}
-            onToggle={() => setExpandedId(expandedId === incident.id ? null : incident.id)}
             onOpen={() => nav(`/organisation/incidents/${incident.id}`)}
           />
         ))}
@@ -190,90 +187,32 @@ const STATUS_BADGE: Record<string, string> = {
   Closed: 'bg-gray-100 text-gray-400',
 };
 
-function IncidentRow({ incident, expanded, onToggle, onOpen }: {
-  incident: Incident;
-  expanded: boolean;
-  onToggle: () => void;
-  onOpen: () => void;
-}) {
+function IncidentRow({ incident, onOpen }: { incident: Incident; onOpen: () => void }) {
   const dot = SEVERITY_DOT[incident.severity] ?? 'bg-gray-400';
   const badge = STATUS_BADGE[incident.status] ?? STATUS_BADGE['Reported'];
 
   return (
-    <div className="group">
-      <div
-        className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-sgds-gray-50 transition-colors"
-        onClick={onToggle}
-      >
-        {/* Severity dot */}
-        <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
-
-        {/* Title + meta */}
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 flex-wrap">
-            <span className="text-[11px] font-mono text-sgds-gray-400">{incident.id}</span>
-            <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${badge}`}>{incident.status}</span>
-            <span className="text-[11px] text-sgds-gray-400">{incident.type}</span>
-            <span className="text-[11px] text-sgds-gray-400 ml-auto hidden sm:inline">{incident.createdAt}</span>
-          </div>
-          <p className="mt-0.5 text-sm font-semibold text-sgds-gray-900 truncate">{incident.title}</p>
-          {incident.description && (
-            <p className="mt-0.5 text-xs text-sgds-gray-500 truncate">{incident.description}</p>
-          )}
+    <div
+      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-sgds-gray-50 transition-colors"
+      onClick={onOpen}
+    >
+      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-sgds-gray-900 truncate">{incident.title}</p>
+          <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge}`}>{incident.status}</span>
         </div>
-
-        {/* Location */}
-        <span className="hidden md:flex items-center gap-1 text-xs text-sgds-gray-500 shrink-0 max-w-[180px] truncate">
-          <MapPin size={11} />{incident.location}
-        </span>
-
-        {/* Orgs */}
-        <div className="hidden lg:flex items-center gap-1 shrink-0">
-          {incident.assignedOrganisations.slice(0, 3).map((o) => (
-            <span key={o} className="text-[10px] bg-sgds-gray-100 text-sgds-gray-600 px-1.5 py-0.5 rounded font-mono uppercase">{o}</span>
-          ))}
-          {incident.assignedOrganisations.length > 3 && (
-            <span className="text-[10px] text-sgds-gray-400">+{incident.assignedOrganisations.length - 3}</span>
-          )}
-        </div>
-
-        {/* Open Room button + toggle */}
-        <div className="flex items-center gap-2 shrink-0 ml-2">
-          <button
-            onClick={(e) => { e.stopPropagation(); onOpen(); }}
-            className="flex items-center gap-1 text-xs font-semibold text-white bg-navy-950 hover:bg-sgds-purple px-2.5 py-1.5 rounded transition-colors"
-          >
-            <ExternalLink size={11} /> Open Room
-          </button>
-          <span className="text-sgds-gray-400">
-            {expanded ? <ChevronDown size={15} /> : <ChevronRight size={15} />}
-          </span>
-        </div>
+        {incident.description && (
+          <p className="mt-0.5 text-xs text-sgds-gray-500 line-clamp-1">{incident.description}</p>
+        )}
       </div>
-
-      {/* Collapsible preview */}
-      {expanded && (
-        <div className="px-4 pb-4 pt-0 bg-sgds-gray-50 border-t border-sgds-gray-100">
-          <div className="flex gap-6 mt-3">
-            <div className="flex-1 min-w-0">
-              <p className="text-xs text-sgds-gray-500 uppercase tracking-wider mb-1">Description</p>
-              <p className="text-sm text-sgds-gray-700 line-clamp-2">{incident.description}</p>
-            </div>
-            <div className="shrink-0 space-y-1 text-xs text-sgds-gray-600">
-              <div><span className="text-sgds-gray-400">Severity: </span><strong>{incident.severity}</strong></div>
-              <div><span className="text-sgds-gray-400">Zone: </span><strong>{incident.zone || 'â€”'}</strong></div>
-              <div><span className="text-sgds-gray-400">Units: </span><strong>{incident.unitsResponded}</strong></div>
-              <div><span className="text-sgds-gray-400">Timeline: </span><strong>{incident.timeline.length} entries</strong></div>
-            </div>
-          </div>
-          <button
-            onClick={onOpen}
-            className="mt-3 text-xs font-semibold text-sgds-purple hover:underline"
-          >
-            Open Incident Room to view full details, coordinate, and use AI â†’
-          </button>
-        </div>
-      )}
+      <span className="text-[11px] text-sgds-gray-400 shrink-0 hidden sm:inline">{incident.createdAt}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className="flex items-center gap-1 text-xs font-semibold text-white bg-navy-950 hover:bg-sgds-purple px-2.5 py-1.5 rounded transition-colors shrink-0"
+      >
+        <ExternalLink size={11} /> Open Room
+      </button>
     </div>
   );
 }

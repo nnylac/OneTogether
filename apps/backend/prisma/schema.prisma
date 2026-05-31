@@ -54,12 +54,17 @@ model Incident {
   // JSON-serialised string: ["scdf","spf"]
   assignedOrgIds   String   @default("[]")
 
+  latitude        Float?
+  longitude       Float?
+  boundaryGeoJson String?
+
   timeline     TimelineEvent[]
   messages     ChatMessage[]
   resources    ResourceAssignment[]
   uploads      IncidentUpload[]
   participants IncidentParticipant[]
   reports      Report[]
+  pois         IncidentPOI[]
 }
 
 model Report {
@@ -87,6 +92,8 @@ model TimelineEvent {
   organisation String?
   category     String
   text         String
+  latitude     Float?
+  longitude    Float?
 
   incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 }
@@ -112,6 +119,8 @@ model ResourceUnit {
   type           String
   status         String @default("Available")
   organisationId String
+  lastKnownLat   Float?
+  lastKnownLng   Float?
 
   organisation Organisation       @relation(fields: [organisationId], references: [id])
   assignments  ResourceAssignment[]
@@ -141,10 +150,26 @@ model IncidentUpload {
   size         Int
   url          String
   caption      String?
+  latitude     Float?
+  longitude    Float?
   createdAt    DateTime @default(now())
 
   incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
   user     User     @relation(fields: [uploadedBy], references: [id])
+}
+
+model IncidentPOI {
+  id          String   @id @default(cuid())
+  incidentId  String
+  title       String
+  description String?
+  latitude    Float
+  longitude   Float
+  type        String   @default("OTHER")
+  createdBy   String
+  createdAt   DateTime @default(now())
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 }
 
 model IncidentParticipant {

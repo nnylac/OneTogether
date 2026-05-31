@@ -90,15 +90,6 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
     const participants = await this.prisma.incidentParticipant.findMany({ where: { incidentId } });
     this.server.to(`incident:${incidentId}`).emit('participants-update', participants);
 
-    // System timeline entry
-    const tl = await this.incidents.addTimelineEvent(incidentId, {
-      actor: userName,
-      organisation: 'System',
-      category: 'SYSTEM',
-      text: `${userName} joined the incident room.`,
-    });
-    this.server.to(`incident:${incidentId}`).emit('new-timeline-event', tl);
-
     this.logger.log(`${userName} joined room incident:${incidentId}`);
   }
 
@@ -257,13 +248,5 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
 
     const participants = await this.prisma.incidentParticipant.findMany({ where: { incidentId } });
     this.server.to(`incident:${incidentId}`).emit('participants-update', participants);
-
-    const tl = await this.incidents.addTimelineEvent(incidentId, {
-      actor: userName,
-      organisation: 'System',
-      category: 'SYSTEM',
-      text: `${userName} left the incident room.`,
-    });
-    this.server.to(`incident:${incidentId}`).emit('new-timeline-event', tl);
   }
 }

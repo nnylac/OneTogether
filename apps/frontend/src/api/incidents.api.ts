@@ -16,6 +16,9 @@ export interface DbIncident {
   createdAt: string;
   updatedAt: string;
   assignedOrgIds: string[];
+  latitude?: number;
+  longitude?: number;
+  boundaryGeoJson?: string;
   participantCount?: number;
   messageCount?: number;
   timeline?: DbTimelineEvent[];
@@ -23,6 +26,19 @@ export interface DbIncident {
   resources?: DbResourceAssignment[];
   uploads?: DbUpload[];
   participants?: DbParticipant[];
+  pois?: DbPOI[];
+}
+
+export interface DbPOI {
+  id: string;
+  incidentId: string;
+  title: string;
+  description?: string;
+  latitude: number;
+  longitude: number;
+  type: string;
+  createdBy: string;
+  createdAt: string;
 }
 
 export interface DbTimelineEvent {
@@ -33,6 +49,8 @@ export interface DbTimelineEvent {
   organisation?: string;
   category: string;
   text: string;
+  latitude?: number;
+  longitude?: number;
 }
 
 export interface DbChatMessage {
@@ -60,6 +78,8 @@ export interface DbResourceAssignment {
     type: string;
     status: string;
     organisationId: string;
+    lastKnownLat?: number;
+    lastKnownLng?: number;
     organisation?: { id: string; name: string };
   };
 }
@@ -74,7 +94,20 @@ export interface DbUpload {
   size: number;
   url: string;
   caption?: string;
+  latitude?: number;
+  longitude?: number;
   createdAt: string;
+}
+
+export interface DbUnit {
+  id: string;
+  callSign: string;
+  type: string;
+  status: string;
+  organisationId: string;
+  lastKnownLat?: number;
+  lastKnownLng?: number;
+  organisation?: { id: string; name: string };
 }
 
 export interface DbParticipant {
@@ -85,14 +118,6 @@ export interface DbParticipant {
   lastSeenAt: string;
 }
 
-export interface DbUnit {
-  id: string;
-  callSign: string;
-  type: string;
-  status: string;
-  organisationId: string;
-  organisation?: { id: string; name: string };
-}
 
 export async function fetchIncidents(): Promise<DbIncident[]> {
   const r = await fetch(`${BASE}/incidents`);
