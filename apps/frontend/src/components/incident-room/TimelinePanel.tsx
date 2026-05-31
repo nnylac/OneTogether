@@ -30,7 +30,7 @@ export function TimelinePanel({ timeline }: Props) {
   return (
     <div className="h-full overflow-y-auto px-4 py-3">
       <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-3">
-        Timeline ({timeline.length})
+        Incident Log ({timeline.filter(e => e.category !== 'SYSTEM').length})
       </h3>
       {timeline.length === 0 && (
         <p className="text-gray-600 text-sm">No timeline events yet.</p>
@@ -41,7 +41,7 @@ export function TimelinePanel({ timeline }: Props) {
           <div className="absolute left-3.5 top-3 bottom-3 w-px bg-gray-800" />
         )}
         <div className="space-y-4">
-          {[...timeline].reverse().map((event) => {
+          {[...timeline].filter(e => e.category !== 'SYSTEM').reverse().map((event) => {
             const cfg = CATEGORY_CONFIG[event.category] ?? CATEGORY_CONFIG['NOTE'];
             const Icon = cfg.icon;
             return (

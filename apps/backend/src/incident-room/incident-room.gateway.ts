@@ -13,6 +13,7 @@ import { ChatService } from '../chat/chat.service';
 import { AiChatService } from '../ai/ai-chat.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { IncidentsService } from '../incidents/incidents.service';
+import { ReportsService } from '../reports/reports.service';
 
 interface JoinRoomPayload {
   incidentId: string;
@@ -55,6 +56,7 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
     private aiChat: AiChatService,
     private prisma: PrismaService,
     private incidents: IncidentsService,
+    private reports: ReportsService,
   ) {}
 
   handleConnection(client: Socket) {
@@ -92,7 +94,7 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
     const tl = await this.incidents.addTimelineEvent(incidentId, {
       actor: userName,
       organisation: 'System',
-      category: 'NOTE',
+      category: 'SYSTEM',
       text: `${userName} joined the incident room.`,
     });
     this.server.to(`incident:${incidentId}`).emit('new-timeline-event', tl);
@@ -192,6 +194,58 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
     return updated;
   }
 
+  // ── Report collaboration events ──────────────────────────────────────────
+
+  @SubscribeMessage('report-update')
+  async handleReportUpdate(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { reportId: string; incidentId: string; content: string; userId: string; userName: string },
+  ) {
+    const { reportId, incidentId, content, userName } = payload;
+    const updated = await this.reports.update(reportId, content);
+    // Broadcast to everyone else in the room
+    client.to(`incident:${incidentId}`).emit('report-updated', { reportId, content, version: updated.version, updatedBy: userName });
+  }
+
+  @SubscribeMessage('report-cursor')
+  handleReportCursor(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { reportId: string; incidentId: string; userId: string; userName: string; position: number; color: string },
+  ) {
+    client.to(`incident:${payload.incidentId}`).emit('report-cursor', payload);
+  }
+
+  @SubscribeMessage('report-finalize')
+  async handleReportFinalize(
+    @ConnectedSocket() _client: Socket,
+    @MessageBody() payload: { reportId: string; incidentId: string; userId: string; userName: string },
+  ) {
+    const { reportId, incidentId, userId, userName } = payload;
+    const report = await this.reports.finalize(reportId, userId, userName, incidentId);
+    const tl = await this.incidents.addTimelineEvent(incidentId, {
+      actor: userName, organisation: 'System', category: 'CLOSE',
+      text: `Incident report finalized by ${userName}.`,
+    });
+    this.server.to(`incident:${incidentId}`).emit('report-finalized', { reportId, finalizedBy: userName });
+    this.server.to(`incident:${incidentId}`).emit('new-timeline-event', tl);
+    return report;
+  }
+
+  @SubscribeMessage('report-ai-suggest')
+  async handleReportAiSuggest(
+    @ConnectedSocket() client: Socket,
+    @MessageBody() payload: { reportId: string; incidentId: string; selectedText: string; question: string; fullContent: string },
+  ) {
+    const { incidentId, selectedText, question, fullContent } = payload;
+    client.emit('report-ai-thinking', { incidentId });
+    try {
+      const suggestion = await this.aiChat.suggestReportEdit(incidentId, selectedText, question, fullContent);
+      client.emit('report-ai-suggestion', { selectedText, suggestion });
+    } catch {
+      client.emit('report-ai-suggestion', { selectedText, suggestion: 'AI suggestion unavailable. Please try again.' });
+    }
+  }
+
   private async removeParticipant(incidentId: string, userId: string, userName: string) {
     try {
       await this.prisma.incidentParticipant.delete({
@@ -207,7 +261,7 @@ export class IncidentRoomGateway implements OnGatewayConnection, OnGatewayDiscon
     const tl = await this.incidents.addTimelineEvent(incidentId, {
       actor: userName,
       organisation: 'System',
-      category: 'NOTE',
+      category: 'SYSTEM',
       text: `${userName} left the incident room.`,
     });
     this.server.to(`incident:${incidentId}`).emit('new-timeline-event', tl);

@@ -59,6 +59,24 @@ model Incident {
   resources    ResourceAssignment[]
   uploads      IncidentUpload[]
   participants IncidentParticipant[]
+  reports      Report[]
+}
+
+model Report {
+  id          String    @id @default(cuid())
+  incidentId  String
+  title       String    @default("Incident Report")
+  content     String    @default("")
+  status      String    @default("draft")
+  version     Int       @default(1)
+  createdBy   String
+  createdByName String  @default("")
+  finalizedBy String?
+  finalizedAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  incident Incident @relation(fields: [incidentId], references: [id], onDelete: Cascade)
 }
 
 model TimelineEvent {

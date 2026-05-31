@@ -7,6 +7,7 @@ import { IncidentsModule } from './incidents/incidents.module';
 import { MockController } from './mock.controller';
 import { MockService } from './mock.service';
 import { PrismaModule } from './prisma/prisma.module';
+import { ReportsModule } from './reports/reports.module';
 import { UploadsModule } from './uploads/uploads.module';
 
 @Module({
@@ -17,6 +18,7 @@ import { UploadsModule } from './uploads/uploads.module';
     ChatModule,
     IncidentsModule,
     IncidentRoomModule,
+    ReportsModule,
     UploadsModule,
   ],
   controllers: [MockController],

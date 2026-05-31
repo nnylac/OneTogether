@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { ArrowLeft, Wifi, WifiOff, Users, MapPin, Shield, MessageSquare, Clock, Sparkles, FileText } from 'lucide-react';
+import { ArrowLeft, Wifi, WifiOff, MapPin, Shield, MessageSquare, Clock, Sparkles, FileText, Circle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { DbIncident, DbParticipant } from '../../api/incidents.api';
 import { ChatPanel } from './ChatPanel';
@@ -16,15 +16,15 @@ const SEVERITY_COLORS: Record<string, string> = {
   Medium: 'bg-yellow-900/60 text-yellow-300 border-yellow-700',
   Low: 'bg-green-900/60 text-green-300 border-green-700',
 };
+
 const STATUS_COLORS: Record<string, string> = {
   Reported: 'text-gray-400', Unverified: 'text-yellow-400', Verified: 'text-blue-400',
   Dispatched: 'text-indigo-400', 'On Scene': 'text-green-400', Contained: 'text-teal-400',
   Recovery: 'text-cyan-400', Closed: 'text-gray-600',
 };
-const STATUS_NEXT: Record<string, string> = {
-  Reported: 'Verified', Unverified: 'Verified', Verified: 'Dispatched',
-  Dispatched: 'On Scene', 'On Scene': 'Contained', Contained: 'Recovery', Recovery: 'Closed',
-};
+
+const PHASES = ['Reported', 'Unverified', 'Verified', 'Dispatched', 'On Scene', 'Contained', 'Recovery', 'Closed'] as const;
+type Phase = typeof PHASES[number];
 
 type Tab = 'discussion' | 'log' | 'advisory' | 'reports';
 
@@ -32,8 +32,15 @@ const TABS: { id: Tab; label: string; icon: React.ElementType }[] = [
   { id: 'discussion', label: 'Discussion', icon: MessageSquare },
   { id: 'log', label: 'Incident Log', icon: Clock },
   { id: 'advisory', label: 'AI Advisory', icon: Sparkles },
-  { id: 'reports', label: 'Reports', icon: FileText },
+  { id: 'reports', label: 'Report', icon: FileText },
 ];
+
+// Deterministic color from userId
+const PARTICIPANT_COLORS = ['#6366f1','#10b981','#f59e0b','#ef4444','#8b5cf6','#06b6d4','#ec4899'];
+function colorFor(id: string) {
+  let h = 0; for (const c of id) h = (h * 31 + c.charCodeAt(0)) & 0xffffffff;
+  return PARTICIPANT_COLORS[Math.abs(h) % PARTICIPANT_COLORS.length];
+}
 
 interface Props {
   room: ReturnType<typeof useIncidentRoom>;
@@ -42,25 +49,83 @@ interface Props {
   currentUserOrg?: string;
 }
 
-function ParticipantsBar({ participants }: { participants: DbParticipant[] }) {
+// ── Collaborators panel ────────────────────────────────────────────────────
+function CollaboratorsPanel({ participants, currentUserId }: { participants: DbParticipant[]; currentUserId: string }) {
+  if (participants.length === 0) return null;
   return (
-    <div className="flex items-center gap-1.5">
-      <Users size={12} className="text-gray-500" />
-      <div className="flex -space-x-1.5">
-        {participants.slice(0, 5).map((p) => (
-          <div key={p.userId} title={p.userName}
-            className="w-6 h-6 rounded-full bg-indigo-700 border-2 border-gray-900 flex items-center justify-center">
-            <span className="text-white text-[10px] font-bold">{p.userName.charAt(0).toUpperCase()}</span>
-          </div>
-        ))}
+    <div className="px-4 py-3 border-b border-gray-800">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">
+        In Room · {participants.length}
+      </p>
+      <div className="space-y-1.5">
+        {participants.map((p) => {
+          const color = colorFor(p.userId);
+          const isMe = p.userId === currentUserId;
+          return (
+            <div key={p.userId} className="flex items-center gap-2">
+              <div
+                className="w-5 h-5 rounded-full flex items-center justify-center shrink-0 text-[10px] font-bold text-white"
+                style={{ backgroundColor: color }}
+              >
+                {p.userName.charAt(0).toUpperCase()}
+              </div>
+              <span className="text-xs text-gray-300 truncate">
+                {p.userName}{isMe ? <span className="text-gray-600"> (you)</span> : null}
+              </span>
+              <Circle size={6} className="ml-auto shrink-0 text-green-400 fill-green-400" />
+            </div>
+          );
+        })}
       </div>
-      {participants.length > 0 && (
-        <span className="text-xs text-gray-500">{participants.length}</span>
+    </div>
+  );
+}
+
+// ── Phase stepper ──────────────────────────────────────────────────────────
+function PhaseStepper({ currentStatus, onAdvance }: {
+  currentStatus: string;
+  onAdvance: (phase: string) => void;
+}) {
+  const currentIdx = PHASES.indexOf(currentStatus as Phase);
+  const nextPhase = currentIdx < PHASES.length - 1 ? PHASES[currentIdx + 1] : null;
+
+  return (
+    <div className="px-4 py-3 border-b border-gray-800">
+      <p className="text-[10px] text-gray-500 uppercase tracking-wider mb-2">Phase</p>
+      <div className="space-y-1">
+        {PHASES.map((phase, idx) => {
+          const isDone = idx < currentIdx;
+          const isCurrent = idx === currentIdx;
+          const isFuture = idx > currentIdx;
+          return (
+            <div key={phase} className="flex items-center gap-2">
+              <div className={`w-1.5 h-1.5 rounded-full shrink-0 ${
+                isCurrent ? 'bg-indigo-400' : isDone ? 'bg-green-600' : 'bg-gray-700'
+              }`} />
+              <span className={`text-xs truncate ${
+                isCurrent ? 'text-indigo-300 font-semibold'
+                : isDone ? 'text-gray-500 line-through'
+                : 'text-gray-600'
+              }`}>
+                {phase}
+              </span>
+            </div>
+          );
+        })}
+      </div>
+      {nextPhase && currentStatus !== 'Closed' && (
+        <button
+          onClick={() => onAdvance(nextPhase)}
+          className="mt-3 w-full text-xs font-semibold bg-indigo-900/50 hover:bg-indigo-800/60 text-indigo-300 border border-indigo-800 px-2 py-1.5 rounded transition-colors"
+        >
+          Advance → {nextPhase}
+        </button>
       )}
     </div>
   );
 }
 
+// ── Main layout ────────────────────────────────────────────────────────────
 export function IncidentRoomLayout({ room, currentUserId, currentUserName, currentUserOrg }: Props) {
   const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState<Tab>('discussion');
@@ -79,12 +144,6 @@ export function IncidentRoomLayout({ room, currentUserId, currentUserName, curre
 
   const severityClass = SEVERITY_COLORS[incident.severity] ?? SEVERITY_COLORS['Medium'];
   const statusClass = STATUS_COLORS[incident.status] ?? 'text-gray-400';
-  const nextStatus = STATUS_NEXT[incident.status];
-
-  function requestReport() {
-    room.sendMessage('@ai /generate-report');
-    setActiveTab('reports');
-  }
 
   return (
     <div className="h-screen bg-gray-950 flex flex-col overflow-hidden text-gray-100">
@@ -116,19 +175,25 @@ export function IncidentRoomLayout({ room, currentUserId, currentUserName, curre
           </div>
         </div>
 
-        <div className="flex items-center gap-3 shrink-0">
-          <ParticipantsBar participants={room.participants} />
-          {nextStatus && (
-            <button
-              onClick={() => room.updateIncidentStatus(nextStatus, currentUserName, currentUserOrg)}
-              className="text-xs bg-indigo-700 hover:bg-indigo-600 text-white px-2.5 py-1.5 rounded font-semibold transition-colors"
-            >
-              → {nextStatus}
-            </button>
+        {/* Compact participant avatars + live dot */}
+        <div className="flex items-center gap-2 shrink-0">
+          <div className="flex -space-x-1.5">
+            {room.participants.slice(0, 3).map((p) => (
+              <div key={p.userId} title={p.userName}
+                className="w-6 h-6 rounded-full border-2 border-gray-900 flex items-center justify-center text-[10px] font-bold text-white"
+                style={{ backgroundColor: colorFor(p.userId) }}
+              >
+                {p.userName.charAt(0).toUpperCase()}
+              </div>
+            ))}
+          </div>
+          {room.participants.length > 3 && (
+            <span className="text-xs text-gray-500">+{room.participants.length - 3}</span>
           )}
-          <div className={`flex items-center gap-1 text-xs font-medium ${connected ? 'text-green-400' : 'text-amber-400'}`}>
-            {connected ? <Wifi size={11} /> : <WifiOff size={11} />}
-            {connected ? 'Live' : 'Reconnecting'}
+          <div title={connected ? 'Live' : 'Reconnecting'}>
+            {connected
+              ? <Wifi size={13} className="text-green-400" />
+              : <WifiOff size={13} className="text-amber-400" />}
           </div>
         </div>
       </div>
@@ -136,8 +201,19 @@ export function IncidentRoomLayout({ room, currentUserId, currentUserName, curre
       {/* ── Body ── */}
       <div className="flex-1 overflow-hidden flex">
 
-        {/* Left panel — incident details */}
+        {/* Left panel */}
         <div className="w-56 shrink-0 border-r border-gray-800 overflow-y-auto flex flex-col bg-gray-950">
+
+          {/* Collaborators */}
+          <CollaboratorsPanel participants={room.participants} currentUserId={currentUserId} />
+
+          {/* Phase stepper */}
+          <PhaseStepper
+            currentStatus={incident.status}
+            onAdvance={(phase) => room.updateIncidentStatus(phase, currentUserName, currentUserOrg)}
+          />
+
+          {/* Incident details */}
           <div className="p-4 space-y-4 border-b border-gray-800">
             {incident.description && (
               <div>
@@ -197,58 +273,33 @@ export function IncidentRoomLayout({ room, currentUserId, currentUserName, curre
 
         {/* Right panel — tabbed workspace */}
         <div className="flex-1 flex flex-col overflow-hidden">
-
-          {/* Tab bar */}
           <div className="flex items-center border-b border-gray-800 bg-gray-900 shrink-0 px-2">
             {TABS.map(({ id, label, icon: Icon }) => {
               const isActive = activeTab === id;
-              // Show unread dot on discussion tab when not active
               const showDot = id === 'discussion' && !isActive && room.messages.length > 0;
               return (
-                <button
-                  key={id}
-                  onClick={() => setActiveTab(id)}
+                <button key={id} onClick={() => setActiveTab(id)}
                   className={`flex items-center gap-1.5 px-3 py-2.5 text-xs font-semibold border-b-2 transition-colors relative ${
-                    isActive
-                      ? 'border-indigo-500 text-indigo-400'
-                      : 'border-transparent text-gray-500 hover:text-gray-300'
+                    isActive ? 'border-indigo-500 text-indigo-400' : 'border-transparent text-gray-500 hover:text-gray-300'
                   }`}
                 >
-                  <Icon size={12} />
-                  {label}
-                  {showDot && (
-                    <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 absolute top-2 right-1" />
-                  )}
+                  <Icon size={12} />{label}
+                  {showDot && <span className="w-1.5 h-1.5 rounded-full bg-indigo-400 absolute top-2 right-1" />}
                 </button>
               );
             })}
           </div>
 
-          {/* Tab content */}
           <div className="flex-1 overflow-hidden">
             {activeTab === 'discussion' && (
-              <ChatPanel
-                messages={room.messages}
-                typingUsers={room.typingUsers}
-                aiThinking={room.aiThinking}
-                currentUserId={currentUserId}
-                onSend={room.sendMessage}
-                onTyping={room.emitTyping}
-              />
+              <ChatPanel messages={room.messages} typingUsers={room.typingUsers}
+                aiThinking={room.aiThinking} currentUserId={currentUserId}
+                onSend={room.sendMessage} onTyping={room.emitTyping} />
             )}
-            {activeTab === 'log' && (
-              <TimelinePanel timeline={room.timeline} />
-            )}
-            {activeTab === 'advisory' && (
-              <AiAdvisoryPanel incident={incident} resources={room.resources} />
-            )}
+            {activeTab === 'log' && <TimelinePanel timeline={room.timeline} />}
+            {activeTab === 'advisory' && <AiAdvisoryPanel incident={incident} resources={room.resources} />}
             {activeTab === 'reports' && (
-              <ReportsPanel
-                incident={incident}
-                messages={room.messages}
-                onRequestReport={requestReport}
-                aiThinking={room.aiThinking}
-              />
+              <ReportsPanel incident={incident} currentUserId={currentUserId} currentUserName={currentUserName} />
             )}
           </div>
         </div>

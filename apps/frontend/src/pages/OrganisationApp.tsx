@@ -214,8 +214,12 @@ function IncidentRow({ incident, expanded, onToggle, onOpen }: {
             <span className="text-[11px] font-mono text-sgds-gray-400">{incident.id}</span>
             <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded ${badge}`}>{incident.status}</span>
             <span className="text-[11px] text-sgds-gray-400">{incident.type}</span>
+            <span className="text-[11px] text-sgds-gray-400 ml-auto hidden sm:inline">{incident.createdAt}</span>
           </div>
           <p className="mt-0.5 text-sm font-semibold text-sgds-gray-900 truncate">{incident.title}</p>
+          {incident.description && (
+            <p className="mt-0.5 text-xs text-sgds-gray-500 truncate">{incident.description}</p>
+          )}
         </div>
 
         {/* Location */}

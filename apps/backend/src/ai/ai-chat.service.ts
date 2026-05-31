@@ -105,6 +105,24 @@ ${chatHistory || 'No messages yet.'}
     }
   }
 
+  async suggestReportEdit(incidentId: string, selectedText: string, question: string, fullContent: string): Promise<string> {
+    const inc = await this.prisma.incident.findUnique({ where: { id: incidentId } });
+    return this.ai.ask(`You are an AI assistant helping responders write an official incident report.
+A responder has highlighted a section of the report and has a question or request.
+
+INCIDENT: ${inc?.title ?? 'Unknown'} | ${inc?.type} | ${inc?.severity} | ${inc?.status}
+
+FULL REPORT CONTENT:
+${fullContent}
+
+HIGHLIGHTED SECTION:
+"${selectedText}"
+
+RESPONDER REQUEST: ${question}
+
+Provide an improved version of ONLY the highlighted section. Return just the replacement text, no explanation, no quotation marks around it. Preserve the markdown formatting style used in the original.`);
+  }
+
   private async callGeminiForCommand(command: AiCommand, ctx: string, rawContent: string): Promise<string> {
     switch (command) {
       case 'generate-report':
