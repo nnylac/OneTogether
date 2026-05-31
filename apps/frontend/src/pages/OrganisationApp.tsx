@@ -1,7 +1,8 @@
-import { Activity, Building2, Car, CheckCircle2, ChevronRight, FileText, Filter, Flame, Grid2X2, HeartPulse, Layers, List, Maximize2, Navigation, Plus, RefreshCw, Sparkles, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
+﻿import { Activity, AlertTriangle, Building2, Car, ExternalLink, Filter, Flame, Grid2X2, HeartPulse, Layers, List, MapPin, Maximize2, Navigation, Plus, RefreshCw, Users, Waves, ZoomIn, ZoomOut } from 'lucide-react';
 import { useRef, useState } from 'react';
 import type { MouseEvent } from 'react';
-import { Navigate, Route, Routes } from 'react-router-dom';
+import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
+import { IncidentRoomPage } from './IncidentRoomPage';
 import { SidebarLayout } from '../components/layouts';
 import { Badge, Button, Card, DataTable, InfoCell, ProgressBar, SectionHeader, StatCard, Tbody, Td, Th, Thead, Tr, UnitCard } from '../components/ui';
 import { useData } from '../state/DataContext';
@@ -28,6 +29,7 @@ export function OrganisationApp() {
       <Routes>
         <Route path="/" element={<OrgDashboard />} />
         <Route path="/incidents" element={<OrgIncidents />} />
+        <Route path="/incidents/:id" element={<IncidentRoomPage />} />
         <Route path="/map" element={<OrgMap />} />
         <Route path="/resources" element={<OrgResources />} />
         <Route path="/notifications" element={<OrgNotifications />} />
@@ -63,7 +65,7 @@ function OrgDashboard() {
       <div className="mt-6 grid gap-6 lg:grid-cols-[1.5fr_1fr]">
         <Card className="p-5">
           <h2 className="text-base font-bold text-sgds-gray-900">Assigned Incident Tickets</h2>
-          <div className="mt-4 space-y-3">{assigned.map((i) => <IncidentRow key={i.id} incident={i} />)}</div>
+          <div className="mt-4 space-y-3">{assigned.map((i) => <IncidentMapRow key={i.id} incident={i} />)}</div>
         </Card>
         <Card className="p-5">
           <h2 className="text-base font-bold text-sgds-gray-900">Notifications</h2>
@@ -108,344 +110,110 @@ function OrgDashboard() {
 }
 
 function OrgIncidents() {
-  const { incidents, makeIncidentPublic, assignIncident, updateIncidentStatus, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep } = useData();
-  const [view, setView] = useState<'list' | 'grid'>('list');
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const visible = incidents.filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf'));
-  const actions = { assignIncident, updateIncidentStatus, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep };
+  const { incidents } = useData();
+  const [filter, setFilter] = useState<'all' | 'active' | 'critical'>('all');
+  const nav = useNavigate();
+
+  const visible = incidents
+    .filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf'))
+    .filter((i) => {
+      if (filter === 'active') return i.status !== 'Closed';
+      if (filter === 'critical') return i.severity === 'Critical';
+      return true;
+    });
+
+  const counts = {
+    all: incidents.filter((i) => i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf')).length,
+    active: incidents.filter((i) => (i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf')) && i.status !== 'Closed').length,
+    critical: incidents.filter((i) => (i.createdBy === 'scdf' || i.assignedOrganisations.includes('scdf')) && i.severity === 'Critical').length,
+  };
 
   return (
     <section>
       <SectionHeader
-        title="Incident Tickets"
-        subtitle="Tickets are synced from source systems. Assignment and response actions are managed here."
-        action={
-          <div className="flex border border-sgds-gray-200">
-            <button onClick={() => setView('list')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'list' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><List size={15} /> List</button>
-            <button onClick={() => setView('grid')} className={`flex items-center gap-2 px-3 py-2 text-sm font-semibold ${view === 'grid' ? 'bg-navy-950 text-white' : 'text-sgds-gray-600 hover:bg-sgds-gray-50'}`}><Grid2X2 size={15} /> Grid</button>
-          </div>
-        }
+        title="Incidents"
+        subtitle="Select an incident to open its room and begin coordinating."
       />
-      {view === 'list' ? (
-        <div className="mt-6 space-y-4">{visible.map((i) => <IncidentDetailCard key={i.id} incident={i} {...actions} />)}</div>
-      ) : (
-        <div className="mt-6 grid auto-rows-max gap-4 xl:grid-cols-2">
-          {visible.map((i) => expandedId === i.id ? (
-            <div key={i.id} className="xl:col-span-2">
-              <IncidentDetailCard incident={i} onCollapse={() => setExpandedId(null)} {...actions} />
-            </div>
-          ) : (
-            <IncidentSummaryCard key={i.id} incident={i} onClick={() => setExpandedId(i.id)} />
-          ))}
-        </div>
-      )}
+
+      {/* Filter tabs */}
+      <div className="mt-4 flex items-center gap-1 border-b border-sgds-gray-200 pb-0">
+        {(['all', 'active', 'critical'] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={`px-3 py-2 text-sm font-semibold border-b-2 -mb-px transition-colors capitalize ${
+              filter === f
+                ? 'border-sgds-purple text-sgds-purple'
+                : 'border-transparent text-sgds-gray-500 hover:text-sgds-gray-800'
+            }`}
+          >
+            {f} <span className="ml-1 text-xs text-sgds-gray-400">{counts[f]}</span>
+          </button>
+        ))}
+      </div>
+
+      {/* Incident list */}
+      <div className="mt-3 divide-y divide-sgds-gray-100 rounded border border-sgds-gray-200 bg-white">
+        {visible.length === 0 && (
+          <p className="px-4 py-8 text-center text-sm text-sgds-gray-500">No incidents match this filter.</p>
+        )}
+        {visible.map((incident) => (
+          <IncidentRow
+            key={incident.id}
+            incident={incident}
+            onOpen={() => nav(`/organisation/incidents/${incident.id}`)}
+          />
+        ))}
+      </div>
     </section>
   );
 }
 
-interface IncidentActions {
-  assignIncident: (incidentId: string, organisationId: string) => void;
-  updateIncidentStatus: (incidentId: string, status: Incident['status']) => void;
-  makeIncidentPublic: (incidentId: string) => void;
-  requestVolunteers: (incidentId: string) => void;
-  resolveIncident: (incidentId: string) => void;
-  addTimelineUpdate: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
-  advanceIncidentStatus: (incidentId: string, entry: { category: TimelineCategory; organisation: string; actor?: string; text: string }) => void;
-  generateSitrep: (incidentId: string) => void;
-}
+// Compact navigational row â€” all actions live inside the Incident Room
+const SEVERITY_DOT: Record<string, string> = {
+  Critical: 'bg-red-500',
+  High: 'bg-orange-400',
+  Medium: 'bg-yellow-400',
+  Low: 'bg-green-400',
+};
+const STATUS_BADGE: Record<string, string> = {
+  Reported: 'bg-gray-100 text-gray-600',
+  Unverified: 'bg-yellow-100 text-yellow-700',
+  Verified: 'bg-blue-100 text-blue-700',
+  Dispatched: 'bg-indigo-100 text-indigo-700',
+  'On Scene': 'bg-green-100 text-green-700',
+  Contained: 'bg-teal-100 text-teal-700',
+  Recovery: 'bg-cyan-100 text-cyan-700',
+  Closed: 'bg-gray-100 text-gray-400',
+};
 
-function StatusStepper({ incident, onAdvance }: { incident: Incident; onAdvance: (text: string) => void }) {
-  const [showAdvance, setShowAdvance] = useState(false);
-  const [advanceText, setAdvanceText] = useState('');
-  const currentIdx = statusOrder.indexOf(incident.status);
-  const nextStatus = currentIdx < statusOrder.length - 1 ? statusOrder[currentIdx + 1] : null;
-
-  const submit = () => {
-    if (!advanceText.trim()) return;
-    onAdvance(advanceText);
-    setAdvanceText('');
-    setShowAdvance(false);
-  };
+function IncidentRow({ incident, onOpen }: { incident: Incident; onOpen: () => void }) {
+  const dot = SEVERITY_DOT[incident.severity] ?? 'bg-gray-400';
+  const badge = STATUS_BADGE[incident.status] ?? STATUS_BADGE['Reported'];
 
   return (
-    <div>
-      <div className="mb-2 flex justify-between text-xs text-sgds-gray-500">
-        <span>Operational phase</span>
-        <span>{currentIdx + 1}/{statusOrder.length}</span>
-      </div>
-      <div className="flex items-center gap-0.5">
-        {statusOrder.map((s, i) => (
-          <div key={s} title={s} className={`h-1.5 flex-1 rounded-sm ${i < currentIdx ? 'bg-sgds-purple' : i === currentIdx ? 'bg-sgds-purple opacity-60' : 'bg-sgds-gray-200'}`} />
-        ))}
-      </div>
-      <div className="mt-1.5 text-xs font-semibold text-sgds-purple">{incident.status}</div>
-      {nextStatus && (
-        <div className="mt-2">
-          {showAdvance ? (
-            <div className="border border-sgds-gray-200 bg-sgds-gray-50 p-2">
-              <textarea
-                className="w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple resize-none"
-                rows={2}
-                placeholder={`Log entry for → ${nextStatus}`}
-                value={advanceText}
-                onChange={(e) => setAdvanceText(e.target.value)}
-              />
-              <div className="mt-1.5 flex gap-1.5">
-                <Button variant="outline" className="flex-1 py-1 text-xs" onClick={() => setShowAdvance(false)}>Cancel</Button>
-                <Button variant="primary" className="flex-1 py-1 text-xs" disabled={!advanceText.trim()} onClick={submit}>
-                  → {nextStatus}
-                </Button>
-              </div>
-            </div>
-          ) : (
-            <button onClick={() => setShowAdvance(true)} className="flex w-full items-center justify-center gap-1 border border-sgds-purple px-3 py-2 text-xs font-semibold text-sgds-purple hover:bg-sgds-purple-light">
-              <ChevronRight size={13} /> Advance to {nextStatus}
-            </button>
-          )}
+    <div
+      className="flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-sgds-gray-50 transition-colors"
+      onClick={onOpen}
+    >
+      <span className={`w-2 h-2 rounded-full shrink-0 ${dot}`} />
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2">
+          <p className="text-sm font-semibold text-sgds-gray-900 truncate">{incident.title}</p>
+          <span className={`text-[11px] font-semibold px-1.5 py-0.5 rounded shrink-0 ${badge}`}>{incident.status}</span>
         </div>
-      )}
+        {incident.description && (
+          <p className="mt-0.5 text-xs text-sgds-gray-500 line-clamp-1">{incident.description}</p>
+        )}
+      </div>
+      <span className="text-[11px] text-sgds-gray-400 shrink-0 hidden sm:inline">{incident.createdAt}</span>
+      <button
+        onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        className="flex items-center gap-1 text-xs font-semibold text-white bg-navy-950 hover:bg-sgds-purple px-2.5 py-1.5 rounded transition-colors shrink-0"
+      >
+        <ExternalLink size={11} /> Open Room
+      </button>
     </div>
-  );
-}
-
-function IncidentDetailCard({ incident, onCollapse, assignIncident, makeIncidentPublic, requestVolunteers, resolveIncident, addTimelineUpdate, advanceIncidentStatus, generateSitrep }: { incident: Incident; onCollapse?: () => void } & IncidentActions) {
-  const [showTlForm, setShowTlForm] = useState(false);
-  const [tlForm, setTlForm] = useState<{ category: TimelineCategory; actor: string; text: string }>({ category: 'NOTE', actor: '', text: '' });
-  const [showAdvisory, setShowAdvisory] = useState(false);
-  const [advisoryLoading, setAdvisoryLoading] = useState(false);
-  const inputCls = 'w-full border border-sgds-gray-300 p-2 text-xs focus:outline focus:outline-2 focus:outline-sgds-purple';
-  const canGetAdvisory = ['Dispatched', 'On Scene', 'Contained', 'Recovery'].includes(incident.status);
-
-  const submitTlEntry = () => {
-    if (!tlForm.text.trim()) return;
-    addTimelineUpdate(incident.id, { category: tlForm.category, organisation: 'SCDF', actor: tlForm.actor || undefined, text: tlForm.text });
-    setTlForm({ category: 'NOTE', actor: '', text: '' });
-    setShowTlForm(false);
-  };
-
-  const handleAdvance = (text: string) => {
-    advanceIncidentStatus(incident.id, { category: 'STATUS', organisation: 'SCDF', actor: 'Chen Xiao Ling', text });
-  };
-
-  return (
-    <Card className="overflow-hidden">
-      <div className="border-l-4 border-critical bg-sgds-gray-50 px-5 py-3">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</span>
-          <Badge>{incident.severity}</Badge>
-          <Badge>{incident.status}</Badge>
-          <Badge>{incident.publicVisibility}</Badge>
-          {incident.confidenceScore !== undefined && (
-            <span className="border border-blue-200 bg-blue-50 px-2 py-0.5 text-[10px] font-bold text-blue-700">
-              CONF {incident.confidenceScore}%
-            </span>
-          )}
-        </div>
-        <h2 className="mt-1 text-lg font-bold text-sgds-gray-900">{incident.title}</h2>
-        <div className="mt-0.5 text-xs text-sgds-gray-500">{incident.type} · Created by {incident.createdBy.toUpperCase()} · {incident.createdAt}</div>
-      </div>
-      <div className="grid gap-6 p-5 lg:grid-cols-[1fr_300px]">
-        <div>
-          <p className="text-sm leading-6 text-sgds-gray-700">{incident.description}</p>
-
-          {/* ICS Command Structure */}
-          {(incident.incidentCommander || incident.icsSection) && (
-            <div className="mt-4 border border-navy-100 bg-navy-50 p-3">
-              <h3 className="mb-2 text-xs font-bold uppercase tracking-wide text-navy-700">ICS Command Structure</h3>
-              <div className="grid gap-2 sm:grid-cols-2">
-                {incident.incidentCommander && <InfoCell label="Incident Commander" value={incident.incidentCommander} />}
-                {incident.icsSection?.operations && <InfoCell label="Operations" value={incident.icsSection.operations} />}
-                {incident.icsSection?.planning && <InfoCell label="Planning" value={incident.icsSection.planning} />}
-                {incident.icsSection?.logistics && <InfoCell label="Logistics" value={incident.icsSection.logistics} />}
-                {incident.icsSection?.pio && <InfoCell label="PIO" value={incident.icsSection.pio} />}
-              </div>
-            </div>
-          )}
-
-          {/* AI Advisory */}
-          {incident.advisory && showAdvisory && (
-            <div className="mt-4 border border-indigo-200 bg-indigo-50 p-4">
-              <div className="mb-2 flex items-center justify-between">
-                <h3 className="text-xs font-bold uppercase tracking-wide text-indigo-800">AI Advisory — {incident.advisory.generatedAt}</h3>
-                <button onClick={() => setShowAdvisory(false)} className="text-xs text-indigo-500 hover:text-indigo-700">Close</button>
-              </div>
-              <p className="text-xs text-indigo-900 leading-5">{incident.advisory.assessment}</p>
-              <div className="mt-3">
-                <div className="text-[10px] font-bold uppercase tracking-wide text-indigo-600">Recommendations</div>
-                <ul className="mt-1 space-y-2">
-                  {incident.advisory.recommendations.map((r, i) => (
-                    <li key={i} className="flex gap-2">
-                      <span className={`mt-0.5 shrink-0 rounded px-1.5 py-0.5 text-[10px] font-bold uppercase ${r.priority === 'Critical' ? 'bg-red-100 text-red-700' : r.priority === 'High' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>{r.priority}</span>
-                      <div>
-                        <div className="text-xs font-semibold text-indigo-900">{r.action}</div>
-                        <div className="text-xs text-indigo-700">{r.detail}</div>
-                      </div>
-                    </li>
-                  ))}
-                </ul>
-              </div>
-              {incident.advisory.warnings.length > 0 && (
-                <div className="mt-3">
-                  <div className="text-[10px] font-bold uppercase tracking-wide text-amber-700">Warnings</div>
-                  <ul className="mt-1 space-y-0.5">{incident.advisory.warnings.map((w, i) => <li key={i} className="text-xs text-amber-800">⚠ {w}</li>)}</ul>
-                </div>
-              )}
-            </div>
-          )}
-
-          {incident.suggestedSteps && incident.suggestedSteps.length > 0 && (
-            <div className="mt-4 rounded border border-purple-200 bg-purple-50 p-3">
-              <div className="flex items-center gap-2 mb-2">
-                <Sparkles size={14} className="text-purple-600" />
-                <h3 className="text-xs font-semibold text-purple-800">AI-suggested coordination steps</h3>
-              </div>
-              <ul className="space-y-1">
-                {incident.suggestedSteps.map((step, i) => (
-                  <li key={i} className="flex items-start gap-2 text-xs text-sgds-gray-700">
-                    <CheckCircle2 size={11} className="mt-0.5 shrink-0 text-safe" />
-                    <span>{step}</span>
-                  </li>
-                ))}
-              </ul>
-            </div>
-          )}
-          {incident.resourceInsights && incident.resourceInsights.length > 0 && (
-            <div className="mt-3 rounded border border-sgds-gray-200 bg-sgds-gray-50 p-3">
-              <h3 className="mb-2 text-xs font-semibold text-sgds-gray-800">Resource availability snapshot (at creation)</h3>
-              <div className="flex flex-wrap gap-2">
-                {incident.resourceInsights.map((insight, i) => (
-                  <span key={i} className={`inline-flex items-center gap-1 rounded px-2 py-1 text-xs ${insight.recommended ? 'bg-purple-100 text-purple-700' : 'bg-sgds-gray-100 text-sgds-gray-600'}`}>
-                    {insight.type}: <strong>{insight.available}/{insight.total}</strong>
-                  </span>
-                ))}
-              </div>
-            </div>
-          )}
-          <div className="mt-4 grid gap-3 md:grid-cols-2">
-            <InfoCell label="Location" value={incident.location} />
-            <InfoCell label="Assigned organisations" value={incident.assignedOrganisations.join(', ').toUpperCase()} />
-            <InfoCell label="Units / volunteers" value={`${incident.unitsResponded} units, ${incident.volunteersResponded} volunteers`} />
-            <InfoCell label="Volunteer support" value={incident.volunteerSupportNeeded ? 'Needed' : 'Not requested'} />
-          </div>
-          <h3 className="mt-5 text-sm font-bold text-sgds-gray-900">Responding Organisations</h3>
-          <div className="mt-2 grid gap-2 md:grid-cols-2">
-            {incident.respondingOrganisations.map((org) => (
-              <div key={org.organisation} className="border border-sgds-gray-200 p-3 text-sm">
-                <strong className="text-sgds-gray-900">{org.organisation}</strong>
-                <div className="text-sgds-gray-500">{org.status}</div>
-              </div>
-            ))}
-          </div>
-
-          <div className="mt-5 flex items-center justify-between">
-            <h3 className="text-sm font-bold text-sgds-gray-900">Incident Log</h3>
-            <button onClick={() => setShowTlForm((v) => !v)} className="flex items-center gap-1 border border-sgds-gray-300 bg-white px-2.5 py-1 text-xs font-semibold text-sgds-gray-700 hover:bg-sgds-gray-50">
-              <Plus size={12} /> Log entry
-            </button>
-          </div>
-
-          {showTlForm && (
-            <div className="mt-2 border border-sgds-gray-200 bg-sgds-gray-50 p-3">
-              <p className="mb-2 text-xs font-semibold text-sgds-gray-700">New log entry</p>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Category</label>
-                  <select className={inputCls} value={tlForm.category} onChange={(e) => setTlForm((p) => ({ ...p, category: e.target.value as TimelineCategory }))}>
-                    {(Object.keys(timelineCategoryConfig) as TimelineCategory[]).map((k) => (
-                      <option key={k} value={k}>{timelineCategoryConfig[k].label}</option>
-                    ))}
-                  </select>
-                </div>
-                <div>
-                  <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Officer / Actor</label>
-                  <input className={inputCls} placeholder="e.g. Chen Xiao Ling" value={tlForm.actor} onChange={(e) => setTlForm((p) => ({ ...p, actor: e.target.value }))} />
-                </div>
-              </div>
-              <div className="mt-2">
-                <label className="mb-1 block text-[10px] font-semibold uppercase tracking-wide text-sgds-gray-500">Details <span className="text-critical">*</span></label>
-                <textarea className={`${inputCls} resize-none`} rows={2} placeholder="Describe the update…" value={tlForm.text} onChange={(e) => setTlForm((p) => ({ ...p, text: e.target.value }))} />
-              </div>
-              <div className="mt-2 flex justify-end gap-2">
-                <Button variant="outline" className="py-1 text-xs" onClick={() => setShowTlForm(false)}>Cancel</Button>
-                <Button variant="primary" className="py-1 text-xs" disabled={!tlForm.text.trim()} onClick={submitTlEntry}>Submit entry</Button>
-              </div>
-            </div>
-          )}
-
-          <div className="mt-3 space-y-0">
-            {incident.timeline.map((item, index) => {
-              const cfg = timelineCategoryConfig[item.category];
-              return (
-                <div key={item.id} className="relative flex gap-3 pb-4 last:pb-0">
-                  {index < incident.timeline.length - 1 && (
-                    <div className="absolute left-[9px] top-5 bottom-0 w-px bg-sgds-gray-200" />
-                  )}
-                  <div className="relative z-10 mt-1 h-[18px] w-[18px] shrink-0 rounded-full border-2 border-sgds-purple bg-white" />
-                  <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-center gap-1.5">
-                      <span className={`inline-block px-1.5 py-0.5 text-[10px] font-bold uppercase tracking-wide ${cfg.cls}`}>{cfg.label}</span>
-                      <span className="text-xs font-semibold text-sgds-gray-800">{item.organisation}</span>
-                      {item.actor && <span className="text-xs text-sgds-gray-500">· {item.actor}</span>}
-                    </div>
-                    <div className="mt-0.5 font-mono text-[10px] text-sgds-gray-400">{item.timestamp}</div>
-                    <div className="mt-1 text-sm leading-5 text-sgds-gray-700">{item.text}</div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-        <div className="space-y-3">
-          <StatusStepper incident={incident} onAdvance={handleAdvance} />
-          <select onChange={(e) => assignIncident(incident.id, e.target.value)} className="w-full border border-sgds-gray-300 p-2.5 text-sm focus:outline focus:outline-2 focus:outline-sgds-purple" defaultValue="">
-            <option value="" disabled>Assign organisation</option>
-            <option value="sgh">Singapore General Hospital</option>
-            <option value="redcross">Singapore Red Cross</option>
-            <option value="spf">SPF</option>
-          </select>
-          <Button variant="primary" className="w-full" onClick={() => makeIncidentPublic(incident.id)}>Make public</Button>
-          <Button variant="success" className="w-full" onClick={() => requestVolunteers(incident.id)}>Request volunteers</Button>
-          {canGetAdvisory && (
-            <Button variant="outline" className="w-full" disabled={advisoryLoading} onClick={async () => {
-              setAdvisoryLoading(true);
-              await generateSitrep(incident.id);
-              setAdvisoryLoading(false);
-              setShowAdvisory(true);
-            }}>
-              <FileText size={14} /> {advisoryLoading ? 'Thinking…' : incident.advisory ? 'Refresh AI Advisory' : 'Get AI Advisory'}
-            </Button>
-          )}
-          {incident.advisory && !showAdvisory && (
-            <button onClick={() => setShowAdvisory(true)} className="w-full text-left text-xs font-semibold text-indigo-600 hover:underline">View AI Advisory →</button>
-          )}
-          <Button variant="danger" className="w-full" onClick={() => resolveIncident(incident.id)}>Close incident</Button>
-          {onCollapse && <Button variant="outline" className="w-full" onClick={onCollapse}>Collapse</Button>}
-        </div>
-      </div>
-    </Card>
-  );
-}
-
-function IncidentSummaryCard({ incident, onClick }: { incident: Incident; onClick: () => void }) {
-  return (
-    <button onClick={onClick} className="block w-full text-left">
-      <Card className="h-full p-5 transition-colors hover:border-sgds-purple">
-        <div className="flex items-start justify-between gap-3">
-          <div>
-            <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">{incident.id}</div>
-            <h2 className="mt-1 text-base font-bold leading-snug text-sgds-gray-900">{incident.title}</h2>
-          </div>
-          <Badge>{incident.status}</Badge>
-        </div>
-        <div className="mt-3 flex flex-wrap gap-1.5"><Badge>{incident.severity}</Badge><Badge>{incident.type}</Badge><Badge>{incident.publicVisibility}</Badge></div>
-        <p className="mt-3 line-clamp-2 text-sm leading-6 text-sgds-gray-600">{incident.description}</p>
-        <div className="mt-4 space-y-2">
-          <ProgressBar value={statusOrder.indexOf(incident.status) + 1} max={8} tone="bg-sgds-purple" />
-          <InfoCell label="Location" value={incident.location} />
-        </div>
-        <div className="mt-3 text-xs font-semibold text-sgds-purple">Click to expand →</div>
-      </Card>
-    </button>
   );
 }
 
@@ -474,33 +242,18 @@ function OrgMap() {
     { x: 74, y: 64, type: 'critical', value: '4', color: 'bg-critical text-white', icon: Users },
     { x: 78, y: 30, type: 'group', value: '143', color: 'bg-warning text-white', icon: Users }
   ];
-  const startDrag = (e: MouseEvent<HTMLDivElement>) => {
-    if (!mapRef.current) return;
-    dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: mapRef.current.scrollLeft, top: mapRef.current.scrollTop };
-    setDragging(true);
-  };
-  const moveDrag = (e: MouseEvent<HTMLDivElement>) => {
-    if (!dragRef.current.active || !mapRef.current) return;
-    mapRef.current.scrollLeft = dragRef.current.left - (e.clientX - dragRef.current.x);
-    mapRef.current.scrollTop = dragRef.current.top - (e.clientY - dragRef.current.y);
-  };
+  const startDrag = (e: MouseEvent<HTMLDivElement>) => { if (!mapRef.current) return; dragRef.current = { active: true, x: e.clientX, y: e.clientY, left: mapRef.current.scrollLeft, top: mapRef.current.scrollTop }; setDragging(true); };
+  const moveDrag = (e: MouseEvent<HTMLDivElement>) => { if (!dragRef.current.active || !mapRef.current) return; mapRef.current.scrollLeft = dragRef.current.left - (e.clientX - dragRef.current.x); mapRef.current.scrollTop = dragRef.current.top - (e.clientY - dragRef.current.y); };
   const stopDrag = () => { dragRef.current.active = false; setDragging(false); };
-
   return (
     <section>
-      <SectionHeader title="Incident & Resource Map" subtitle="Incidents · Hospitals · Volunteer Groups"
-        action={<><Button variant="primary"><RefreshCw size={14} /> Refresh</Button><Button variant="outline"><Maximize2 size={14} /> Fullscreen</Button></>}
-      />
+      <SectionHeader title="Incident & Resource Map" subtitle="Incidents · Hospitals · Volunteer Groups" action={<><Button variant="primary"><RefreshCw size={14} /> Refresh</Button><Button variant="outline"><Maximize2 size={14} /> Fullscreen</Button></>} />
       <div className="mt-5 flex flex-wrap items-center gap-2 text-sm">
         <Filter size={15} className="text-sgds-gray-500" />
         <span className="font-semibold text-sgds-gray-700">Show:</span>
-        {['All', 'Incidents (16)', 'Hospitals (6)', 'Volunteer Groups (6)'].map((item) => (
-          <button key={item} onClick={() => setShow(item)} className={`border px-3 py-1.5 text-sm font-semibold ${show === item ? 'border-navy-950 bg-navy-950 text-white' : 'border-sgds-gray-200 bg-white text-sgds-gray-700 hover:bg-sgds-gray-50'}`}>{item}</button>
-        ))}
+        {['All', 'Incidents (16)', 'Hospitals (6)', 'Volunteer Groups (6)'].map((item) => (<button key={item} onClick={() => setShow(item)} className={`border px-3 py-1.5 text-sm font-semibold ${show === item ? 'border-navy-950 bg-navy-950 text-white' : 'border-sgds-gray-200 bg-white text-sgds-gray-700 hover:bg-sgds-gray-50'}`}>{item}</button>))}
         <span className="ml-2 font-semibold text-sgds-gray-700">Severity:</span>
-        {['All', 'Critical', 'High', 'Medium'].map((item) => (
-          <button key={item} onClick={() => setSeverity(item)} className={`px-3 py-1.5 text-sm ${severity === item ? 'border border-sgds-purple bg-sgds-purple-light font-semibold text-sgds-purple' : 'text-sgds-gray-500 hover:text-sgds-gray-800'}`}>{item}</button>
-        ))}
+        {['All', 'Critical', 'High', 'Medium'].map((item) => (<button key={item} onClick={() => setSeverity(item)} className={`px-3 py-1.5 text-sm ${severity === item ? 'border border-sgds-purple bg-sgds-purple-light font-semibold text-sgds-purple' : 'text-sgds-gray-500 hover:text-sgds-gray-800'}`}>{item}</button>))}
       </div>
       <div className="relative mt-4 h-[580px] overflow-hidden border border-sgds-gray-300 bg-sgds-gray-100">
         <div ref={mapRef} className={`h-full w-full overflow-auto ${dragging ? 'cursor-grabbing' : 'cursor-grab'}`} onMouseDown={startDrag} onMouseMove={moveDrag} onMouseUp={stopDrag} onMouseLeave={stopDrag}>
@@ -508,37 +261,17 @@ function OrgMap() {
             <img src="/singapore-map.png" alt="Singapore map" className="absolute inset-0 h-full w-full object-cover opacity-75" draggable={false} />
             <div className="absolute inset-0 bg-blue-50/25" />
             <div className="absolute inset-0 bg-[linear-gradient(rgba(15,23,42,0.06)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.06)_1px,transparent_1px)] bg-[size:56px_56px]" />
-            {markers.map((marker, index) => {
-              const Icon = marker.icon;
-              const isCluster = Boolean(marker.value);
-              return (
-                <button key={`${marker.type}-${index}`} className={`absolute grid place-items-center rounded-full shadow-card ${isCluster ? `h-10 w-10 ${marker.color}` : `h-9 w-9 border-2 ${marker.color}`}`} style={{ left: `${marker.x}%`, top: `${marker.y}%` }} title={marker.type}>
-                  <Icon size={isCluster ? 13 : 16} />
-                  {marker.value && <span className="text-[10px] font-bold leading-none">{marker.value}</span>}
-                </button>
-              );
-            })}
+            {markers.map((marker, index) => { const Icon = marker.icon; const isCluster = Boolean(marker.value); return (<button key={`${marker.type}-${index}`} className={`absolute grid place-items-center rounded-full shadow-card ${isCluster ? `h-10 w-10 ${marker.color}` : `h-9 w-9 border-2 ${marker.color}`}`} style={{ left: `${marker.x}%`, top: `${marker.y}%` }} title={marker.type}><Icon size={isCluster ? 13 : 16} />{marker.value && <span className="text-[10px] font-bold leading-none">{marker.value}</span>}</button>); })}
           </div>
         </div>
-        <Card className="absolute left-4 top-4 p-3">
-          <div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">Active Volunteer Groups</div>
-          <div className="mt-1 text-sm font-bold"><span className="text-critical">2 Critical</span> <span className="text-warning">3 Urgent</span> <span className="text-safe">1 Needed</span></div>
-          <div className="text-xs text-sgds-gray-500">187 volunteers deployed</div>
-        </Card>
-        <Card className="absolute bottom-4 left-4 p-3 text-sm">
-          <div className="mb-2 flex items-center gap-2 font-bold text-sgds-gray-900"><Layers size={15} /> Legend</div>
-          {[['Medical', HeartPulse, 'text-critical'], ['Fire', Flame, 'text-orange-500'], ['Flood', Waves, 'text-blue-500'], ['Road', Car, 'text-warning'], ['Hospital', Activity, 'text-safe']].map(([label, Icon, color]) => (
-            <div key={label as string} className="mt-1.5 flex items-center gap-2 text-xs"><span className={color as string}><Icon size={12} /></span><span>{label as string}</span></div>
-          ))}
-        </Card>
-        <div className="absolute right-4 top-4 grid gap-2">
-          {[ZoomIn, ZoomOut, Navigation].map((Icon, i) => <button key={i} className="grid h-10 w-10 place-items-center border border-sgds-gray-200 bg-white shadow-card hover:bg-sgds-gray-50"><Icon size={17} /></button>)}
-        </div>
+        <Card className="absolute left-4 top-4 p-3"><div className="text-xs font-bold uppercase tracking-wide text-sgds-gray-500">Active Volunteer Groups</div><div className="mt-1 text-sm font-bold"><span className="text-critical">2 Critical</span> <span className="text-warning">3 Urgent</span> <span className="text-safe">1 Needed</span></div><div className="text-xs text-sgds-gray-500">187 volunteers deployed</div></Card>
+        <Card className="absolute bottom-4 left-4 p-3 text-sm"><div className="mb-2 flex items-center gap-2 font-bold text-sgds-gray-900"><Layers size={15} /> Legend</div>{[['Medical', HeartPulse, 'text-critical'], ['Fire', Flame, 'text-orange-500'], ['Flood', Waves, 'text-blue-500'], ['Road', Car, 'text-warning'], ['Hospital', Activity, 'text-safe']].map(([label, Icon, color]) => (<div key={label as string} className="mt-1.5 flex items-center gap-2 text-xs"><span className={color as string}><Icon size={12} /></span><span>{label as string}</span></div>))}</Card>
+        <div className="absolute right-4 top-4 grid gap-2">{[ZoomIn, ZoomOut, Navigation].map((Icon, i) => <button key={i} className="grid h-10 w-10 place-items-center border border-sgds-gray-200 bg-white shadow-card hover:bg-sgds-gray-50"><Icon size={17} /></button>)}</div>
         <div className="absolute bottom-4 right-4 border border-sgds-gray-200 bg-white px-3 py-1.5 text-xs text-sgds-gray-500">Zoom 12</div>
       </div>
       <Card className="mt-6 p-5">
         <h2 className="text-base font-bold text-sgds-gray-900">Area incidents</h2>
-        <div className="mt-4 space-y-2">{incidents.map((i) => <IncidentRow key={i.id} incident={i} />)}</div>
+        <div className="mt-4 space-y-2">{incidents.map((i) => <IncidentMapRow key={i.id} incident={i} />)}</div>
       </Card>
     </section>
   );
@@ -548,17 +281,8 @@ function OrgResources() {
   const { hospitals, organisations, units, updateUnitStatus, incidents } = useData();
   const [tab, setTab] = useState<'units' | 'hospitals' | 'orgs'>('units');
   const scdfUnits = units.filter((u) => u.organisation === 'SCDF');
-
-  const handleDispatch = (unitId: string) => {
-    const inc = incidents.find((i) => i.status === 'Dispatched' || i.status === 'On Scene');
-    if (inc) updateUnitStatus(unitId, 'En Route', inc.id);
-    else updateUnitStatus(unitId, 'Assigned');
-  };
-
-  const handleReturn = (unitId: string) => {
-    updateUnitStatus(unitId, 'Available', undefined);
-  };
-
+  const handleDispatch = (unitId: string) => { const inc = incidents.find((i) => i.status === 'Dispatched' || i.status === 'On Scene'); if (inc) updateUnitStatus(unitId, 'En Route', inc.id); else updateUnitStatus(unitId, 'Assigned'); };
+  const handleReturn = (unitId: string) => { updateUnitStatus(unitId, 'Available', undefined); };
   return (
     <section>
       <SectionHeader title="SCDF Resources" subtitle="Unit status, hospital capacities, and partner organisations." />
@@ -568,69 +292,11 @@ function OrgResources() {
         <StatCard label="Hospital Beds Available" value={hospitals.reduce((s, h) => s + h.availableBeds, 0)} sub={`of ${hospitals.reduce((s, h) => s + h.totalBeds, 0)} total`} />
       </div>
       <div className="mt-5 flex border-b border-sgds-gray-200">
-        {[['units', 'Unit Status Board'], ['hospitals', 'Hospitals'], ['orgs', 'Organisations']].map(([id, label]) => (
-          <button key={id} onClick={() => setTab(id as typeof tab)} className={`border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${tab === id ? 'border-sgds-purple text-sgds-purple' : 'border-transparent text-sgds-gray-600 hover:text-sgds-gray-900'}`}>
-            {label}
-          </button>
-        ))}
+        {[['units', 'Unit Status Board'], ['hospitals', 'Hospitals'], ['orgs', 'Organisations']].map(([id, label]) => (<button key={id} onClick={() => setTab(id as typeof tab)} className={`border-b-2 px-5 py-3 text-sm font-semibold transition-colors ${tab === id ? 'border-sgds-purple text-sgds-purple' : 'border-transparent text-sgds-gray-600 hover:text-sgds-gray-900'}`}>{label}</button>))}
       </div>
-
-      {tab === 'units' && (
-        <div className="mt-5">
-          <div className="mb-4 flex flex-wrap gap-2">
-            {(['Available', 'Assigned', 'En Route', 'On Scene', 'Engaged', 'Offline'] as const).map((s) => {
-              const count = scdfUnits.filter((u) => u.status === s).length;
-              return <span key={s} className="border border-sgds-gray-200 px-3 py-1.5 text-xs font-semibold text-sgds-gray-700"><span className="mr-1.5 font-bold text-sgds-gray-900">{count}</span>{s}</span>;
-            })}
-          </div>
-          <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
-            {scdfUnits.map((unit) => (
-              <UnitCard key={unit.id} unit={unit} onDispatch={() => handleDispatch(unit.id)} onReturn={() => handleReturn(unit.id)} />
-            ))}
-          </div>
-        </div>
-      )}
-
-      {tab === 'hospitals' && (
-        <div className="mt-5 grid gap-4 lg:grid-cols-2">
-          {hospitals.map((h) => (
-            <Card key={h.id} className="p-4">
-              <div className="flex items-start justify-between gap-3">
-                <div><div className="text-sm font-bold text-sgds-gray-900">{h.name}</div><div className="text-xs text-sgds-gray-500">{h.address}</div></div>
-                <Badge>{h.status}</Badge>
-              </div>
-              <div className="mt-3 grid grid-cols-3 gap-2">
-                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.availableBeds}</div><div className="text-[10px] text-sgds-gray-500">Avail beds</div></div>
-                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.icuAvailable}</div><div className="text-[10px] text-sgds-gray-500">ICU</div></div>
-                <div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.traumaBays}</div><div className="text-[10px] text-sgds-gray-500">Trauma</div></div>
-              </div>
-              <div className="mt-3">
-                <ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" />
-                <div className="mt-1 text-right text-xs text-sgds-gray-500">{Math.round((h.availableBeds / h.totalBeds) * 100)}% available</div>
-              </div>
-            </Card>
-          ))}
-        </div>
-      )}
-
-      {tab === 'orgs' && (
-        <Card className="mt-5">
-          <DataTable>
-            <Thead><tr><Th>Organisation</Th><Th>Type</Th><Th>Volunteers</Th><Th>Active tasks</Th><Th>Status</Th></tr></Thead>
-            <Tbody>
-              {organisations.map((o) => (
-                <Tr key={o.id}>
-                  <Td className="font-semibold">{o.name}</Td>
-                  <Td><Badge>{o.type}</Badge></Td>
-                  <Td>{o.volunteersAvailable}/{o.volunteersTotal}</Td>
-                  <Td>{o.activeTasks}</Td>
-                  <Td><Badge>{o.status}</Badge></Td>
-                </Tr>
-              ))}
-            </Tbody>
-          </DataTable>
-        </Card>
-      )}
+      {tab === 'units' && (<div className="mt-5"><div className="mb-4 flex flex-wrap gap-2">{(['Available', 'Assigned', 'En Route', 'On Scene', 'Engaged', 'Offline'] as const).map((s) => { const count = scdfUnits.filter((u) => u.status === s).length; return <span key={s} className="border border-sgds-gray-200 px-3 py-1.5 text-xs font-semibold text-sgds-gray-700"><span className="mr-1.5 font-bold text-sgds-gray-900">{count}</span>{s}</span>; })}</div><div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">{scdfUnits.map((unit) => (<UnitCard key={unit.id} unit={unit} onDispatch={() => handleDispatch(unit.id)} onReturn={() => handleReturn(unit.id)} />))}</div></div>)}
+      {tab === 'hospitals' && (<div className="mt-5 grid gap-4 lg:grid-cols-2">{hospitals.map((h) => (<Card key={h.id} className="p-4"><div className="flex items-start justify-between gap-3"><div><div className="text-sm font-bold text-sgds-gray-900">{h.name}</div><div className="text-xs text-sgds-gray-500">{h.address}</div></div><Badge>{h.status}</Badge></div><div className="mt-3 grid grid-cols-3 gap-2"><div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.availableBeds}</div><div className="text-[10px] text-sgds-gray-500">Avail beds</div></div><div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.icuAvailable}</div><div className="text-[10px] text-sgds-gray-500">ICU</div></div><div className="bg-sgds-gray-50 p-2 text-center"><div className="text-lg font-bold text-sgds-gray-900">{h.traumaBays}</div><div className="text-[10px] text-sgds-gray-500">Trauma</div></div></div><div className="mt-3"><ProgressBar value={h.availableBeds} max={h.totalBeds} tone="bg-warning" /><div className="mt-1 text-right text-xs text-sgds-gray-500">{Math.round((h.availableBeds / h.totalBeds) * 100)}% available</div></div></Card>))}</div>)}
+      {tab === 'orgs' && (<Card className="mt-5"><DataTable><Thead><tr><Th>Organisation</Th><Th>Type</Th><Th>Volunteers</Th><Th>Active tasks</Th><Th>Status</Th></tr></Thead><Tbody>{organisations.map((o) => (<Tr key={o.id}><Td className="font-semibold">{o.name}</Td><Td><Badge>{o.type}</Badge></Td><Td>{o.volunteersAvailable}/{o.volunteersTotal}</Td><Td>{o.activeTasks}</Td><Td><Badge>{o.status}</Badge></Td></Tr>))}</Tbody></DataTable></Card>)}
     </section>
   );
 }
@@ -641,12 +307,7 @@ function OrgNotifications() {
     <section>
       <SectionHeader title="Notifications" />
       <div className="mt-6 space-y-3">
-        {notifications.map((item) => (
-          <Card key={item.id} className="p-4">
-            <div className="font-semibold text-sgds-gray-900">{item.text}</div>
-            <div className="mt-1 text-xs text-sgds-gray-500">{item.time}</div>
-          </Card>
-        ))}
+        {notifications.map((item) => (<Card key={item.id} className="p-4"><div className="font-semibold text-sgds-gray-900">{item.text}</div><div className="mt-1 text-xs text-sgds-gray-500">{item.time}</div></Card>))}
       </div>
     </section>
   );
@@ -660,19 +321,14 @@ function OrgSettings() {
         <h2 className="text-base font-bold text-sgds-gray-900">Auto-publication rules</h2>
         <p className="mt-1 text-sm text-sgds-gray-500">Select incident types that are automatically made public when created.</p>
         <div className="mt-4 space-y-2">
-          {['Cardiac Arrest', 'Flood', 'Major Fire', 'Minor Injury'].map((item, index) => (
-            <label key={item} className="flex items-center justify-between border border-sgds-gray-200 p-3 hover:bg-sgds-gray-50">
-              <span className="text-sm text-sgds-gray-800">{item}</span>
-              <input type="checkbox" defaultChecked={index < 3} className="h-4 w-4 accent-sgds-purple" />
-            </label>
-          ))}
+          {['Cardiac Arrest', 'Flood', 'Major Fire', 'Minor Injury'].map((item, index) => (<label key={item} className="flex items-center justify-between border border-sgds-gray-200 p-3 hover:bg-sgds-gray-50"><span className="text-sm text-sgds-gray-800">{item}</span><input type="checkbox" defaultChecked={index < 3} className="h-4 w-4 accent-sgds-purple" /></label>))}
         </div>
       </Card>
     </section>
   );
 }
 
-function IncidentRow({ incident }: { incident: Incident }) {
+function IncidentMapRow({ incident }: { incident: Incident }) {
   return (
     <div className="border border-sgds-gray-200 p-3">
       <div className="flex items-center justify-between gap-3">
