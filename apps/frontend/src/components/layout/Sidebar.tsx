@@ -1,6 +1,4 @@
 import {
-  Avatar,
-  Badge,
   Box,
   Button,
   Drawer,
@@ -14,12 +12,8 @@ import {
   VStack,
 } from '../chakra-ui'
 import {
-  Bell,
   Grid2X2,
-  LogOut,
-  Map,
   Menu,
-  RadioTower,
   Settings,
   Shield,
   Siren,
@@ -42,9 +36,6 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/', icon: Grid2X2 },
   { label: 'Incidents', href: '/incidents', icon: Siren },
-  { label: 'Map', href: '/map', icon: Map },
-  { label: 'Resources', href: '/resources', icon: RadioTower },
-  { label: 'Notifications', href: '/notifications', icon: Bell },
   { label: 'Settings', href: '/settings', icon: Settings },
 ]
 
@@ -92,7 +83,7 @@ function SidebarContent() {
               OneTogether
             </Text>
             <Text fontSize="xs" color="gray.500">
-              Singapore Emergency Platform
+              Together as One
             </Text>
           </Box>
         </HStack>
@@ -100,49 +91,11 @@ function SidebarContent() {
 
       <Separator />
 
-      <HStack px="5" py="4" gap="2">
-        <Box boxSize="2" borderRadius="full" bg="green.400" />
-        <Text fontSize="xs" fontWeight="700" color="gray.500">
-          LIVE
-        </Text>
-      </HStack>
-
-      <VStack gap="1" px="2">
+      <VStack gap="1" px="2" py="4">
         {navItems.map((item) => (
           <SidebarNavLink key={item.href} item={item} />
         ))}
       </VStack>
-
-      <Box flex="1" />
-
-      <Box p="5">
-        <HStack>
-          <Avatar.Root size="sm">
-            <Avatar.Fallback name="Chen Xiao Ling" />
-          </Avatar.Root>
-
-          <Box flex="1">
-            <Text fontSize="sm" fontWeight="700" color="gray.900">
-              Chen Xiao Ling
-            </Text>
-            <Badge size="sm" colorPalette="purple">
-              SCDF
-            </Badge>
-          </Box>
-        </HStack>
-
-        <Button
-          mt="4"
-          variant="ghost"
-          size="sm"
-          color="gray.500"
-          justifyContent="flex-start"
-          w="100%"
-        >
-          <Icon as={LogOut} boxSize="4" />
-          Logout
-        </Button>
-      </Box>
     </Flex>
   )
 }
