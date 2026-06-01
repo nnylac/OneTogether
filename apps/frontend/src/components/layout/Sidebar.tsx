@@ -1,31 +1,16 @@
 import {
   Box,
   Button,
-  Drawer,
   Flex,
   HStack,
   Icon,
-  IconButton,
-  Portal,
   Separator,
   Text,
   VStack,
 } from '../chakra-ui'
-import {
-  Grid2X2,
-  Menu,
-  Settings,
-  Shield,
-  Siren,
-  X,
-} from 'lucide-react'
+import { Grid2X2, Settings, Shield, Siren } from 'lucide-react'
 import type { ElementType } from 'react'
 import { NavLink } from 'react-router-dom'
-
-type SidebarProps = {
-  open?: boolean
-  onOpenChange?: (open: boolean) => void
-}
 
 type NavItem = {
   label: string
@@ -102,62 +87,8 @@ function SidebarContent() {
 
 export function Sidebar() {
   return (
-    <Box
-      display={{ base: 'none', lg: 'block' }}
-      position="fixed"
-      insetY="0"
-      left="0"
-      w="260px"
-      zIndex="20"
-    >
+    <Box position="fixed" insetY="0" left="0" w="260px" zIndex="20">
       <SidebarContent />
     </Box>
-  )
-}
-
-export function MobileSidebar({ open, onOpenChange }: SidebarProps) {
-  return (
-    <Drawer.Root
-      open={open}
-      onOpenChange={(details) => onOpenChange?.(details.open)}
-    >
-      <Portal>
-        <Drawer.Backdrop />
-        <Drawer.Positioner>
-          <Drawer.Content>
-            <Drawer.CloseTrigger asChild>
-              <IconButton
-                aria-label="Close navigation"
-                position="absolute"
-                top="3"
-                right="3"
-                variant="ghost"
-                size="sm"
-              >
-                <X />
-              </IconButton>
-            </Drawer.CloseTrigger>
-
-            <Drawer.Body>
-              <SidebarContent />
-            </Drawer.Body>
-          </Drawer.Content>
-        </Drawer.Positioner>
-      </Portal>
-    </Drawer.Root>
-  )
-}
-
-export function MobileSidebarButton({ onClick }: { onClick: () => void }) {
-  return (
-    <IconButton
-      display={{ base: 'inline-flex', lg: 'none' }}
-      aria-label="Open navigation"
-      variant="ghost"
-      color="white"
-      onClick={onClick}
-    >
-      <Menu />
-    </IconButton>
   )
 }
