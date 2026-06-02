@@ -7,7 +7,7 @@ import {
   Separator,
   Text,
   VStack,
-} from '../chakra-ui'
+} from '../../../components/chakra-ui'
 import { Grid2X2, Settings, Shield, Siren } from 'lucide-react'
 import type { ElementType } from 'react'
 import { NavLink } from 'react-router-dom'
@@ -19,9 +19,9 @@ type NavItem = {
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/', icon: Grid2X2 },
-  { label: 'Incidents', href: '/incidents', icon: Siren },
-  { label: 'Settings', href: '/settings', icon: Settings },
+  { label: 'Dashboard', href: '/responder', icon: Grid2X2 },
+  { label: 'Incidents', href: '/responder/incidents', icon: Siren },
+  { label: 'Settings', href: '/responder/settings', icon: Settings },
 ]
 
 const navLinkStyle = ({ isActive }: { isActive: boolean }) => ({
@@ -85,7 +85,7 @@ function SidebarContent() {
   )
 }
 
-export function Sidebar() {
+export function ResponderSidebar() {
   return (
     <Box position="fixed" insetY="0" left="0" w="260px" zIndex="20">
       <SidebarContent />
