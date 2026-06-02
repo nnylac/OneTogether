@@ -8,7 +8,7 @@ import {
   Text,
   VStack,
 } from '../../../components/chakra-ui'
-import { Grid2X2, Settings, Shield, Siren } from 'lucide-react'
+import { Bell, FolderOpen, Grid2X2, Map, Settings, Shield, Siren } from 'lucide-react'
 import type { ElementType } from 'react'
 import { NavLink } from 'react-router-dom'
 
@@ -22,6 +22,9 @@ type NavItem = {
 const navItems: NavItem[] = [
   { label: 'Dashboard', href: '/responder', icon: Grid2X2, end: true },
   { label: 'Incidents', href: '/responder/incidents', icon: Siren },
+  { label: 'Map', href: '/responder/map', icon: Map },
+  { label: 'Resources', href: '/responder/resources', icon: FolderOpen },
+  { label: 'Notifications', href: '/responder/notifications', icon: Bell },
   { label: 'Settings', href: '/responder/settings', icon: Settings },
 ]
 
