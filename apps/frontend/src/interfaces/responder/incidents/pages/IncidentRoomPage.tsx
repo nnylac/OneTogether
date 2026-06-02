@@ -153,23 +153,7 @@ export function IncidentRoomPage() {
 
         <VStack align="stretch" gap="0" minH="620px">
           <Box flex="1" p="5" overflowY="auto">
-            {messages.length === 0 ? (
-              <Flex align="center" justify="center" minH="460px" textAlign="center">
-                <VStack gap="3">
-                  <Flex align="center" justify="center" boxSize="12" bg="gray.100" color="gray.600">
-                    <Icon as={MessageSquare} boxSize="5" />
-                  </Flex>
-                  <Box>
-                    <Text color="gray.900" fontWeight="800">
-                      No messages yet
-                    </Text>
-                    <Text color="gray.500" maxW="sm">
-                      Start the discussion when there is an update for the responders in this room.
-                    </Text>
-                  </Box>
-                </VStack>
-              </Flex>
-            ) : (
+            {messages.length > 0 && (
               <VStack align="stretch" gap="4">
                 {messages.map((message) => (
                   <Flex key={message.id} justify="flex-end">
