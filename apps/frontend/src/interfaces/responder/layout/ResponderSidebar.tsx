@@ -16,10 +16,11 @@ type NavItem = {
   label: string
   href: string
   icon: ElementType
+  end?: boolean
 }
 
 const navItems: NavItem[] = [
-  { label: 'Dashboard', href: '/responder', icon: Grid2X2 },
+  { label: 'Dashboard', href: '/responder', icon: Grid2X2, end: true },
   { label: 'Incidents', href: '/responder/incidents', icon: Siren },
   { label: 'Settings', href: '/responder/settings', icon: Settings },
 ]
@@ -42,7 +43,7 @@ function SidebarNavLink({ item }: { item: NavItem }) {
       color="gray.600"
       _hover={{ bg: 'purple.50', color: 'purple.700' }}
     >
-      <NavLink to={item.href} style={navLinkStyle}>
+      <NavLink to={item.href} end={item.end} style={navLinkStyle}>
         <HStack w="100%" px="3">
           <Icon as={item.icon} />
           <Text fontSize="sm" fontWeight="600">
