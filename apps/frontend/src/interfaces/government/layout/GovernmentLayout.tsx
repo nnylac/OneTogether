@@ -1,17 +1,41 @@
-import { Box, Flex } from '../../../components/chakra-ui'
-import { Outlet } from 'react-router-dom'
-import { GovernmentSidebar } from './GovernmentSidebar'
+import {
+  BarChart3,
+  Building2,
+  Grid2X2,
+  Map,
+  RadioTower,
+  Settings,
+  Shield,
+  Siren,
+} from 'lucide-react'
+import { ConsoleLayout } from '../../../components/layout/ConsoleLayout'
+import type { ConsoleNavItem, ConsoleSidebarTheme } from '../../../components/layout/ConsoleSidebar'
+
+const navItems: ConsoleNavItem[] = [
+  { label: 'Dashboard', href: '/government', icon: Grid2X2, end: true },
+  { label: 'Incidents', href: '/government/incidents', icon: Siren },
+  { label: 'Map', href: '/government/map', icon: Map },
+  { label: 'Broadcasts', href: '/government/broadcasts', icon: RadioTower },
+  { label: 'Organisations', href: '/government/organisations', icon: Building2 },
+  { label: 'Analytics', href: '/government/analytics', icon: BarChart3 },
+  { label: 'Settings', href: '/government/settings', icon: Settings },
+]
+
+const sidebarTheme: ConsoleSidebarTheme = {
+  activeBg: '#e0f2fe',
+  activeBorder: '#0284c7',
+  activeColor: '#075985',
+  hoverBg: 'blue.50',
+  hoverColor: 'blue.700',
+}
 
 export function GovernmentLayout() {
   return (
-    <Flex minH="100vh" bg="gray.50">
-      <GovernmentSidebar />
-
-      <Box flex="1" pl="260px" minW="0">
-        <Box as="main" p={{ base: '4', md: '8' }}>
-          <Outlet />
-        </Box>
-      </Box>
-    </Flex>
+    <ConsoleLayout
+      brandIcon={Shield}
+      brandSubtitle="Government"
+      navItems={navItems}
+      theme={sidebarTheme}
+    />
   )
 }
