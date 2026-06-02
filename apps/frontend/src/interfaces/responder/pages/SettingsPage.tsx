@@ -1,4 +1,4 @@
-import { Heading, Stack, Text } from '../components/chakra-ui'
+import { Heading, Stack, Text } from '../../../components/chakra-ui'
 
 export function SettingsPage() {
   return (

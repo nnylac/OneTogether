@@ -1,11 +1,11 @@
-import { Box, Flex } from '../chakra-ui'
+import { Box, Flex } from '../../../components/chakra-ui'
 import { Outlet } from 'react-router-dom'
-import { Sidebar } from './Sidebar'
+import { ResponderSidebar } from './ResponderSidebar'
 
-export function Layout() {
+export function ResponderLayout() {
   return (
     <Flex minH="100vh" bg="gray.50">
-      <Sidebar />
+      <ResponderSidebar />
 
       <Box flex="1" pl="260px" minW="0">
         <Box as="main" p={{ base: '4', md: '8' }}>
