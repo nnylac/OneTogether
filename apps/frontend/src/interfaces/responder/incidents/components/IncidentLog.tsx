@@ -1,7 +1,6 @@
 import { Activity, Clock, FileText, HeartPulse, Truck } from 'lucide-react'
 import type { ElementType } from 'react'
 import {
-  Badge,
   Box,
   Flex,
   HStack,
@@ -9,35 +8,37 @@ import {
   Text,
   VStack,
 } from '../../../../components/chakra-ui'
+import { LabelBox } from '../../../../components/ui/LabelBox'
+import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
 import type { IncidentLogCategory, IncidentLogEntry } from '../types'
 
 const categoryMeta: Record<
   IncidentLogCategory,
-  { label: string; colorPalette: string; icon: ElementType }
+  { label: string; tone: LabelBoxTone; icon: ElementType }
 > = {
   initial: {
     label: 'Initial',
-    colorPalette: 'yellow',
+    tone: 'yellow',
     icon: Clock,
   },
   status: {
     label: 'Status',
-    colorPalette: 'blue',
+    tone: 'blue',
     icon: Activity,
   },
   deploy: {
     label: 'Deploy',
-    colorPalette: 'green',
+    tone: 'green',
     icon: Truck,
   },
   medical: {
     label: 'Medical',
-    colorPalette: 'red',
+    tone: 'red',
     icon: HeartPulse,
   },
   note: {
     label: 'Note',
-    colorPalette: 'gray',
+    tone: 'gray',
     icon: FileText,
   },
 }
@@ -77,7 +78,7 @@ function IncidentLogRow({
           bg="white"
           borderWidth="1px"
           borderColor="gray.200"
-          color={`${meta.colorPalette}.600`}
+          color={`${meta.tone}.600`}
         >
           <Icon as={meta.icon} boxSize="4" />
         </Flex>
@@ -89,13 +90,13 @@ function IncidentLogRow({
         <Flex justify="space-between" align="start" gap="4">
           <Box>
             <HStack gap="2" mb="1" wrap="wrap">
-              <Text color={`${meta.colorPalette}.700`} fontWeight="800">
+              <Text color={`${meta.tone}.700`} fontWeight="800">
                 {meta.label}
               </Text>
 
-              <Badge colorPalette="gray" variant="subtle">
+              <LabelBox tone="gray">
                 {entry.source}
-              </Badge>
+              </LabelBox>
             </HStack>
 
             <Text color="gray.500" fontSize="sm">
