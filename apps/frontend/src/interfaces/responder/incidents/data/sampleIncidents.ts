@@ -4,10 +4,21 @@ import type { Incident } from '../types'
 export const incidents: Incident[] = [
   {
     id: 'INC-2405-0182',
+    incidentCode: '995-ORC-0182',
     title: 'Cardiac arrest',
-    location: 'Orchard MRT',
-    description: 'Commuter collapsed near platform B. AED deployed before SCDF arrival.',
+    incidentType: 'Medical',
+    assignedOrgs: ['SCDF', 'MOH', 'SPF'],
+    severity: 'critical',
     status: 'on scene',
+    description:
+      'Unconscious commuter, male, approximately 55 years old, was found near platform B. Station staff initiated immediate response by deploying an AED before SCDF arrival. Paramedic team is on scene and patient is being stabilised for transport.',
+    location: 'Orchard MRT Exit B',
+    incidentCommander: 'Chen Xiao Ling',
+    createdAt: '20 May 2026, 01:42 pm',
+    updatedAt: '20 May 2026, 01:58 pm',
+    resolvedAt: undefined,
+    confidenceScore: 95,
+    zone: 'Central',
     isCritical: true,
     date: '20 May 2026, 01:42 pm',
   },

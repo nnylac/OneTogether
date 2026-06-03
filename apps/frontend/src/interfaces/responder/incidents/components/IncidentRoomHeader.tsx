@@ -41,7 +41,7 @@ export function IncidentRoomHeader({ incident }: { incident: Incident }) {
           <Text color="gray.500" fontWeight="700" mt="1">
             {incident.location}
           </Text>
-          <Text color="gray.600" mt="2" maxW="3xl">
+          <Text color="gray.600" mt="2">
             {incident.description}
           </Text>
         </Box>

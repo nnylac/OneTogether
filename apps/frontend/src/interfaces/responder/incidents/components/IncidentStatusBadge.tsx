@@ -1,7 +1,8 @@
-import { Badge } from '../../../../components/chakra-ui'
+import { LabelBox } from '../../../../components/ui/LabelBox'
+import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
 import type { IncidentStatus } from '../types'
 
-const statusPalettes: Record<IncidentStatus, string> = {
+const statusTones: Record<IncidentStatus, LabelBoxTone> = {
   reported: 'gray',
   unverified: 'yellow',
   verified: 'blue',
@@ -14,15 +15,8 @@ const statusPalettes: Record<IncidentStatus, string> = {
 
 export function IncidentStatusBadge({ status }: { status: IncidentStatus }) {
   return (
-    <Badge
-      colorPalette={statusPalettes[status]}
-      justifyContent="center"
-      minH="9"
-      minW="36"
-      px="4"
-      variant="subtle"
-    >
+    <LabelBox tone={statusTones[status]} minW="36">
       {status}
-    </Badge>
+    </LabelBox>
   )
 }

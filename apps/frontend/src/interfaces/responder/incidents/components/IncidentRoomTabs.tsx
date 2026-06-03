@@ -10,12 +10,16 @@ import {
   Sparkles,
 } from 'lucide-react'
 import { Box, Button, HStack, Icon } from '../../../../components/chakra-ui'
-import type { IncidentLogEntry, IncidentReportDraft } from '../types'
+import type { Incident, IncidentReportDraft } from '../types'
 import { IncidentDiscussion } from './IncidentDiscussion'
 import type { ChatMessage } from './IncidentDiscussion'
+import { IncidentInformation } from './IncidentInformation'
 import { IncidentLog } from './IncidentLog'
 import { IncidentReport } from './IncidentReport'
+import { IncidentResources } from './IncidentResources'
 import { IncidentRoomCard, IncidentRoomContent } from './IncidentRoomShell'
+import { createIncidentLogEntries } from '../data/sampleIncidentLog'
+import { incidentResources } from '../data/sampleIncidentResources'
 
 type RoomTab =
   | 'discussion'
@@ -38,7 +42,7 @@ const roomTabs: Array<{ id: RoomTab; label: string; icon: ElementType }> = [
 
 type IncidentRoomTabsProps = {
   discussionDraft: string
-  logEntries: IncidentLogEntry[]
+  incident: Incident
   messages: ChatMessage[]
   onDiscussionDraftChange: (draft: string) => void
   onReportDraftChange: (draft: IncidentReportDraft) => void
@@ -48,7 +52,7 @@ type IncidentRoomTabsProps = {
 
 export function IncidentRoomTabs({
   discussionDraft,
-  logEntries,
+  incident,
   messages,
   onDiscussionDraftChange,
   onReportDraftChange,
@@ -56,6 +60,8 @@ export function IncidentRoomTabs({
   reportDraft,
 }: IncidentRoomTabsProps) {
   const [activeTab, setActiveTab] = useState<RoomTab>('discussion')
+  const [resources, setResources] = useState(incidentResources)
+  const logEntries = createIncidentLogEntries(incident, resources)
 
   return (
     <IncidentRoomCard>
@@ -102,9 +108,19 @@ export function IncidentRoomTabs({
           <IncidentReport draft={reportDraft} onDraftChange={onReportDraftChange} />
         )}
 
-        {activeTab !== 'discussion' && activeTab !== 'incident-log' && activeTab !== 'report' && (
-          <Box flex="1" />
+        {activeTab === 'resources' && (
+          <IncidentResources resources={resources} onResourcesChange={setResources} />
         )}
+
+        {activeTab === 'information' && (
+          <IncidentInformation incident={incident} resources={resources} />
+        )}
+
+        {activeTab !== 'discussion' &&
+          activeTab !== 'incident-log' &&
+          activeTab !== 'report' &&
+          activeTab !== 'resources' &&
+          activeTab !== 'information' && <Box flex="1" />}
       </IncidentRoomContent>
     </IncidentRoomCard>
   )

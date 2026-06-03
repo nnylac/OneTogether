@@ -5,7 +5,6 @@ import { Stack } from '../../../../components/chakra-ui'
 import type { ChatMessage } from '../components/IncidentDiscussion'
 import { IncidentRoomHeader } from '../components/IncidentRoomHeader'
 import { IncidentRoomTabs } from '../components/IncidentRoomTabs'
-import { incidentLogEntries } from '../data/sampleIncidentLog'
 import { incidents } from '../data/sampleIncidents'
 import type { Incident, IncidentReportDraft } from '../types'
 
@@ -67,7 +66,7 @@ export function IncidentRoomPage() {
 
       <IncidentRoomTabs
         discussionDraft={discussionDraft}
-        logEntries={incidentLogEntries}
+        incident={incident}
         messages={messages}
         onDiscussionDraftChange={setDiscussionDraft}
         onReportDraftChange={setReportDraft}
