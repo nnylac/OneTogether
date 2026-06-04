@@ -49,7 +49,7 @@ export function AssignedIncidentTickets({ incidents }: AssignedIncidentTicketsPr
     <Card.Root bg="white" borderColor="gray.200" borderWidth="1px" borderRadius="sm">
       <Card.Header>
         <Flex justify="space-between" align="center" gap="4">
-          <Heading size="md" color="gray.900">
+          <Heading size="lg" color="gray.900">
             Assigned Incident Tickets
           </Heading>
           <ChevronRightLink to="/responder/incidents" label="View all incident tickets" />
@@ -77,7 +77,7 @@ export function AssignedIncidentTickets({ incidents }: AssignedIncidentTicketsPr
                 <Link to={`/responder/incidents/${incident.id}/room`}>
                   <Flex justify="space-between" align={{ base: 'stretch', md: 'center' }} gap="4">
                     <Stack gap="1">
-                      <Text color="gray.900" fontWeight="800">
+                      <Text color="gray.900" fontWeight="700">
                         {incident.title}
                       </Text>
                       <Text color="gray.500" fontSize="sm">

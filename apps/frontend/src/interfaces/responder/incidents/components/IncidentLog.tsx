@@ -90,7 +90,7 @@ function IncidentLogRow({
         <Flex justify="space-between" align="start" gap="4">
           <Box>
             <HStack gap="2" mb="1" wrap="wrap">
-              <Text color={`${meta.tone}.700`} fontWeight="800">
+              <Text color={`${meta.tone}.700`} fontWeight="700">
                 {meta.label}
               </Text>
 

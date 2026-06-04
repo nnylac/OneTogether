@@ -11,7 +11,7 @@ export function DashboardNotifications({ notifications }: DashboardNotifications
     <Card.Root bg="white" borderColor="gray.200" borderWidth="1px" borderRadius="sm" h="100%">
       <Card.Header>
         <Flex justify="space-between" align="center" gap="4">
-          <Heading size="md" color="gray.900">
+          <Heading size="lg" color="gray.900">
             Notifications
           </Heading>
           <ChevronRightLink to="/responder/notifications" label="View all notifications" />
@@ -29,7 +29,7 @@ export function DashboardNotifications({ notifications }: DashboardNotifications
               py="4"
               _last={{ borderBottomWidth: '0' }}
             >
-              <Text color="gray.900" fontWeight="800">
+              <Text color="gray.900" fontWeight="700">
                 {notification.title}
               </Text>
               <Text color="gray.500" fontSize="sm">

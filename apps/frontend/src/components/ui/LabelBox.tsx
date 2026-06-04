@@ -65,14 +65,16 @@ export function LabelBox({ children, minW, tone = 'gray' }: LabelBoxProps) {
 
   return (
     <Box
+      alignItems="center"
       bg={styles.bg}
       borderColor={styles.borderColor}
       borderWidth="1px"
       color={styles.color}
       display="inline-flex"
       fontSize="sm"
-      fontWeight="800"
+      fontWeight="700"
       justifyContent="center"
+      lineHeight="1"
       minH="9"
       minW={minW}
       px="4"

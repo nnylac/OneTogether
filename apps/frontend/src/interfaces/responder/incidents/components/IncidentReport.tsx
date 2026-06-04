@@ -84,7 +84,7 @@ export function IncidentReport({ draft, onDraftChange }: IncidentReportProps) {
 function FormField({ label, children }: { label: string; children: ReactNode }) {
   return (
     <VStack align="stretch" gap="2">
-      <Text color="gray.700" fontSize="sm" fontWeight="800">
+      <Text color="gray.700" fontSize="sm" fontWeight="700">
         {label}
       </Text>
       {children}

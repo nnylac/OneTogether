@@ -99,7 +99,7 @@ export function IncidentInformation({
               <Box bg="gray.100" h="2" maxW="52" overflow="hidden" width="100%">
                 <Box bg="green.500" h="100%" width={`${confidenceScore}%`} />
               </Box>
-              <Text color="gray.700" fontWeight="800">
+              <Text color="gray.700" fontWeight="700">
                 {confidenceScore}%
               </Text>
             </HStack>
@@ -174,7 +174,7 @@ function DetailRow({
     >
       <HStack gap="3">
         <Icon as={icon} color="gray.400" boxSize="5" />
-        <Text color="gray.500" fontSize="xs" fontWeight="800" textTransform="uppercase">
+        <Text color="gray.500" fontSize="xs" fontWeight="700" textTransform="uppercase">
           {label}
         </Text>
       </HStack>

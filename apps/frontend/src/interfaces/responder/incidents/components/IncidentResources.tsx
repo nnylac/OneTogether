@@ -83,7 +83,7 @@ export function IncidentResources({ onResourcesChange, resources }: IncidentReso
                     _hover={{ bg: 'gray.50' }}
                   >
                     <BodyCell>
-                      <Text color="gray.900" fontWeight="800">
+                      <Text color="gray.900" fontWeight="700">
                         {resource.unit}
                       </Text>
                     </BodyCell>
@@ -153,7 +153,7 @@ export function IncidentResources({ onResourcesChange, resources }: IncidentReso
                         <Box bg="gray.50" px="5" py="4">
                           <Flex justify="space-between" align="center" gap="3" mb="3">
                             <Box>
-                              <Text color="gray.900" fontWeight="800">
+                              <Text color="gray.900" fontWeight="700">
                                 Resource notes
                               </Text>
                               <Text color="gray.500" fontSize="sm">
@@ -209,7 +209,7 @@ function HeaderCell({
       as="th"
       color="gray.500"
       fontSize="xs"
-      fontWeight="800"
+      fontWeight="700"
       letterSpacing="0"
       px="5"
       py="3"
