@@ -24,10 +24,10 @@ import type { Incident, IncidentResource, IncidentSeverity } from '../types'
 import { IncidentStatusBadge } from './IncidentStatusBadge'
 
 const severityTones: Record<IncidentSeverity, LabelBoxTone> = {
-  low: 'green',
-  medium: 'yellow',
-  high: 'orange',
-  critical: 'red',
+  Low: 'green',
+  Medium: 'yellow',
+  High: 'orange',
+  Critical: 'red',
 }
 
 export function IncidentInformation({

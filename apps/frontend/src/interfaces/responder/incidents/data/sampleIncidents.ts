@@ -8,7 +8,7 @@ export const incidents: Incident[] = [
     title: 'Cardiac arrest',
     incidentType: 'Medical',
     assignedOrgs: ['SCDF', 'MOH', 'SPF'],
-    severity: 'critical',
+    severity: 'Critical',
     status: 'on scene',
     description:
       'Unconscious commuter, male, approximately 55 years old, was found near platform B. Station staff initiated immediate response by deploying an AED before SCDF arrival. Paramedic team is on scene and patient is being stabilised for transport.',
