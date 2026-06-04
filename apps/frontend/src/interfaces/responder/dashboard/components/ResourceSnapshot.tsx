@@ -17,7 +17,7 @@ export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
       <Card.Header>
         <Flex justify="space-between" align="start" gap="4">
           <Stack gap="1">
-            <Heading size="md" color="gray.900">
+            <Heading size="lg" color="gray.900">
               Resource Snapshot
             </Heading>
             <Text color="gray.500" fontSize="sm">
@@ -55,7 +55,7 @@ export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
                     <Text color="gray.700" fontSize="sm">
                       {progress.label}
                     </Text>
-                    <Text color="gray.900" fontSize="sm" fontWeight="800">
+                    <Text color="gray.900" fontSize="sm" fontWeight="700">
                       {progress.value.toLocaleString()}/{progress.total.toLocaleString()}
                     </Text>
                   </Flex>

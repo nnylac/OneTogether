@@ -1,5 +1,4 @@
-import { ChevronRightIcon } from '@hugeicons/core-free-icons'
-import { HugeiconsIcon } from '@hugeicons/react'
+import { ChevronRight } from 'lucide-react'
 import { Link } from 'react-router-dom'
 import { Box } from '../chakra-ui'
 
@@ -21,7 +20,7 @@ export function ChevronRightLink({ label, to }: ChevronRightLinkProps) {
       _hover={{ color: 'gray.900' }}
     >
       <Link to={to} aria-label={label}>
-        <HugeiconsIcon icon={ChevronRightIcon} size={18} strokeWidth={2} />
+        <ChevronRight size={18} strokeWidth={2} />
       </Link>
     </Box>
   )

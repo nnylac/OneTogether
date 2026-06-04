@@ -13,6 +13,7 @@ import {
   Text,
   VStack,
 } from '../../../../components/chakra-ui'
+import { BackToDashboardLink } from '../../components/BackToDashboardLink'
 import { IncidentStatusBadge } from '../components/IncidentStatusBadge'
 import { incidents } from '../data/sampleIncidents'
 
@@ -62,6 +63,7 @@ export function IncidentsPage() {
     <Stack gap="6">
       <Flex justify="space-between" align={{ base: 'stretch', lg: 'end' }} gap="4" direction={{ base: 'column', lg: 'row' }}>
         <Box>
+          <BackToDashboardLink />
           <Heading size="3xl" color="gray.900">
             Incidents
           </Heading>
@@ -84,7 +86,7 @@ export function IncidentsPage() {
                 _hover={{ bg: isSelected ? 'gray.800' : 'gray.50' }}
                 onClick={() => selectFilter(filterKey)}
               >
-                {filterLabels[filterKey]} {counts[filterKey]}
+                {filterLabels[filterKey]} ({counts[filterKey]})
               </Button>
             )
           })}
@@ -120,7 +122,7 @@ export function IncidentsPage() {
               >
                 <BodyCell>
                   <VStack gap="1" align="stretch">
-                    <Text color="gray.900" fontWeight="800">
+                    <Text color="gray.900" fontSize="lg" fontWeight="700">
                       {incident.title}
                     </Text>
                     <Text color="gray.500" fontSize="sm" fontWeight="700">
@@ -208,7 +210,7 @@ function HeaderCell({
       as="th"
       color="gray.500"
       fontSize="xs"
-      fontWeight="800"
+      fontWeight="700"
       letterSpacing="0"
       px={textAlign === 'right' ? '3' : '5'}
       py="3"

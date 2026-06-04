@@ -44,7 +44,7 @@ export function IncidentDiscussion({
                   <Flex justify="space-between" align="start" gap="4">
                     <Box>
                       <HStack gap="2">
-                        <Text color="gray.900" fontWeight="800">
+                        <Text color="gray.900" fontWeight="700">
                           {message.author}
                         </Text>
                         <Text color="gray.500" fontSize="sm">
