@@ -8,7 +8,7 @@ export type IncidentStatus =
   | 'recovery'
   | 'closed'
 
-export type IncidentSeverity = 'low' | 'medium' | 'high' | 'critical'
+export type IncidentSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
 
 export type Incident = {
   assignedOrgs?: string[]
