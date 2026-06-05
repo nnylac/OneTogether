@@ -1,3 +1,10 @@
+# Placeholder for future local container testing.
+# This compose file expects Dockerfiles that are not currently in the repo:
+# - apps/backend/Dockerfile
+# - apps/frontend/Dockerfile
+# - apps/frontend/nginx.local.conf
+#
+# Use `npm run dev` for local development until those files are added.
 services:
   backend:
     build:
