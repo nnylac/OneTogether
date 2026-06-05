@@ -4,24 +4,73 @@ Centralized Singapore emergency and disaster response prototype.
 
 ## Stack
 
-- Frontend: React + TypeScript + Tailwind CSS
-- Backend: NestJS + TypeScript mock API
-- Persistence: shared local JSON-style seed data in frontend state and backend mock service
+- Frontend: React + TypeScript + Vite
+- Backend: NestJS + TypeScript modular API scaffold
+- Infrastructure: AWS-oriented Terraform and Kubernetes manifests for later deployment
 
-## Run
+## Repository Layout
+
+```txt
+apps
+  frontend    React role-based UI
+  backend     NestJS API scaffold
+  uploads     Local uploaded demo files
+
+infrastructure
+  terraform   AWS infrastructure definitions
+  k8s         Kubernetes manifests
+  lambdas     Event/data pipeline Lambda prototypes
+```
+
+## Backend Shape
+
+The backend is a modular NestJS app. Public, responder, and government are treated as roles, while modules are split by business domain:
+
+```txt
+auth
+users
+organisations
+incidents
+incident-room
+resources
+broadcasts
+volunteer
+notifications
+maps
+ai
+integrations
+```
+
+See [apps/backend/README.md](apps/backend/README.md) for the full backend structure and module responsibilities.
+
+## Run Locally
 
 ```bash
 npm install
 npm run dev
 ```
 
-Frontend: http://localhost:5173  
-Backend mock API: http://localhost:3001/api
+Frontend: http://localhost:5173
 
-## Demo Logins
+Backend API: http://localhost:3001/api
 
-- Citizen: `citizen@onetogether.sg`
-- Organisation: `scdf@onetogether.sg`
-- Government: `raj.kumar@gov.sg`
+The frontend Vite dev server proxies `/api` requests to the backend during local development.
 
-The demo buttons on the login page route directly into each role-based interface.
+## Useful Commands
+
+```bash
+npm run dev:web
+npm run dev:api
+npm run build
+npm run lint
+```
+
+## Demo Interfaces
+
+The frontend currently has three role-based interface areas:
+
+- Public/citizen: `/public`
+- Responder/organisation: `/responder`
+- Government: `/government`
+
+Demo login flows may still be mock-driven until real authentication is wired into the new backend.

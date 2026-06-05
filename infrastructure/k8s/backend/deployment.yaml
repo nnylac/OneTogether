@@ -100,7 +100,7 @@ spec:
           # Readiness: only route traffic here when the /api/health endpoint responds
           readinessProbe:
             httpGet:
-              path: /api/incidents   # Existing endpoint used as health check
+              path: /api/health
               port: 3001
             initialDelaySeconds: 10
             periodSeconds: 10
@@ -109,7 +109,7 @@ spec:
           # Liveness: restart the container if it stops responding
           livenessProbe:
             httpGet:
-              path: /api/incidents
+              path: /api/health
               port: 3001
             initialDelaySeconds: 30
             periodSeconds: 30
