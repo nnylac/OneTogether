@@ -1,4 +1,4 @@
 export class LoginAccountDto {
-  identifier: string;
-  password: string;
+  identifier!: string;
+  password!: string;
 }
