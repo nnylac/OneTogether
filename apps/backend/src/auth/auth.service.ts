@@ -19,10 +19,8 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Injectable()
 export class AuthService {
-  private readonly accessTokenTtl =
-    process.env.JWT_ACCESS_EXPIRES_IN ?? '15m';
-  private readonly refreshTokenTtl =
-    process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
+  private readonly accessTokenTtl = process.env.JWT_ACCESS_EXPIRES_IN ?? '15m';
+  private readonly refreshTokenTtl = process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
 
   constructor(private readonly prisma: PrismaService) {}
 
@@ -264,7 +262,10 @@ export class AuthService {
       Buffer.from(payload, 'base64url').toString('utf8'),
     ) as { exp?: number; typ?: string };
 
-    if (!parsedPayload.exp || parsedPayload.exp <= Math.floor(Date.now() / 1000)) {
+    if (
+      !parsedPayload.exp ||
+      parsedPayload.exp <= Math.floor(Date.now() / 1000)
+    ) {
       throw new UnauthorizedException('Token expired');
     }
 
@@ -349,7 +350,9 @@ export class AuthService {
       !createAccountDto.email ||
       !createAccountDto.password
     ) {
-      throw new BadRequestException('username, email, and password are required');
+      throw new BadRequestException(
+        'username, email, and password are required',
+      );
     }
   }
 
