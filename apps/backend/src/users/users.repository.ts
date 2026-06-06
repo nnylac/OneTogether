@@ -63,10 +63,10 @@ export class UsersRepository {
 
     if (filters.search) {
       where.OR = [
-        { username: { contains: filters.search } },
-        { email: { contains: filters.search } },
-        { first_name: { contains: filters.search } },
-        { last_name: { contains: filters.search } },
+        { username: { contains: filters.search, mode: 'insensitive' } },
+        { email: { contains: filters.search, mode: 'insensitive' } },
+        { first_name: { contains: filters.search, mode: 'insensitive' } },
+        { last_name: { contains: filters.search, mode: 'insensitive' } },
       ];
     }
 
