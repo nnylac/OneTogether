@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
 import { Link } from 'react-router-dom'
@@ -14,8 +14,9 @@ import {
   VStack,
 } from '../../../../components/chakra-ui'
 import { BackToDashboardLink } from '../../components/BackToDashboardLink'
+import { fetchIncidents } from '../api/incidentsApi'
 import { IncidentStatusBadge } from '../components/IncidentStatusBadge'
-import { incidents } from '../data/sampleIncidents'
+import type { Incident } from '../types'
 
 type IncidentFilter = 'all' | 'active' | 'critical'
 
@@ -27,7 +28,7 @@ const filterLabels: Record<IncidentFilter, string> = {
   critical: 'Critical',
 }
 
-function getFilteredIncidents(filter: IncidentFilter) {
+function getFilteredIncidents(filter: IncidentFilter, incidents: Incident[]) {
   if (filter === 'active') {
     return incidents.filter((incident) => incident.status !== 'closed')
   }
@@ -40,11 +41,47 @@ function getFilteredIncidents(filter: IncidentFilter) {
 }
 
 export function IncidentsPage() {
+  const [incidents, setIncidents] = useState<Incident[]>([])
+  const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<IncidentFilter>('all')
+  const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
 
-  const filteredIncidents = useMemo(() => getFilteredIncidents(filter), [filter])
-  const pageCount = Math.ceil(filteredIncidents.length / pageSize)
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadIncidents() {
+      try {
+        setError(null)
+        setIsLoading(true)
+        const nextIncidents = await fetchIncidents()
+
+        if (isMounted) {
+          setIncidents(nextIncidents)
+        }
+      } catch {
+        if (isMounted) {
+          setError('Unable to load incidents from the backend.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadIncidents()
+
+    return () => {
+      isMounted = false
+    }
+  }, [])
+
+  const filteredIncidents = useMemo(
+    () => getFilteredIncidents(filter, incidents),
+    [filter, incidents],
+  )
+  const pageCount = Math.max(Math.ceil(filteredIncidents.length / pageSize), 1)
   const pageStart = (page - 1) * pageSize
   const visibleIncidents = filteredIncidents.slice(pageStart, pageStart + pageSize)
 
@@ -93,6 +130,12 @@ export function IncidentsPage() {
         </HStack>
       </Flex>
 
+      {error && (
+        <Box bg="red.50" borderWidth="1px" borderColor="red.200" color="red.700" p="4">
+          <Text fontWeight="700">{error}</Text>
+        </Box>
+      )}
+
       <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
         <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="900px">
           <Box as="colgroup">
@@ -112,7 +155,27 @@ export function IncidentsPage() {
           </Box>
 
           <Box as="tbody">
-            {visibleIncidents.map((incident) => (
+            {isLoading && (
+              <Box as="tr">
+                <td colSpan={4}>
+                  <Box px="5" py="6">
+                    <Text color="gray.500">Loading incidents...</Text>
+                  </Box>
+                </td>
+              </Box>
+            )}
+
+            {!isLoading && visibleIncidents.length === 0 && (
+              <Box as="tr">
+                <td colSpan={4}>
+                  <Box px="5" py="6">
+                    <Text color="gray.500">No incidents found.</Text>
+                  </Box>
+                </td>
+              </Box>
+            )}
+
+            {!isLoading && visibleIncidents.map((incident) => (
               <Box
                 key={incident.id}
                 as="tr"
@@ -164,7 +227,7 @@ export function IncidentsPage() {
 
       <Flex justify="space-between" align="center" gap="4" direction={{ base: 'column', md: 'row' }}>
         <Text color="gray.500" fontSize="sm">
-          Showing {pageStart + 1}-{Math.min(pageStart + pageSize, filteredIncidents.length)} of{' '}
+          Showing {filteredIncidents.length === 0 ? 0 : pageStart + 1}-{Math.min(pageStart + pageSize, filteredIncidents.length)} of{' '}
           {filteredIncidents.length} incidents
         </Text>
 

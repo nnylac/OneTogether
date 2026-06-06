@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
-import { Stack } from '../../../../components/chakra-ui'
+import { Box, Stack, Text } from '../../../../components/chakra-ui'
+import { fetchIncident } from '../api/incidentsApi'
 import type { ChatMessage } from '../components/IncidentDiscussion'
 import { IncidentRoomHeader } from '../components/IncidentRoomHeader'
 import { IncidentRoomTabs } from '../components/IncidentRoomTabs'
-import { incidents } from '../data/sampleIncidents'
 import type { Incident, IncidentReportDraft } from '../types'
 
 function createReportDraft(incident: Incident): IncidentReportDraft {
@@ -20,12 +20,47 @@ function createReportDraft(incident: Incident): IncidentReportDraft {
 
 export function IncidentRoomPage() {
   const { incidentId } = useParams()
-  const incident = incidents.find((item) => item.id === incidentId)
+  const [incident, setIncident] = useState<Incident | null>(null)
+  const [error, setError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [discussionDraft, setDiscussionDraft] = useState('')
-  const [reportDraft, setReportDraft] = useState<IncidentReportDraft | null>(() =>
-    incident ? createReportDraft(incident) : null,
-  )
+  const [reportDraft, setReportDraft] = useState<IncidentReportDraft | null>(null)
+
+  useEffect(() => {
+    let isMounted = true
+
+    async function loadIncident() {
+      if (!incidentId) {
+        return
+      }
+
+      try {
+        setError(null)
+        setIsLoading(true)
+        const nextIncident = await fetchIncident(incidentId)
+
+        if (isMounted) {
+          setIncident(nextIncident)
+          setReportDraft(createReportDraft(nextIncident))
+        }
+      } catch {
+        if (isMounted) {
+          setError('Unable to load this incident from the backend.')
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    void loadIncident()
+
+    return () => {
+      isMounted = false
+    }
+  }, [incidentId])
 
   function sendMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -52,12 +87,24 @@ export function IncidentRoomPage() {
     setDiscussionDraft('')
   }
 
-  if (!incident) {
+  if (!incidentId) {
     return <Navigate to="/responder/incidents" replace />
   }
 
-  if (!reportDraft) {
-    return null
+  if (isLoading) {
+    return (
+      <Box color="gray.500" p="6">
+        <Text>Loading incident...</Text>
+      </Box>
+    )
+  }
+
+  if (error || !incident || !reportDraft) {
+    return (
+      <Box color="red.700" p="6">
+        <Text fontWeight="700">{error ?? 'Incident not found.'}</Text>
+      </Box>
+    )
   }
 
   return (
