@@ -10,6 +10,7 @@ The backend currently contains the NestJS module scaffold and generated controll
 
 ```txt
 Local backend: http://localhost:3001/api
+Swagger UI:    http://localhost:3001/api/docs
 ```
 
 ## Commands
@@ -31,6 +32,61 @@ npm run build
 npm run test
 npm run test:e2e
 ```
+
+## API Documentation
+
+Swagger is enabled for the backend through `@nestjs/swagger` and `swagger-ui-express`.
+
+Start the backend first:
+
+```bash
+npm run start:dev
+```
+
+Then open:
+
+```txt
+Swagger UI:   http://localhost:3001/api/docs
+Swagger JSON: http://localhost:3001/api/docs-json
+```
+
+The Swagger setup lives in `src/main.ts`. The route is configured as `api/docs` so it sits under the same `/api` prefix as the rest of the backend.
+
+When adding real endpoints, use Nest Swagger decorators so the generated docs are useful:
+
+```ts
+import { Controller, Get } from '@nestjs/common';
+import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+
+@ApiTags('incidents')
+@ApiBearerAuth()
+@Controller('incidents')
+export class IncidentsController {
+  @Get()
+  @ApiOperation({ summary: 'List incidents' })
+  findAll() {
+    return [];
+  }
+}
+```
+
+For request bodies, create DTO classes and decorate fields with `@ApiProperty()`. Avoid using loose `any` bodies if the route is meant to be documented.
+
+Example DTO:
+
+```ts
+import { ApiProperty } from '@nestjs/swagger';
+
+export class CreateIncidentDto {
+  @ApiProperty({ example: 'Kitchen fire at Toa Payoh block' })
+  title: string;
+
+  @ApiProperty({ example: 'Fire' })
+  incidentType: string;
+}
+```
+
+If an endpoint needs authentication later, add `@ApiBearerAuth()` to the controller or route so Swagger shows the bearer token input.
 
 ## Folder Structure
 
