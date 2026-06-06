@@ -31,7 +31,7 @@ tokens are jwt token
     "password":""
 }
 firstname lastname phone and roles are optional
-role wld be defaulted to users
+role wld be defaulted to user
 
 return 
 {
