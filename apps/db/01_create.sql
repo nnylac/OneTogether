@@ -66,8 +66,11 @@ CREATE INDEX idx_assigned_orgs_organisation_id ON assigned_orgs (organisation_id
 CREATE TABLE incident_sources (
     incident_id        UUID             NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
     external_ticket_id TEXT             NOT NULL,
-    last_synced_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW()
+    last_synced_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (incident_id, external_ticket_id)
 );
+CREATE INDEX idx_incident_sources_incident_id ON incident_sources (incident_id);
 
 CREATE TABLE users (
     id          UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -90,6 +93,30 @@ CREATE INDEX idx_users_email      ON users (email);
 CREATE INDEX idx_users_username   ON users (username);
 CREATE INDEX idx_users_role       ON users (role);
 CREATE INDEX idx_users_created_at ON users (created_at);
+
+CREATE TABLE accounts (
+    id              UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    user_id         UUID         NOT NULL UNIQUE REFERENCES users (id) ON DELETE CASCADE,
+    password_hash   VARCHAR(255) NOT NULL,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE TRIGGER trg_accounts_updated_at
+BEFORE UPDATE ON accounts
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_accounts_user_id ON accounts (user_id);
+
+CREATE TABLE refresh_tokens (
+    id                 UUID        NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    account_id         UUID        NOT NULL REFERENCES accounts (id) ON DELETE CASCADE,
+    refresh_token_hash TEXT        NOT NULL,
+    created_at         TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    expires_at         TIMESTAMPTZ NOT NULL,
+    revoked_at         TIMESTAMPTZ
+);
+CREATE INDEX idx_refresh_tokens_account_id ON refresh_tokens (account_id);
+CREATE INDEX idx_refresh_tokens_expires_at ON refresh_tokens (expires_at);
+CREATE INDEX idx_refresh_tokens_revoked_at ON refresh_tokens (revoked_at);
 
 
 

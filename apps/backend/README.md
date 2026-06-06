@@ -327,7 +327,16 @@ Avoid putting business logic directly in controllers.
 
 ## Data And Persistence
 
-Prisma is not part of the current backend plan. When persistence is added, use whichever database approach the team chooses and hide it behind repositories/services.
+Prisma has been implemented, when initialising the entity to making changes to the sql or database, compose up the database, then create a .env file in apps/backend 
+DATABASE_URL= {database_url}
+cd apps/backend
+npx prisma db pull
+npx prisma generate (this generates the entities under prisma/generated)
+
+Prisma commands can now be used in the backend. For documentation on prisma refer to 
+https://docs.nestjs.com/recipes/prisma 
+
+When persistence is added, use whichever database approach the team chooses and hide it behind repositories/services.
 
 Possible future shape:
 
