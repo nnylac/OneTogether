@@ -13,9 +13,11 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MapsModule } from './maps/maps.module';
 import { AiModule } from './ai/ai.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
   imports: [
+    PrismaModule,
     AuthModule,
     UsersModule,
     OrganisationsModule,
