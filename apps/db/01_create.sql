@@ -54,14 +54,19 @@ CREATE TABLE logs (
 );
 
 CREATE TABLE assigned_orgs (
-    incident_id     UUID    NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
-    organisation_id UUID    NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
-    assigned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    incident_id     UUID         NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
+    organisation_id UUID         NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
+    assigned_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    unit_name       VARCHAR(120) NOT NULL DEFAULT 'Response Unit',
+    status          VARCHAR(20)  NOT NULL DEFAULT 'DISPATCHED'
+                    CHECK (status IN ('DISPATCHED', 'ON SCENE', 'COMPLETED')),
+    notes           TEXT         NOT NULL DEFAULT '',
 
     PRIMARY KEY (incident_id, organisation_id)
 );
 CREATE INDEX idx_assigned_orgs_incident_id     ON assigned_orgs (incident_id);
 CREATE INDEX idx_assigned_orgs_organisation_id ON assigned_orgs (organisation_id);
+CREATE INDEX idx_assigned_orgs_status          ON assigned_orgs (status);
 
 CREATE TABLE incident_sources (
     incident_id        UUID             NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
@@ -178,7 +183,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
 
 
 

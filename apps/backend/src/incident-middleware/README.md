@@ -290,7 +290,7 @@ $env:MIDDLEWARE_URL="http://host.docker.internal:3001/api/incident-middleware"
 docker compose up -d --build scenario-engine
 ```
 
-The default simulator interval is 300 seconds. To override it:
+The default simulator interval is 60 seconds. To override it:
 
 ```powershell
 $env:INTERVAL_SECONDS="60"
