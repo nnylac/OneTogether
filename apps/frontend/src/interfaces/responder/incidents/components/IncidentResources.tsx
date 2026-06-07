@@ -1,4 +1,4 @@
-import { Fragment, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Pencil, Plus } from 'lucide-react'
 import {
@@ -12,17 +12,73 @@ import {
   Textarea,
   VStack,
 } from '../../../../components/chakra-ui'
+import {
+  assignOrganisationToIncident,
+  fetchOrganisations,
+} from '../api/incidentsApi'
+import type { OrganisationApiDto } from '../api/incidentsDto'
 import type { IncidentResource, IncidentResourceStatus } from '../types'
 
 const resourceStatuses: IncidentResourceStatus[] = ['dispatched', 'on scene', 'engaged']
 
 type IncidentResourcesProps = {
+  incidentId: string
   onResourcesChange: (resources: IncidentResource[]) => void
   resources: IncidentResource[]
 }
 
-export function IncidentResources({ onResourcesChange, resources }: IncidentResourcesProps) {
+export function IncidentResources({
+  incidentId,
+  onResourcesChange,
+  resources,
+}: IncidentResourcesProps) {
+  const [assignmentError, setAssignmentError] = useState<string | null>(null)
+  const [isAssigning, setIsAssigning] = useState(false)
+  const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false)
   const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
+  const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
+  const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
+
+  useEffect(() => {
+    if (!isAssignPanelOpen || organisations.length > 0) {
+      return
+    }
+
+    let isMounted = true
+
+    fetchOrganisations()
+      .then((loadedOrganisations) => {
+        if (isMounted) {
+          setOrganisations(loadedOrganisations)
+          setSelectedOrganisationId(loadedOrganisations[0]?.id ?? '')
+        }
+      })
+      .catch(() => {
+        if (isMounted) {
+          setAssignmentError('Unable to load organisations.')
+        }
+      })
+
+    return () => {
+      isMounted = false
+    }
+  }, [isAssignPanelOpen, organisations.length])
+
+  const assignedAgencies = new Set(resources.map((resource) => resource.agency))
+  const assignableOrganisations = organisations.filter(
+    (organisation) => !assignedAgencies.has(organisation.orgName),
+  )
+
+  useEffect(() => {
+    if (
+      selectedOrganisationId &&
+      assignableOrganisations.some((organisation) => organisation.id === selectedOrganisationId)
+    ) {
+      return
+    }
+
+    setSelectedOrganisationId(assignableOrganisations[0]?.id ?? '')
+  }, [assignableOrganisations, selectedOrganisationId])
 
   function updateResource(id: string, updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>) {
     onResourcesChange(
@@ -30,6 +86,29 @@ export function IncidentResources({ onResourcesChange, resources }: IncidentReso
         resource.id === id ? { ...resource, ...updates } : resource,
       ),
     )
+  }
+
+  async function assignOrganisation() {
+    if (!selectedOrganisationId) {
+      return
+    }
+
+    setAssignmentError(null)
+    setIsAssigning(true)
+
+    try {
+      const updatedIncident = await assignOrganisationToIncident(
+        incidentId,
+        selectedOrganisationId,
+      )
+
+      onResourcesChange(updatedIncident.resources ?? [])
+      setIsAssignPanelOpen(false)
+    } catch {
+      setAssignmentError('Unable to assign organisation to this incident.')
+    } finally {
+      setIsAssigning(false)
+    }
   }
 
   return (
@@ -45,11 +124,67 @@ export function IncidentResources({ onResourcesChange, resources }: IncidentReso
             </Text>
           </Box>
 
-          <Button bg="purple.600" color="white" alignSelf={{ base: 'flex-start', lg: 'center' }} _hover={{ bg: 'purple.700' }}>
+          <Button
+            bg="purple.600"
+            color="white"
+            alignSelf={{ base: 'flex-start', lg: 'center' }}
+            onClick={() => {
+              setAssignmentError(null)
+              setIsAssignPanelOpen((isOpen) => !isOpen)
+            }}
+            _hover={{ bg: 'purple.700' }}
+          >
             <Icon as={Plus} />
             Assign unit
           </Button>
         </Flex>
+
+        {isAssignPanelOpen && (
+          <Box bg="gray.50" borderColor="gray.200" borderWidth="1px" p="4">
+            <Flex
+              align={{ base: 'stretch', md: 'end' }}
+              direction={{ base: 'column', md: 'row' }}
+              gap="3"
+            >
+              <Box flex="1">
+                <Text color="gray.700" fontSize="sm" fontWeight="700" mb="2">
+                  Organisation
+                </Text>
+                <Select
+                  aria-label="Organisation to assign"
+                  onChange={(event) => setSelectedOrganisationId(event.currentTarget.value)}
+                  value={selectedOrganisationId}
+                >
+                  {assignableOrganisations.length > 0 ? (
+                    assignableOrganisations.map((organisation) => (
+                      <option key={organisation.id} value={organisation.id}>
+                        {organisation.orgName}
+                      </option>
+                    ))
+                  ) : (
+                    <option value="">No organisations available</option>
+                  )}
+                </Select>
+              </Box>
+
+              <Button
+                bg="gray.900"
+                color="white"
+                disabled={!selectedOrganisationId || isAssigning}
+                onClick={assignOrganisation}
+                _hover={{ bg: 'gray.800' }}
+              >
+                {isAssigning ? 'Assigning...' : 'Assign'}
+              </Button>
+            </Flex>
+
+            {assignmentError && (
+              <Text color="red.600" fontSize="sm" fontWeight="700" mt="3">
+                {assignmentError}
+              </Text>
+            )}
+          </Box>
+        )}
 
         <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
           <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="920px">

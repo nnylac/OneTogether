@@ -10,37 +10,17 @@ type AssignedIncidentTicketsProps = {
 }
 
 const statusMeta: Record<IncidentStatus, { label: string; tone: DashboardStatusTone }> = {
-  reported: {
-    label: 'Open',
-    tone: 'gray',
-  },
-  unverified: {
-    label: 'Open',
-    tone: 'gray',
-  },
-  verified: {
-    label: 'Open',
-    tone: 'gray',
-  },
-  dispatched: {
-    label: 'Dispatched',
-    tone: 'blue',
-  },
-  'on scene': {
-    label: 'In progress',
-    tone: 'orange',
-  },
-  contained: {
-    label: 'In progress',
-    tone: 'orange',
-  },
-  recovery: {
+  active: {
     label: 'In progress',
     tone: 'orange',
   },
   closed: {
     label: 'Closed',
     tone: 'gray',
+  },
+  resolved: {
+    label: 'Resolved',
+    tone: 'blue',
   },
 }
 

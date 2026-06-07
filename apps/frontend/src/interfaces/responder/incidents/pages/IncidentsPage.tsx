@@ -21,6 +21,7 @@ import type { Incident } from '../types'
 type IncidentFilter = 'all' | 'active' | 'critical'
 
 const pageSize = 6
+const incidentPollingIntervalMs = 5000
 
 const filterLabels: Record<IncidentFilter, string> = {
   all: 'All incidents',
@@ -50,10 +51,14 @@ export function IncidentsPage() {
   useEffect(() => {
     let isMounted = true
 
-    async function loadIncidents() {
+    async function loadIncidents({ showLoading = false }: { showLoading?: boolean } = {}) {
       try {
         setError(null)
-        setIsLoading(true)
+
+        if (showLoading) {
+          setIsLoading(true)
+        }
+
         const nextIncidents = await fetchIncidents()
 
         if (isMounted) {
@@ -64,16 +69,20 @@ export function IncidentsPage() {
           setError('Unable to load incidents from the backend.')
         }
       } finally {
-        if (isMounted) {
+        if (isMounted && showLoading) {
           setIsLoading(false)
         }
       }
     }
 
-    void loadIncidents()
+    void loadIncidents({ showLoading: true })
+    const pollingId = window.setInterval(() => {
+      void loadIncidents()
+    }, incidentPollingIntervalMs)
 
     return () => {
       isMounted = false
+      window.clearInterval(pollingId)
     }
   }, [])
 

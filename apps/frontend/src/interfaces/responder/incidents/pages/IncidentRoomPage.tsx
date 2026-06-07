@@ -13,7 +13,7 @@ function createReportDraft(incident: Incident): IncidentReportDraft {
     incidentName: incident.title,
     incidentDate: incident.date,
     incidentDescription: incident.description,
-    responsePlan: '',
+    responsePlan: incident.report ?? '',
     otherNotes: '',
   }
 }
