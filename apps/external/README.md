@@ -40,7 +40,7 @@ On Windows PowerShell:
 
 ```powershell
 $env:RANDOM_SEED="42"
-$env:INTERVAL_SECONDS="5"
+$env:INTERVAL_SECONDS="60"
 docker compose up --build scenario-engine
 ```
 

@@ -78,6 +78,7 @@ GENERIC_NOTES: dict[TicketStatus, list[str]] = {
     TicketStatus.CLOSED: [
         "Post-incident report filed. Ticket closed.",
         "All units returned to base. Closed.",
+        "All response activity completed. Ticket closed.",
     ],
 }
 
@@ -180,7 +181,7 @@ class BaseAgencySimulator(ABC):
         asyncio.create_task(self._run_lifecycle(ticket, trigger))
 
     async def _run_lifecycle(self, ticket: dict, trigger: IncidentTrigger):
-        """Generate 3–6 realistic status updates over the next 30–120 seconds."""
+        """Generate realistic status updates, then always finish closed."""
         n_updates = random.randint(3, 6)
         current_status = TicketStatus.OPEN
 
@@ -267,6 +268,14 @@ class BaseAgencySimulator(ABC):
             if current_status == TicketStatus.CLOSED:
                 break
 
+        if current_status != TicketStatus.CLOSED:
+            await asyncio.sleep(random.uniform(4, 10))
+            await self._apply_status_update(
+                ticket=ticket,
+                next_status=TicketStatus.CLOSED,
+                note=random.choice(GENERIC_NOTES[TicketStatus.CLOSED]),
+            )
+
         # Clean up active tracking once closed
         inc_id = ticket.get("incident_id")
         if (
@@ -275,6 +284,49 @@ class BaseAgencySimulator(ABC):
             and ticket["status"] in (TicketStatus.RESOLVED.value, TicketStatus.CLOSED.value)
         ):
             del self.active_incidents[inc_id]
+
+    async def _apply_status_update(
+        self,
+        ticket: dict,
+        next_status: TicketStatus,
+        note: str,
+        quality: Optional[QualityFlags] = None,
+    ):
+        update_payload = self.build_update_payload(ticket, next_status, note)
+        quality = quality or QualityFlags()
+
+        old_status = ticket["status"]
+        ticket["status"]     = next_status.value
+        ticket["updated_at"] = utcnow().isoformat()
+        ticket["payload"]    = update_payload
+        ticket["audit_log"].append({
+            "ts": utcnow().isoformat(),
+            "from": old_status,
+            "to": next_status.value,
+            "note": note,
+        })
+
+        log.info(
+            f"[{self.SERVICE_NAME}] {ticket['ticket_id']} "
+            f"{old_status} → {next_status.value}"
+            + (" [DUPE]" if quality.is_duplicate else "")
+        )
+
+        event_type = (
+            EventType.TICKET_CLOSED   if next_status == TicketStatus.CLOSED
+            else EventType.TICKET_REOPENED if next_status == TicketStatus.REOPENED
+            else EventType.TICKET_STATUS_CHANGED
+        )
+
+        await self._emit(
+            event_type=event_type,
+            ticket=ticket,
+            extra_payload={
+                "ticket": update_payload,
+                "status_change": {"from": old_status, "to": next_status.value, "note": note},
+            },
+            quality=quality,
+        )
 
     # ─── Event emission ──────────────────────────────────────────────────────
 

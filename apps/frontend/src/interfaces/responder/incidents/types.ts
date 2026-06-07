@@ -54,10 +54,11 @@ export type IncidentReportDraft = {
   otherNotes: string
 }
 
-export type IncidentResourceStatus = 'dispatched' | 'on scene' | 'engaged'
+export type IncidentResourceStatus = 'DISPATCHED' | 'ON SCENE' | 'COMPLETED'
 
 export type IncidentResource = {
   id: string
+  organisationId?: string
   unit: string
   agency: string
   type: string

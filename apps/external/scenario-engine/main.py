@@ -28,7 +28,8 @@ logging.basicConfig(
 )
 log = logging.getLogger(__name__)
 
-INTERVAL = float(os.getenv("INTERVAL_SECONDS", "2"))
+DEFAULT_INTERVAL_SECONDS = 60
+INTERVAL = float(os.getenv("INTERVAL_SECONDS", str(DEFAULT_INTERVAL_SECONDS)))
 SEED = os.getenv("RANDOM_SEED")
 if SEED:
     random.seed(int(SEED))
