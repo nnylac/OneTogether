@@ -289,10 +289,10 @@ cd C:\OneTogether
 docker compose up -d --build scenario-engine
 ```
 
-The default simulator interval is 2 seconds. To override it:
+The default simulator interval is 240 seconds. To override it:
 
 ```powershell
-$env:INTERVAL_SECONDS="60"
+$env:INTERVAL_SECONDS="240"
 docker compose up -d --build scenario-engine
 ```
 
