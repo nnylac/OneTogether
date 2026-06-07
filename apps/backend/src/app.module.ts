@@ -13,6 +13,7 @@ import { NotificationsModule } from './notifications/notifications.module';
 import { MapsModule } from './maps/maps.module';
 import { AiModule } from './ai/ai.module';
 import { IntegrationsModule } from './integrations/integrations.module';
+import { IncidentMiddlewareModule } from './incident-middleware/incident-middleware.module';
 import { PrismaModule } from './prisma/prisma.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { PrismaModule } from './prisma/prisma.module';
     MapsModule,
     AiModule,
     IntegrationsModule,
+    IncidentMiddlewareModule,
   ],
   controllers: [AppController],
   providers: [AppService],
