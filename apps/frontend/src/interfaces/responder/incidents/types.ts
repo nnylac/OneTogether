@@ -1,12 +1,4 @@
-export type IncidentStatus =
-  | 'reported'
-  | 'unverified'
-  | 'verified'
-  | 'dispatched'
-  | 'on scene'
-  | 'contained'
-  | 'recovery'
-  | 'closed'
+export type IncidentStatus = 'active' | 'closed' | 'resolved'
 
 export type IncidentSeverity = 'Low' | 'Medium' | 'High' | 'Critical'
 
@@ -14,6 +6,12 @@ export type Incident = {
   assignedOrgs?: string[]
   confidenceScore?: number
   createdAt?: string
+  discussions?: Array<{
+    createdAt: string
+    id: string
+    title: string
+    updatedAt: string
+  }>
   incidentCode?: string
   incidentCommander?: string
   incidentType?: string
@@ -21,8 +19,15 @@ export type Incident = {
   title: string
   location: string
   description: string
+  logs?: IncidentLogEntry[]
+  report?: string | null
   resolvedAt?: string
+  resources?: IncidentResource[]
   severity?: IncidentSeverity
+  sourceLinks?: Array<{
+    externalTicketId: string
+    lastSyncedAt: string
+  }>
   status: IncidentStatus
   updatedAt?: string
   zone?: string

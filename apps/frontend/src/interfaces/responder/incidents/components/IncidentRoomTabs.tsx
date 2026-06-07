@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import type { ElementType, FormEvent } from 'react'
 import {
   ClipboardList,
@@ -18,8 +18,6 @@ import { IncidentLog } from './IncidentLog'
 import { IncidentReport } from './IncidentReport'
 import { IncidentResources } from './IncidentResources'
 import { IncidentRoomCard, IncidentRoomContent } from './IncidentRoomShell'
-import { createIncidentLogEntries } from '../data/sampleIncidentLog'
-import { incidentResources } from '../data/sampleIncidentResources'
 
 type RoomTab =
   | 'discussion'
@@ -60,8 +58,12 @@ export function IncidentRoomTabs({
   reportDraft,
 }: IncidentRoomTabsProps) {
   const [activeTab, setActiveTab] = useState<RoomTab>('discussion')
-  const [resources, setResources] = useState(incidentResources)
-  const logEntries = createIncidentLogEntries(incident, resources)
+  const [resources, setResources] = useState(incident.resources ?? [])
+  const logEntries = incident.logs ?? []
+
+  useEffect(() => {
+    setResources(incident.resources ?? [])
+  }, [incident.id, incident.resources])
 
   return (
     <IncidentRoomCard>
@@ -109,7 +111,11 @@ export function IncidentRoomTabs({
         )}
 
         {activeTab === 'resources' && (
-          <IncidentResources resources={resources} onResourcesChange={setResources} />
+          <IncidentResources
+            incidentId={incident.id}
+            resources={resources}
+            onResourcesChange={setResources}
+          />
         )}
 
         {activeTab === 'information' && (

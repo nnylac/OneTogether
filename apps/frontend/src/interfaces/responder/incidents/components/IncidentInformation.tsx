@@ -2,12 +2,10 @@ import type { ElementType, ReactNode } from 'react'
 import {
   Activity,
   CalendarClock,
-  CircleUserRound,
   Clock,
   FileDigit,
   HeartPulse,
   MapPin,
-  Shield,
   Tag,
 } from 'lucide-react'
 import {
@@ -79,18 +77,6 @@ export function IncidentInformation({
           <DetailRow icon={MapPin} label="Location">
             <Text color="gray.900" fontWeight="700">
               {incident.location}
-            </Text>
-          </DetailRow>
-
-          <DetailRow icon={Shield} label="Zone">
-            <Text color="gray.900" fontWeight="700">
-              {incident.zone ?? 'Not assigned'}
-            </Text>
-          </DetailRow>
-
-          <DetailRow icon={CircleUserRound} label="Incident commander">
-            <Text color="gray.900" fontWeight="700">
-              {incident.incidentCommander ?? 'Not assigned'}
             </Text>
           </DetailRow>
 

@@ -3,14 +3,9 @@ import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
 import type { IncidentStatus } from '../types'
 
 const statusTones: Record<IncidentStatus, LabelBoxTone> = {
-  reported: 'gray',
-  unverified: 'yellow',
-  verified: 'blue',
-  dispatched: 'purple',
-  'on scene': 'green',
-  contained: 'teal',
-  recovery: 'orange',
+  active: 'green',
   closed: 'gray',
+  resolved: 'teal',
 }
 
 export function IncidentStatusBadge({ status }: { status: IncidentStatus }) {
