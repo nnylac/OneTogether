@@ -16,27 +16,6 @@ import {
 import { useAuth } from '../useAuth'
 import type { AuthRole } from '../types'
 
-const demoLinks = [
-  {
-    title: 'Citizen Demo',
-    description: 'Mobile official alerts and community help',
-    href: '/citizen',
-    icon: Smartphone,
-  },
-  {
-    title: 'Organisation Demo',
-    description: 'SCDF responder operations',
-    href: '/responder',
-    icon: Building2,
-  },
-  {
-    title: 'Government Demo',
-    description: 'National command dashboard',
-    href: '/government',
-    icon: Landmark,
-  },
-]
-
 const featureLabels = [
   'Citizen alerts',
   'Responder coordination',
@@ -317,38 +296,39 @@ export function LoginPage() {
                 </Button>
               </Stack>
             </form>
-
-            <Stack gap="3">
-              {demoLinks.map((item) => (
-                <Button
-                  key={item.href}
-                  asChild
-                  bg="white"
-                  borderColor="#dce4ee"
-                  borderRadius="0"
-                  borderWidth="1px"
-                  color="#101a2e"
-                  h="78px"
-                  justifyContent="space-between"
-                  px="4"
-                  py="3"
-                  textAlign="left"
-                  _hover={{ bg: '#f7fbff', borderColor: '#b9cce1' }}
-                >
-                  <Link to={item.href}>
-                    <Box>
-                      <Text fontSize="md" fontWeight="900">
-                        {item.title}
-                      </Text>
-                      <Text color="#4c5d73" fontSize="sm" fontWeight="500">
-                        {item.description}
-                      </Text>
-                    </Box>
-                    <Icon as={item.icon} boxSize="24px" color="#152033" />
-                  </Link>
-                </Button>
-              ))}
-            </Stack>
+            <Box>
+              <Text fontSize="md" fontWeight="900">
+                Demo Accounts
+              </Text>
+              <br />
+                <Text fontSize="sm" fontWeight="900">
+                  Citizen Login
+                </Text>
+                <Text color="#67809b" fontSize="sm" mt="1">
+                  Username: citizen
+                  <br />
+                  Password: citizen
+                </Text>
+                <br /><hr />
+                <Text fontSize="sm" fontWeight="900">
+                  Responder Login
+                </Text>
+                <Text color="#67809b" fontSize="sm" mt="1">
+                  Username: responder
+                  <br />
+                  Password: responder
+                </Text>
+                <br /><hr />
+                <Text fontSize="sm" fontWeight="900">
+                  Government Login
+                </Text>
+                <Text color="#67809b" fontSize="sm" mt="1">
+                  Username: gov
+                  <br />
+                  Password: gov
+                </Text>
+                <br /><hr />
+            </Box>
           </Stack>
         </Box>
       </Flex>
