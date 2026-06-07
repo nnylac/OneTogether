@@ -1,12 +1,15 @@
+import { ArrowLeft } from 'lucide-react'
+import { Link } from 'react-router-dom'
 import {
   Box,
+  Button,
   Flex,
   Heading,
   HStack,
+  Icon,
   Text,
   VStack,
 } from '../../../../components/chakra-ui'
-import { BackToDashboardLink } from '../../components/BackToDashboardLink'
 import type { Incident } from '../types'
 import { IncidentStatusBadge } from './IncidentStatusBadge'
 
@@ -14,7 +17,19 @@ export function IncidentRoomHeader({ incident }: { incident: Incident }) {
   return (
     <Flex justify="space-between" align={{ base: 'stretch', xl: 'start' }} gap="4" direction={{ base: 'column', xl: 'row' }}>
       <VStack align="stretch" gap="3">
-        <BackToDashboardLink />
+        <Button
+          asChild
+          variant="ghost"
+          alignSelf="flex-start"
+          color="gray.600"
+          px="0"
+          _hover={{ bg: 'transparent', color: 'gray.900' }}
+        >
+          <Link to="/responder/incidents">
+            <Icon as={ArrowLeft} />
+            Back to incidents
+          </Link>
+        </Button>
 
         <Box>
           <HStack gap="3" wrap="wrap">
