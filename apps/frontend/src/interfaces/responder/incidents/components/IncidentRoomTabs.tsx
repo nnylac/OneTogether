@@ -15,6 +15,7 @@ import { IncidentDiscussion } from './IncidentDiscussion'
 import type { ChatMessage } from './IncidentDiscussion'
 import { IncidentInformation } from './IncidentInformation'
 import { IncidentLog } from './IncidentLog'
+import { IncidentMap } from './IncidentMap'
 import { IncidentReport } from './IncidentReport'
 import { IncidentResources } from './IncidentResources'
 import { IncidentRoomCard, IncidentRoomContent } from './IncidentRoomShell'
@@ -122,11 +123,14 @@ export function IncidentRoomTabs({
           <IncidentInformation incident={incident} resources={resources} />
         )}
 
+        {activeTab === 'map' && <IncidentMap incidentId={incident.id} />}
+
         {activeTab !== 'discussion' &&
           activeTab !== 'incident-log' &&
           activeTab !== 'report' &&
           activeTab !== 'resources' &&
-          activeTab !== 'information' && <Box flex="1" />}
+          activeTab !== 'information' &&
+          activeTab !== 'map' && <Box flex="1" />}
       </IncidentRoomContent>
     </IncidentRoomCard>
   )

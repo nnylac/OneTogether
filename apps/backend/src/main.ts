@@ -24,6 +24,11 @@ async function bootstrap() {
     jsonDocumentUrl: 'api/docs-json',
   });
 
+  // K8s liveness/readiness probe endpoint
+  app.use('/api/health', (_req: unknown, res: { json: (o: object) => void }) =>
+    res.json({ status: 'ok', timestamp: new Date().toISOString() }),
+  );
+
   await app.listen(process.env.PORT ?? 3001);
 }
 void bootstrap();

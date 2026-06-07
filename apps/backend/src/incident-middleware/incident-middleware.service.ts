@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { IncidentNormalizerService } from './incident-normalizer.service';
+import { IncidentResourceExtractorService } from './incident-resource-extractor.service';
 import {
   NormalizedIncidentTicket,
   RawAgencyMessage,
@@ -13,6 +14,7 @@ export class IncidentMiddlewareService {
     private readonly prisma: PrismaService,
     private readonly normalizer: IncidentNormalizerService,
     private readonly analyzer: SemanticIncidentAnalyzerService,
+    private readonly resourceExtractor: IncidentResourceExtractorService,
   ) {}
 
   async ingest(message: RawAgencyMessage) {
@@ -29,6 +31,9 @@ export class IncidentMiddlewareService {
               match.incident.confidence_score ?? 0,
               normalized.confidenceScore,
             ),
+            // Backfill coordinates if an earlier report lacked them.
+            lat: match.incident.lat ?? normalized.lat,
+            lng: match.incident.lng ?? normalized.lng,
           },
         })
       : await this.prisma.incidents.create({
@@ -42,12 +47,23 @@ export class IncidentMiddlewareService {
             inc_location: normalized.location,
             report: this.buildReport(normalized.rawMessage),
             confidence_score: normalized.confidenceScore,
+            lat: normalized.lat,
+            lng: normalized.lng,
           },
         });
 
     await this.upsertSource(incident.id, normalized.externalTicketId);
     await this.upsertSource(incident.id, normalized.externalIncidentId);
     await this.assignOrganisation(incident.id, normalized.orgId);
+    await this.resourceExtractor.extract(
+      incident.id,
+      normalized.agencyId,
+      normalized.status,
+      incident.lat != null && incident.lng != null
+        ? { lat: incident.lat, lng: incident.lng }
+        : null,
+      message,
+    );
     await this.createLog(
       incident.id,
       normalized.agencyId,
