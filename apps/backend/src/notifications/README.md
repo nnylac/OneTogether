@@ -28,7 +28,7 @@ This lets the same notification be sent to:
 
 - one citizen user
 - one responder or relief organisation
-- a role such as `government`, `moderator`, or `user`
+- a role such as `government`, `responder`, or `user`
 
 ## API Routes
 

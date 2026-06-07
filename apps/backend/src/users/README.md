@@ -11,7 +11,7 @@ Current allowed user roles:
 
 ```txt
 user      -> public/citizen user
-moderator -> responder/organisation-side user
+responder -> responder/organisation-side user
 admin     -> government/admin user
 ```
 
@@ -32,7 +32,7 @@ GET /api/users
 Optional query params:
 
 ```txt
-role=user | moderator | admin
+role=user | responder | admin
 isVerified=true | false
 search=amy
 take=20
@@ -43,7 +43,7 @@ Examples:
 
 ```txt
 GET /api/users
-GET /api/users?role=moderator
+GET /api/users?role=responder
 GET /api/users?isVerified=true
 GET /api/users?search=amy
 GET /api/users?role=user&take=10&skip=0
@@ -136,7 +136,7 @@ JSON struct:
   "lastName": "Tan",
   "phone": "+6590000001",
   "isVerified": true,
-  "role": "moderator"
+  "role": "responder"
 }
 ```
 

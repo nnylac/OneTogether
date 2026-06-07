@@ -86,7 +86,7 @@ CREATE TABLE users (
     phone       VARCHAR(20),
     is_verified BOOLEAN      NOT NULL DEFAULT FALSE,
     role        VARCHAR(20)  NOT NULL DEFAULT 'user'
-                    CHECK (role IN ('user', 'admin', 'moderator')),
+                    CHECK (role IN ('user', 'responder', 'admin')),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_login  TIMESTAMPTZ
@@ -98,6 +98,16 @@ CREATE INDEX idx_users_email      ON users (email);
 CREATE INDEX idx_users_username   ON users (username);
 CREATE INDEX idx_users_role       ON users (role);
 CREATE INDEX idx_users_created_at ON users (created_at);
+
+CREATE TABLE user_organisations (
+    user_id         UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    organisation_id UUID        NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (user_id, organisation_id)
+);
+CREATE INDEX idx_user_organisations_user_id         ON user_organisations (user_id);
+CREATE INDEX idx_user_organisations_organisation_id ON user_organisations (organisation_id);
 
 CREATE TABLE notifications (
     id                UUID          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,

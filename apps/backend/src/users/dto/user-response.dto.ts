@@ -1,5 +1,34 @@
 import { ApiProperty } from '@nestjs/swagger';
-import type { users as UserModel } from '../../../generated/prisma/client';
+import type {
+  organisations as OrganisationModel,
+  user_organisations as UserOrganisationModel,
+  users as UserModel,
+} from '../../../generated/prisma/client';
+
+export type UserWithOrganisations = UserModel & {
+  user_organisations: Array<
+    UserOrganisationModel & { organisations: OrganisationModel }
+  >;
+};
+
+export class UserOrganisationResponseDto {
+  @ApiProperty({ example: '10000000-0000-0000-0000-000000000001' })
+  id!: string;
+
+  @ApiProperty({ example: 'SCDF' })
+  orgName!: string;
+
+  static fromModel(
+    userOrganisation: UserOrganisationModel & {
+      organisations: OrganisationModel;
+    },
+  ): UserOrganisationResponseDto {
+    return {
+      id: userOrganisation.organisations.id,
+      orgName: userOrganisation.organisations.org_name,
+    };
+  }
+}
 
 export class UserResponseDto {
   @ApiProperty({ example: '50000000-0000-0000-0000-000000000001' })
@@ -23,8 +52,11 @@ export class UserResponseDto {
   @ApiProperty({ example: true })
   isVerified!: boolean;
 
-  @ApiProperty({ example: 'user', enum: ['user', 'moderator', 'admin'] })
+  @ApiProperty({ example: 'user', enum: ['user', 'responder', 'admin'] })
   role!: string;
+
+  @ApiProperty({ type: UserOrganisationResponseDto, isArray: true })
+  organisations!: UserOrganisationResponseDto[];
 
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
@@ -35,7 +67,7 @@ export class UserResponseDto {
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   lastLogin!: Date | null;
 
-  static fromModel(user: UserModel): UserResponseDto {
+  static fromModel(user: UserWithOrganisations): UserResponseDto {
     return {
       id: user.id,
       username: user.username,
@@ -45,6 +77,9 @@ export class UserResponseDto {
       phone: user.phone,
       isVerified: user.is_verified,
       role: user.role,
+      organisations: user.user_organisations.map((userOrganisation) =>
+        UserOrganisationResponseDto.fromModel(userOrganisation),
+      ),
       createdAt: user.created_at,
       updatedAt: user.updated_at,
       lastLogin: user.last_login,

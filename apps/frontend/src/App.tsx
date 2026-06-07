@@ -1,4 +1,7 @@
-import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { AuthProvider } from './interfaces/auth/AuthContext'
+import { LoginPage } from './interfaces/auth/pages/LoginPage'
+import { ProtectedRoute } from './interfaces/auth/ProtectedRoute'
 import { PublicLayout } from './interfaces/public/layout/PublicLayout'
 import { AlertsPage } from './interfaces/public/alerts/pages/AlertsPage'
 import { CommunityPage } from './interfaces/public/community/pages/CommunityPage'
@@ -25,35 +28,57 @@ import { SettingsPage } from './interfaces/responder/settings/pages/SettingsPage
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Navigate to="/responder" replace />} />
-        <Route path="public" element={<PublicLayout />}>
-          <Route index element={<AlertsPage />} />
-          <Route path="alerts" element={<AlertsPage />} />
-          <Route path="report" element={<ReportPage />} />
-          <Route path="volunteer" element={<VolunteerPage />} />
-          <Route path="community" element={<CommunityPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-        </Route>
-        <Route path="government" element={<GovernmentLayout />}>
-          <Route index element={<GovernmentDashboardPage />} />
-          <Route path="incidents" element={<GovernmentIncidentsPage />} />
-          <Route path="map" element={<GovernmentMapPage />} />
-          <Route path="broadcasts" element={<GovernmentBroadcastsPage />} />
-          <Route path="organisations" element={<GovernmentOrganisationsPage />} />
-          <Route path="analytics" element={<GovernmentAnalyticsPage />} />
-          <Route path="settings" element={<GovernmentSettingsPage />} />
-        </Route>
-        <Route path="responder" element={<ResponderLayout />}>
-          <Route index element={<DashboardPage />} />
-          <Route path="incidents" element={<IncidentsPage />} />
-          <Route path="incidents/:incidentId/room" element={<IncidentRoomPage />} />
-          <Route path="map" element={<MapPage />} />
-          <Route path="resources" element={<ResourcesPage />} />
-          <Route path="notifications" element={<NotificationsPage />} />
-          <Route path="settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
+      <AuthProvider>
+        <Routes>
+          <Route path="/" element={<LoginPage />} />
+          <Route element={<ProtectedRoute allowedRoles={['user']} />}>
+            <Route path="citizen" element={<PublicLayout />}>
+              <Route index element={<AlertsPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="report" element={<ReportPage />} />
+              <Route path="volunteer" element={<VolunteerPage />} />
+              <Route path="community" element={<CommunityPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+            </Route>
+            <Route path="public" element={<PublicLayout />}>
+              <Route index element={<AlertsPage />} />
+              <Route path="alerts" element={<AlertsPage />} />
+              <Route path="report" element={<ReportPage />} />
+              <Route path="volunteer" element={<VolunteerPage />} />
+              <Route path="community" element={<CommunityPage />} />
+              <Route path="profile" element={<ProfilePage />} />
+            </Route>
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={['admin']} />}>
+            <Route path="government" element={<GovernmentLayout />}>
+              <Route index element={<GovernmentDashboardPage />} />
+              <Route path="incidents" element={<GovernmentIncidentsPage />} />
+              <Route path="map" element={<GovernmentMapPage />} />
+              <Route path="broadcasts" element={<GovernmentBroadcastsPage />} />
+              <Route
+                path="organisations"
+                element={<GovernmentOrganisationsPage />}
+              />
+              <Route path="analytics" element={<GovernmentAnalyticsPage />} />
+              <Route path="settings" element={<GovernmentSettingsPage />} />
+            </Route>
+          </Route>
+          <Route element={<ProtectedRoute allowedRoles={['responder']} />}>
+            <Route path="responder" element={<ResponderLayout />}>
+              <Route index element={<DashboardPage />} />
+              <Route path="incidents" element={<IncidentsPage />} />
+              <Route
+                path="incidents/:incidentId/room"
+                element={<IncidentRoomPage />}
+              />
+              <Route path="map" element={<MapPage />} />
+              <Route path="resources" element={<ResourcesPage />} />
+              <Route path="notifications" element={<NotificationsPage />} />
+              <Route path="settings" element={<SettingsPage />} />
+            </Route>
+          </Route>
+        </Routes>
+      </AuthProvider>
     </BrowserRouter>
   )
 }

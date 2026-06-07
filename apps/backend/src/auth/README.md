@@ -28,10 +28,15 @@ tokens are jwt token
     "last_name":"",
     "phone":"",
     "role":"",
+    "organisationIds": [],
     "password":""
 }
 firstname lastname phone and roles are optional
 role wld be defaulted to user
+
+if role is "responder", organisationIds is required and must contain at least
+one organisation id. This links the responder user to the organisation they
+belong to.
 
 return 
 {

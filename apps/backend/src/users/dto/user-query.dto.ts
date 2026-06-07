@@ -2,8 +2,8 @@ import { ApiPropertyOptional } from '@nestjs/swagger';
 
 export class UserQueryDto {
   @ApiPropertyOptional({
-    example: 'moderator',
-    enum: ['user', 'moderator', 'admin'],
+    example: 'responder',
+    enum: ['user', 'responder', 'admin'],
   })
   role?: string;
 
@@ -12,6 +12,11 @@ export class UserQueryDto {
 
   @ApiPropertyOptional({ example: 'amy' })
   search?: string;
+
+  @ApiPropertyOptional({
+    example: '10000000-0000-0000-0000-000000000001',
+  })
+  organisationId?: string;
 
   @ApiPropertyOptional({ example: 20 })
   take?: number | string;
