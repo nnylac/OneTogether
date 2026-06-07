@@ -16,16 +16,16 @@ The backend global prefix is `api`, so the full local endpoint is:
 POST http://localhost:3001/api/incident-middleware/events
 ```
 
-Docker containers should reach the host backend with:
+Docker containers reach the host backend with:
 
 ```txt
 http://host.docker.internal:3001/api/incident-middleware
 ```
 
-The simulators append `/events`, so configure:
+The top-level `docker-compose.yml` sets this as the default `MIDDLEWARE_URL`.
+The simulators append `/events`, so start them with:
 
 ```powershell
-$env:MIDDLEWARE_URL="http://host.docker.internal:3001/api/incident-middleware"
 docker compose up -d --build scenario-engine
 ```
 
@@ -285,16 +285,21 @@ npm run start:dev
 Start the simulator stack:
 
 ```powershell
-cd C:\Users\rando\OneTogether
-$env:MIDDLEWARE_URL="http://host.docker.internal:3001/api/incident-middleware"
+cd C:\OneTogether
 docker compose up -d --build scenario-engine
 ```
 
-The default simulator interval is 60 seconds. To override it:
+The default simulator interval is 2 seconds. To override it:
 
 ```powershell
 $env:INTERVAL_SECONDS="60"
-$env:MIDDLEWARE_URL="http://host.docker.internal:3001/api/incident-middleware"
+docker compose up -d --build scenario-engine
+```
+
+To target a non-local backend, override the Compose default:
+
+```powershell
+$env:MIDDLEWARE_URL="https://example.com/api/incident-middleware"
 docker compose up -d --build scenario-engine
 ```
 
@@ -378,7 +383,8 @@ It should print:
 http://host.docker.internal:3001/api/incident-middleware
 ```
 
-If it is blank, recreate the simulator stack after setting `MIDDLEWARE_URL`.
+If it prints a different URL, recreate the simulator stack after correcting or
+clearing `MIDDLEWARE_URL`.
 
 If the simulator logs show connection failures, confirm the backend is running:
 
