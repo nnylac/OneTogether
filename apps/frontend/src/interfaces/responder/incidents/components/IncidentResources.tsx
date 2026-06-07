@@ -15,11 +15,12 @@ import {
 import {
   assignOrganisationToIncident,
   fetchOrganisations,
+  updateIncidentAssignedOrganisation,
 } from '../api/incidentsApi'
 import type { OrganisationApiDto } from '../api/incidentsDto'
 import type { IncidentResource, IncidentResourceStatus } from '../types'
 
-const resourceStatuses: IncidentResourceStatus[] = ['dispatched', 'on scene', 'engaged']
+const resourceStatuses: IncidentResourceStatus[] = ['DISPATCHED', 'ON SCENE', 'COMPLETED']
 
 type IncidentResourcesProps = {
   incidentId: string
@@ -37,6 +38,8 @@ export function IncidentResources({
   const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false)
   const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
   const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
+  const [resourceUpdateError, setResourceUpdateError] = useState<string | null>(null)
+  const [savingResourceId, setSavingResourceId] = useState<string | null>(null)
   const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
 
   useEffect(() => {
@@ -86,6 +89,52 @@ export function IncidentResources({
         resource.id === id ? { ...resource, ...updates } : resource,
       ),
     )
+  }
+
+  function getResourceOrganisationId(resource: IncidentResource) {
+    return resource.organisationId ?? resource.id.split(':')[1] ?? ''
+  }
+
+  async function persistResourceUpdate(
+    resource: IncidentResource,
+    updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>,
+  ) {
+    const organisationId = getResourceOrganisationId(resource)
+
+    if (!organisationId) {
+      setResourceUpdateError('Unable to identify the assigned organisation.')
+      return
+    }
+
+    setResourceUpdateError(null)
+    setSavingResourceId(resource.id)
+
+    try {
+      const updatedIncident = await updateIncidentAssignedOrganisation(
+        incidentId,
+        organisationId,
+        updates,
+      )
+
+      onResourcesChange(updatedIncident.resources ?? [])
+    } catch (error) {
+      setResourceUpdateError(
+        error instanceof Error ? error.message : 'Unable to save resource updates.',
+      )
+      onResourcesChange(resources)
+    } finally {
+      setSavingResourceId(null)
+    }
+  }
+
+  async function updateResourceStatus(resource: IncidentResource, status: IncidentResourceStatus) {
+    updateResource(resource.id, { status })
+    await persistResourceUpdate(resource, { status })
+  }
+
+  async function closeResourceNotes(resource: IncidentResource) {
+    await persistResourceUpdate(resource, { notes: resource.notes })
+    setOpenNotesResourceId(null)
   }
 
   async function assignOrganisation() {
@@ -186,6 +235,12 @@ export function IncidentResources({
           </Box>
         )}
 
+        {resourceUpdateError && (
+          <Text color="red.600" fontSize="sm" fontWeight="700">
+            {resourceUpdateError}
+          </Text>
+        )}
+
         <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
           <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="920px">
             <Box as="colgroup">
@@ -240,11 +295,13 @@ export function IncidentResources({
                     <BodyCell textAlign="center">
                       <Select
                         aria-label={`${resource.unit} status`}
-                        onChange={(event) =>
-                          updateResource(resource.id, {
-                            status: event.currentTarget.value as IncidentResourceStatus,
-                          })
-                        }
+                        onChange={(event) => {
+                          void updateResourceStatus(
+                            resource,
+                            event.currentTarget.value as IncidentResourceStatus,
+                          )
+                        }}
+                        rootProps={{ disabled: savingResourceId === resource.id }}
                         value={resource.status}
                       >
                         {resourceStatuses.map((status) => (
@@ -298,10 +355,13 @@ export function IncidentResources({
                             <Button
                               borderColor="gray.300"
                               borderWidth="1px"
-                              onClick={() => setOpenNotesResourceId(null)}
+                              disabled={savingResourceId === resource.id}
+                              onClick={() => {
+                                void closeResourceNotes(resource)
+                              }}
                               variant="ghost"
                             >
-                              Done
+                              {savingResourceId === resource.id ? 'Saving...' : 'Done'}
                             </Button>
                           </Flex>
 

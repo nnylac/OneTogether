@@ -20,7 +20,7 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-}
-      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-2}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-60}
       RANDOM_SEED: ${RANDOM_SEED:-}
       SPF_URL: http://spf:8000
       SCDF_URL: http://scdf:8000
