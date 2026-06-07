@@ -29,7 +29,7 @@ Broadcasts are split into two database tables:
 Supported audience types:
 
 - `public`: everyone
-- `role`: users with a role such as `user`, `moderator`, or `admin`
+- `role`: users with a role such as `user`, `responder`, or `admin`
 - `organisation`: one organisation
 - `region`: one named region
 
