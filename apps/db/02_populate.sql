@@ -27,19 +27,47 @@ INSERT INTO users (
     phone,
     is_verified,
     role,
+    user_organisation_id,
     created_at,
     updated_at,
     last_login
-) VALUES
-('citizen', 'c@g.com', 'Citizen', 'Demo', '+6590000001', TRUE, 'user', NOW(), NOW(), NULL),
-('responder', 'r@g.com', 'Responder', 'Demo', '+6590000002', TRUE, 'responder', NOW(), NOW(), NULL),
-('gov', 'g@g.com', 'Government', 'Demo', '+6590000003', TRUE, 'admin', NOW(), NOW(), NULL),
-('scdf_ops_lee', 'lee.ops@scdf.gov.sg', 'Daniel', 'Lee', '+6591001001', TRUE, 'responder', NOW() - INTERVAL '20 days', NOW() - INTERVAL '1 day', NOW() - INTERVAL '2 hours'),
-('spf_cmd_tan', 'tan.cmd@spf.gov.sg', 'Rachel', 'Tan', '+6591001002', TRUE, 'responder', NOW() - INTERVAL '18 days', NOW() - INTERVAL '1 day', NOW() - INTERVAL '4 hours'),
-('moh_watch_ng', 'ng.watch@moh.gov.sg', 'Amelia', 'Ng', '+6591001003', TRUE, 'responder', NOW() - INTERVAL '16 days', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '1 hour'),
-('pub_flood_lim', 'lim.flood@pub.gov.sg', 'Marcus', 'Lim', '+6591001004', TRUE, 'responder', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '30 minutes'),
-('lta_incident_koh', 'koh.incident@lta.gov.sg', 'Brian', 'Koh', '+6591001005', TRUE, 'responder', NOW() - INTERVAL '12 days', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '25 minutes'),
-('gov_admin', 'admin@onetogether.sg', 'OneTogether', 'Admin', '+6591001000', TRUE, 'admin', NOW() - INTERVAL '30 days', NOW(), NOW())
+)
+SELECT
+    seed.username,
+    seed.email,
+    seed.first_name,
+    seed.last_name,
+    seed.phone,
+    seed.is_verified,
+    seed.role,
+    organisations.id,
+    seed.created_at,
+    seed.updated_at,
+    seed.last_login
+FROM (VALUES
+    ('citizen', 'c@g.com', 'Citizen', 'Demo', '+6590000001', TRUE, 'user', NULL, NOW(), NOW(), NULL),
+    ('responder', 'r@g.com', 'Responder', 'Demo', '+6590000002', TRUE, 'responder', 'SCDF', NOW(), NOW(), NULL),
+    ('gov', 'g@g.com', 'Government', 'Demo', '+6590000003', TRUE, 'admin', NULL, NOW(), NOW(), NULL),
+    ('scdf_ops_lee', 'lee.ops@scdf.gov.sg', 'Daniel', 'Lee', '+6591001001', TRUE, 'responder', 'SCDF', NOW() - INTERVAL '20 days', NOW() - INTERVAL '1 day', NOW() - INTERVAL '2 hours'),
+    ('spf_cmd_tan', 'tan.cmd@spf.gov.sg', 'Rachel', 'Tan', '+6591001002', TRUE, 'responder', 'SPF', NOW() - INTERVAL '18 days', NOW() - INTERVAL '1 day', NOW() - INTERVAL '4 hours'),
+    ('moh_watch_ng', 'ng.watch@moh.gov.sg', 'Amelia', 'Ng', '+6591001003', TRUE, 'responder', 'MOH', NOW() - INTERVAL '16 days', NOW() - INTERVAL '3 hours', NOW() - INTERVAL '1 hour'),
+    ('pub_flood_lim', 'lim.flood@pub.gov.sg', 'Marcus', 'Lim', '+6591001004', TRUE, 'responder', 'PUB', NOW() - INTERVAL '14 days', NOW() - INTERVAL '2 hours', NOW() - INTERVAL '30 minutes'),
+    ('lta_incident_koh', 'koh.incident@lta.gov.sg', 'Brian', 'Koh', '+6591001005', TRUE, 'responder', 'LTA', NOW() - INTERVAL '12 days', NOW() - INTERVAL '1 hour', NOW() - INTERVAL '25 minutes'),
+    ('gov_admin', 'admin@onetogether.sg', 'OneTogether', 'Admin', '+6591001000', TRUE, 'admin', NULL, NOW() - INTERVAL '30 days', NOW(), NOW())
+) AS seed(
+    username,
+    email,
+    first_name,
+    last_name,
+    phone,
+    is_verified,
+    role,
+    org_name,
+    created_at,
+    updated_at,
+    last_login
+)
+LEFT JOIN organisations ON organisations.org_name = seed.org_name
 ON CONFLICT (username) DO UPDATE SET
     email = EXCLUDED.email,
     first_name = EXCLUDED.first_name,
@@ -47,6 +75,7 @@ ON CONFLICT (username) DO UPDATE SET
     phone = EXCLUDED.phone,
     is_verified = EXCLUDED.is_verified,
     role = EXCLUDED.role,
+    user_organisation_id = EXCLUDED.user_organisation_id,
     updated_at = NOW();
 
 -- 2b. User organisation links
