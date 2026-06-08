@@ -1,12 +1,20 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Navigate, useParams } from 'react-router-dom'
 import { Box, Stack, Text } from '../../../../components/chakra-ui'
 import { fetchIncident } from '../api/incidentsApi'
+import {
+  createIncidentRoomSocket,
+  fetchIncidentRoomMessages,
+  mapIncidentRoomMessage,
+} from '../api/incidentRoomApi'
+import type { IncidentRoomMessageApiDto } from '../api/incidentRoomApi'
 import type { ChatMessage } from '../components/IncidentDiscussion'
 import { IncidentRoomHeader } from '../components/IncidentRoomHeader'
 import { IncidentRoomTabs } from '../components/IncidentRoomTabs'
+import { useAuth } from '../../../auth/useAuth'
 import type { Incident, IncidentReportDraft } from '../types'
+import type { Socket } from 'socket.io-client'
 
 function createReportDraft(incident: Incident): IncidentReportDraft {
   return {
@@ -20,12 +28,15 @@ function createReportDraft(incident: Incident): IncidentReportDraft {
 
 export function IncidentRoomPage() {
   const { incidentId } = useParams()
+  const { user } = useAuth()
   const [incident, setIncident] = useState<Incident | null>(null)
   const [error, setError] = useState<string | null>(null)
+  const [discussionError, setDiscussionError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [messages, setMessages] = useState<ChatMessage[]>([])
   const [discussionDraft, setDiscussionDraft] = useState('')
   const [reportDraft, setReportDraft] = useState<IncidentReportDraft | null>(null)
+  const roomSocketRef = useRef<Socket | null>(null)
 
   useEffect(() => {
     let isMounted = true
@@ -62,29 +73,93 @@ export function IncidentRoomPage() {
     }
   }, [incidentId])
 
-  function sendMessage(event: FormEvent<HTMLFormElement>) {
+  useEffect(() => {
+    if (!incidentId) {
+      return
+    }
+
+    const activeIncidentId = incidentId
+    let isMounted = true
+    const socket = createIncidentRoomSocket(activeIncidentId)
+    roomSocketRef.current = socket
+
+    function addMessage(message: ChatMessage) {
+      setMessages((currentMessages) => {
+        if (currentMessages.some((currentMessage) => currentMessage.id === message.id)) {
+          return currentMessages
+        }
+
+        return [...currentMessages, message]
+      })
+    }
+
+    async function loadMessages() {
+      try {
+        setDiscussionError(null)
+        const nextMessages = await fetchIncidentRoomMessages(activeIncidentId)
+
+        if (isMounted) {
+          setMessages(nextMessages)
+        }
+      } catch {
+        if (isMounted) {
+          setDiscussionError('Unable to load discussion messages.')
+        }
+      }
+    }
+
+    socket.on('incident-room.message.created', (message: IncidentRoomMessageApiDto) => {
+      addMessage(mapIncidentRoomMessage(message))
+    })
+    socket.on('incident-room.message.error', () => {
+      setDiscussionError('Unable to send message.')
+    })
+
+    void loadMessages()
+
+    return () => {
+      isMounted = false
+      if (roomSocketRef.current === socket) {
+        roomSocketRef.current = null
+      }
+      socket.disconnect()
+    }
+  }, [incidentId])
+
+  function updateDiscussionDraft(nextDraft: string) {
+    setDiscussionDraft(nextDraft)
+    if (discussionError) {
+      setDiscussionError(null)
+    }
+  }
+
+  function submitDiscussionMessage(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
 
     const body = discussionDraft.trim()
 
-    if (!body) {
+    if (!body || !incidentId || !user) {
       return
     }
 
-    setMessages((currentMessages) => [
-      ...currentMessages,
-      {
-        id: crypto.randomUUID(),
-        author: 'Chen Xiao Ling',
-        role: 'SCDF',
-        time: new Intl.DateTimeFormat('en-SG', {
-          hour: '2-digit',
-          minute: '2-digit',
-        }).format(new Date()),
+    const socket = roomSocketRef.current
+
+    if (!socket) {
+      setDiscussionError('Unable to connect to discussion room.')
+      return
+    }
+
+    try {
+      setDiscussionError(null)
+      socket.emit('incident-room.message.create', {
+        incidentId,
+        senderId: user.id,
         body,
-      },
-    ])
-    setDiscussionDraft('')
+      })
+      setDiscussionDraft('')
+    } catch {
+      setDiscussionError('Unable to send message.')
+    }
   }
 
   if (!incidentId) {
@@ -112,12 +187,14 @@ export function IncidentRoomPage() {
       <IncidentRoomHeader incident={incident} />
 
       <IncidentRoomTabs
+        currentUserId={user?.id}
         discussionDraft={discussionDraft}
+        discussionError={discussionError}
         incident={incident}
         messages={messages}
-        onDiscussionDraftChange={setDiscussionDraft}
+        onDiscussionDraftChange={updateDiscussionDraft}
         onReportDraftChange={setReportDraft}
-        onSendMessage={sendMessage}
+        onSendMessage={submitDiscussionMessage}
         reportDraft={reportDraft}
       />
     </Stack>

@@ -3,6 +3,8 @@ import { resolve } from 'node:path';
 import { NestFactory } from '@nestjs/core';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { IncidentRoomService } from './incident-room/incident-room.service';
+import { registerIncidentRoomSocket } from './incident-room/incident-room.socket';
 
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), 'apps/backend/.env') });
@@ -23,6 +25,11 @@ async function bootstrap() {
   SwaggerModule.setup('api/docs', app, swaggerDocument, {
     jsonDocumentUrl: 'api/docs-json',
   });
+
+  registerIncidentRoomSocket(
+    app.getHttpServer(),
+    app.get(IncidentRoomService),
+  );
 
   await app.listen(process.env.PORT ?? 3001);
 }
