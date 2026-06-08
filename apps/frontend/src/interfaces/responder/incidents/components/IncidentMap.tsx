@@ -4,6 +4,7 @@ import {
   APIProvider,
   AdvancedMarker,
   Map as GoogleMap,
+  InfoWindow,
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
@@ -49,8 +50,23 @@ const STATUS_META: Record<string, { label: string; color: string }> = {
 
 const MOVING_STATUSES = new Set(['dispatched', 'en_route'])
 
+/** Agency badge colours so a unit's owning agency reads at a glance. */
+const AGENCY_META: Record<string, { color: string }> = {
+  SCDF: { color: '#d7263d' },
+  SPF: { color: '#1d3f8a' },
+  SGH: { color: '#0d9488' },
+  SINGHEALTH: { color: '#0d9488' },
+  NUHS: { color: '#0d9488' },
+  PUB: { color: '#2563eb' },
+  NEA: { color: '#16a34a' },
+}
+
 function kindMeta(kind: string): KindMeta {
   return KIND_META[kind] ?? KIND_META.other
+}
+
+function agencyColor(agency: string): string {
+  return AGENCY_META[agency?.toUpperCase()]?.color ?? '#374151'
 }
 
 function statusColor(status: string): string {
@@ -122,6 +138,70 @@ function positionOf(resource: IncidentMapResourceDto, nowMs: number): LatLng | n
     lat: lerp(origin.lat, destination.lat, t),
     lng: lerp(origin.lng, destination.lng, t),
   }
+}
+
+/** Planar distance between two points — accurate enough to parameterise a short city route. */
+function planarDist(a: LatLng, b: LatLng): number {
+  return Math.hypot(a.lat - b.lat, a.lng - b.lng)
+}
+
+/** Point a fraction `t` (0..1) of the way along a polyline, measured by cumulative length. */
+function pointAlongPath(path: LatLng[], t: number): LatLng {
+  if (path.length === 0) return SINGAPORE_CENTRE
+  if (path.length === 1) return path[0]
+
+  const segLens: number[] = []
+  let total = 0
+  for (let i = 1; i < path.length; i += 1) {
+    const len = planarDist(path[i - 1], path[i])
+    segLens.push(len)
+    total += len
+  }
+  if (total === 0) return path[0]
+
+  let target = clamp01(t) * total
+  for (let i = 0; i < segLens.length; i += 1) {
+    if (target <= segLens[i]) {
+      const f = segLens[i] === 0 ? 0 : target / segLens[i]
+      return {
+        lat: lerp(path[i].lat, path[i + 1].lat, f),
+        lng: lerp(path[i].lng, path[i + 1].lng, f),
+      }
+    }
+    target -= segLens[i]
+  }
+  return path[path.length - 1]
+}
+
+/** Position of a unit, following its real road route when one has been resolved. */
+function positionAlong(
+  resource: IncidentMapResourceDto,
+  nowMs: number,
+  routePath: LatLng[] | undefined,
+): LatLng | null {
+  if (routePath && routePath.length >= 2 && MOVING_STATUSES.has(resource.status)) {
+    return pointAlongPath(routePath, progressOf(resource, nowMs))
+  }
+  if (routePath && routePath.length >= 2 && resource.status !== 'unavailable') {
+    // on_scene / completed / returning snap to the incident end of the route.
+    return pointAlongPath(routePath, progressOf(resource, nowMs))
+  }
+  return positionOf(resource, nowMs)
+}
+
+/** Stable cache key for an origin -> incident pair (units from one station share a route). */
+function routeKey(origin: LatLng, dest: LatLng): string {
+  return `${origin.lat.toFixed(5)},${origin.lng.toFixed(5)}->${dest.lat.toFixed(5)},${dest.lng.toFixed(5)}`
+}
+
+// Minimal structural shapes for the Directions API (avoids depending on the `google` namespace).
+type DirectionsPoint = { lat(): number; lng(): number }
+type DirectionsResultLike = { routes?: Array<{ overview_path?: DirectionsPoint[] }> }
+type DirectionsServiceLike = {
+  route(
+    request: { origin: LatLng; destination: LatLng; travelMode: string },
+    callback: (result: DirectionsResultLike | null, status: string) => void,
+  ): void
 }
 
 type LocalSummary = {
@@ -323,37 +403,139 @@ export function IncidentMap({ incidentId }: IncidentMapProps) {
               </AdvancedMarker>
             )}
 
-            {incidentPosition &&
-              visibleResources.map((resource) => {
-                const origin = originOf(resource)
-                if (!origin) return null
-                return (
-                  <RoutePolyline
-                    key={`route-${resource.id}`}
-                    path={[origin, incidentPosition]}
-                    color={statusColor(resource.status)}
-                  />
-                )
-              })}
-
-            {visibleResources.map((resource) => {
-              const position = positionOf(resource, nowMs)
-              if (!position) return null
-              return (
-                <AdvancedMarker
-                  key={resource.id}
-                  position={position}
-                  zIndex={20}
-                  title={`${resource.unitRef} · ${statusLabel(resource.status)}`}
-                >
-                  <ResourcePin resource={resource} />
-                </AdvancedMarker>
-              )
-            })}
+            <MapLayers resources={visibleResources} incident={incidentPosition} nowMs={nowMs} />
           </GoogleMap>
         </APIProvider>
       </Box>
     </Flex>
+  )
+}
+
+/**
+ * Routes, animated unit markers, and the click-to-inspect popup. Lives inside the
+ * map (under APIProvider) so it can use the Directions library.
+ */
+function MapLayers({
+  resources,
+  incident,
+  nowMs,
+}: {
+  resources: IncidentMapResourceDto[]
+  incident: LatLng | null
+  nowMs: number
+}) {
+  const routesLib = useMapsLibrary('routes')
+  const [routesByKey, setRoutesByKey] = useState<Record<string, LatLng[]>>({})
+  const requestedRef = useRef<Set<string>>(new Set())
+  const [selectedId, setSelectedId] = useState<string | null>(null)
+
+  // Resolve a real road route per origin -> incident pair, once each, with a straight-line fallback.
+  useEffect(() => {
+    if (!routesLib || !incident) return
+    const service = new routesLib.DirectionsService() as unknown as DirectionsServiceLike
+
+    for (const resource of resources) {
+      const origin = originOf(resource)
+      if (!origin) continue
+      const key = routeKey(origin, incident)
+      if (requestedRef.current.has(key)) continue
+      requestedRef.current.add(key)
+
+      service.route(
+        { origin, destination: incident, travelMode: 'DRIVING' },
+        (result, status) => {
+          const overview = result?.routes?.[0]?.overview_path
+          const path: LatLng[] =
+            status === 'OK' && overview && overview.length >= 2
+              ? overview.map((point) => ({ lat: point.lat(), lng: point.lng() }))
+              : [origin, incident]
+          setRoutesByKey((prev) => ({ ...prev, [key]: path }))
+        },
+      )
+    }
+  }, [routesLib, resources, incident])
+
+  function pathFor(resource: IncidentMapResourceDto): LatLng[] | undefined {
+    const origin = originOf(resource)
+    if (!origin || !incident) return undefined
+    return routesByKey[routeKey(origin, incident)]
+  }
+
+  const selected = resources.find((resource) => resource.id === selectedId) ?? null
+  const selectedPosition = selected ? positionAlong(selected, nowMs, pathFor(selected)) : null
+
+  return (
+    <>
+      {incident &&
+        resources.map((resource) => {
+          const path = pathFor(resource)
+          const origin = originOf(resource)
+          if (!path && !origin) return null
+          return (
+            <RoutePolyline
+              key={`route-${resource.id}`}
+              path={path ?? [origin as LatLng, incident]}
+              color={statusColor(resource.status)}
+            />
+          )
+        })}
+
+      {resources.map((resource) => {
+        const position = positionAlong(resource, nowMs, pathFor(resource))
+        if (!position) return null
+        return (
+          <AdvancedMarker
+            key={resource.id}
+            position={position}
+            zIndex={resource.id === selectedId ? 40 : 20}
+            title={`${resource.unitRef} · ${statusLabel(resource.status)}`}
+            onClick={() => setSelectedId(resource.id)}
+          >
+            <ResourcePin resource={resource} />
+          </AdvancedMarker>
+        )
+      })}
+
+      {selected && selectedPosition && (
+        <InfoWindow position={selectedPosition} onCloseClick={() => setSelectedId(null)}>
+          <ResourceCallout resource={selected} />
+        </InfoWindow>
+      )}
+    </>
+  )
+}
+
+/** Read-only detail card shown when a unit marker is clicked. */
+function ResourceCallout({ resource }: { resource: IncidentMapResourceDto }) {
+  const arrived = resource.status === 'on_scene' || resource.status === 'completed'
+  return (
+    <div style={{ minWidth: 168, fontFamily: 'inherit', color: '#111827' }}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <span
+          style={{
+            width: 8,
+            height: 8,
+            borderRadius: '50%',
+            background: statusColor(resource.status),
+            display: 'inline-block',
+          }}
+        />
+        <strong style={{ fontSize: 14 }}>{resource.unitRef}</strong>
+      </div>
+      <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
+        {kindMeta(resource.resourceKind).label} · {resource.agency}
+        {resource.originStation ? ` (${resource.originStation})` : ''}
+      </div>
+      <div style={{ fontSize: 12, marginTop: 4 }}>
+        <span style={{ fontWeight: 600, color: statusColor(resource.status) }}>
+          {statusLabel(resource.status)}
+        </span>
+        {!arrived && resource.etaMinutes != null && (
+          <span style={{ color: '#6b7280' }}> · ETA {resource.etaMinutes} min</span>
+        )}
+        {arrived && <span style={{ color: '#6b7280' }}> · at incident</span>}
+      </div>
+    </div>
   )
 }
 
@@ -446,20 +628,21 @@ function IncidentPin({ severity }: { severity: number }) {
 
 function ResourcePin({ resource }: { resource: IncidentMapResourceDto }) {
   const meta = kindMeta(resource.resourceKind)
-  const color = statusColor(resource.status)
+  const ring = statusColor(resource.status)
+  const badge = agencyColor(resource.agency)
   return (
     <Box
-      bg="gray.900"
+      bg={badge}
       color="white"
       borderRadius="full"
       borderWidth="2px"
-      borderColor={color}
+      borderColor={ring}
       width="30px"
       height="30px"
       display="flex"
       alignItems="center"
       justifyContent="center"
-      boxShadow={`0 0 0 3px ${color}55`}
+      boxShadow={`0 0 0 3px ${ring}55`}
     >
       <Icon as={meta.icon} boxSize="4" />
     </Box>
