@@ -61,15 +61,41 @@ model incidents {
   updated_at       DateTime           @default(now()) @db.Timestamptz(6)
   resolved_at      DateTime?          @db.Timestamptz(6)
   confidence_score Int?
+  lat              Float?
+  lng              Float?
   assigned_orgs    assigned_orgs[]
   discussions      discussions[]
   incident_sources incident_sources[]
   logs             logs[]
+  resources        incident_resources[]
 
   @@index([code], map: "idx_incidents_code")
   @@index([created_at], map: "idx_incidents_created_at")
   @@index([inc_status], map: "idx_incidents_status")
   @@index([title], map: "idx_incidents_title")
+  @@index([lat, lng], map: "idx_incidents_geo")
+}
+
+model incident_resources {
+  id             String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  incident_id    String    @db.Uuid
+  unit_ref       String    @db.VarChar(60)
+  agency         String    @db.VarChar(50)
+  resource_kind  String    @db.VarChar(30)
+  status         String    @db.VarChar(20)
+  origin_station String?   @db.VarChar(60)
+  origin_lat     Float?
+  origin_lng     Float?
+  eta_minutes    Int?
+  eta_at         DateTime? @db.Timestamptz(6)
+  dispatched_at  DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at     DateTime  @default(now()) @db.Timestamptz(6)
+  notes          String?
+  incidents      incidents @relation(fields: [incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([incident_id, unit_ref], map: "uq_incident_resources_incident_unit")
+  @@index([incident_id], map: "idx_incident_resources_incident_id")
+  @@index([status], map: "idx_incident_resources_status")
 }
 
 model logs {

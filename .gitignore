@@ -72,6 +72,9 @@ DEPLOYMENT.md
 HACKATHON.md
 claude*.md
 tst.py
+docs/
+worktree.md
+
 
 # ── Misc ──────────────────────────────────────────────────────────────────────
 .tmp/
