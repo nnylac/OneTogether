@@ -22,6 +22,84 @@ class PUBSimulator(BaseAgencySimulator):
     SYSTEM_ID = "WATERGRID"
     SERVICE_NAME = "pub-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
+            {
+                "externalOutletId": "PUB-KALLANG-DEPOT",
+                "name": "Kallang Drainage Operations Depot",
+                "type": "water_operations_depot",
+                "region": "Central",
+                "address": "Kallang Basin Operations Yard",
+                "location": {"lat": 1.3079, "lng": 103.8733},
+                "resources": [
+                    self._resource("portable_pump", "Portable Pumps", "equipment", 24, 16, 6, 1, 1),
+                    self._resource("drainage_crew", "Drainage Crews", "crew", 12, 8, 3, 1, 0),
+                    self._resource("flood_barrier", "Flood Barriers", "equipment", 420, 310, 80, 20, 10),
+                ],
+            },
+            {
+                "externalOutletId": "PUB-JURONG-DEPOT",
+                "name": "Jurong Water Response Depot",
+                "type": "water_operations_depot",
+                "region": "West",
+                "address": "Jurong West Street 23",
+                "location": {"lat": 1.3380, "lng": 103.7047},
+                "resources": [
+                    self._resource("portable_pump", "Portable Pumps", "equipment", 20, 13, 5, 1, 1),
+                    self._resource("drainage_crew", "Drainage Crews", "crew", 10, 6, 3, 1, 0),
+                    self._resource("water_level_sensor", "Mobile Water-Level Sensors", "equipment", 32, 24, 6, 1, 1),
+                ],
+            },
+            {
+                "externalOutletId": "PUB-BEDOK-DEPOT",
+                "name": "Bedok Catchment Response Depot",
+                "type": "water_operations_depot",
+                "region": "East",
+                "address": "Bedok Reservoir Road",
+                "location": {"lat": 1.3383, "lng": 103.9307},
+                "resources": [
+                    self._resource("portable_pump", "Portable Pumps", "equipment", 18, 12, 4, 1, 1),
+                    self._resource("drainage_crew", "Drainage Crews", "crew", 9, 6, 2, 1, 0),
+                    self._resource("flood_barrier", "Flood Barriers", "equipment", 360, 260, 70, 20, 10),
+                ],
+            },
+        ]
+        return self._resource_outlets
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        field_response = payload.get("field_response", {})
+        outlet_id = self._outlet_for_catchment(payload.get("catchment", "Kallang"))
+        pumps = int(field_response.get("portable_pumps", 0))
+        barrier_count = max(10, trigger.severity * 20)
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "portable_pump", pumps)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "drainage_crew", 1)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "flood_barrier", barrier_count)
+
+    def _outlet_for_catchment(self, catchment: str) -> str:
+        if catchment in ("Pandan", "Jurong", "Bukit Timah"):
+            return "PUB-JURONG-DEPOT"
+        if catchment in ("Bedok", "Punggol"):
+            return "PUB-BEDOK-DEPOT"
+        return "PUB-KALLANG-DEPOT"
+
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         water_level = round(random.uniform(0.2, 1.8) + (trigger.severity * 0.18), 2)
         return {
