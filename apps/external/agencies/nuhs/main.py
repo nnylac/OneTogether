@@ -31,10 +31,14 @@ class NUHSSimulator(BaseAgencySimulator):
     SERVICE_NAME = "nuhs-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             self._hospital_outlet("NUH", "National University Hospital", "West", "5 Lower Kent Ridge Road", 1.2937, 103.7831, 68, 41, 19, 4, 4, 13, 7, 4, 1, 1, 156, 108, 34, 9, 5),
             self._hospital_outlet("NTFGH", "Ng Teng Fong General Hospital", "West", "1 Jurong East Street 21", 1.3333, 103.7458, 55, 34, 15, 3, 3, 8, 5, 2, 0, 1, 128, 91, 27, 6, 4),
         ]
+        return self._resource_outlets
 
     def _hospital_outlet(
         self,
@@ -86,6 +90,20 @@ class NUHSSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        outlet_id = f"NUHS-{payload.get('primary_site', 'NUH')}"
+        handoff = payload.get("patient_handoff", {})
+        triage = handoff.get("triage", {})
+        staffing = payload.get("staffing", {})
+        patient_count = int(handoff.get("patient_count", 1))
+        icu_count = int(triage.get("P1", 0))
+        nurse_count = max(2, min(int(staffing.get("on_duty_nurses", 8)), patient_count * 3))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "ed_bed", patient_count)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "icu_bed", icu_count)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "nurse_on_duty", nurse_count)
 
     def create_app(self):
         app = super().create_app()

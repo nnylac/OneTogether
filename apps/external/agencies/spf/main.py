@@ -41,7 +41,10 @@ class SPFSimulator(BaseAgencySimulator):
     SERVICE_NAME = "spf-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             {
                 "externalOutletId": "SPF-CENTRAL-DIV",
                 "name": "Central Police Division",
@@ -82,6 +85,7 @@ class SPFSimulator(BaseAgencySimulator):
                 ],
             },
         ]
+        return self._resource_outlets
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
@@ -95,6 +99,40 @@ class SPFSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        deployment = payload.get("deployment", {})
+        classification = payload.get("incident_classification", {})
+        outlet_id = self._outlet_for_ticket(ticket["ticket_id"])
+        patrol_cars = int(deployment.get("patrol_cars", 0))
+        officers = int(deployment.get("officers_deployed", 0))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "patrol_car", patrol_cars)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "police_officer", officers)
+
+        specialist_resource = self._specialist_resource(
+            classification.get("category", ""),
+        )
+        if specialist_resource:
+            self.allocate_resource(ticket["ticket_id"], outlet_id, specialist_resource, 1)
+
+    def _outlet_for_ticket(self, ticket_id: str) -> str:
+        outlets = [
+            "SPF-CENTRAL-DIV",
+            "SPF-ANG-MO-KIO-DIV",
+            "SPF-BEDOK-DIV",
+        ]
+        return outlets[sum(ord(char) for char in ticket_id) % len(outlets)]
+
+    def _specialist_resource(self, category: str) -> str | None:
+        if category == "TRAFFIC":
+            return "traffic_unit"
+        if category == "MISSING_PERSON":
+            return "investigation_team"
+        if category == "PUBLIC_ORDER":
+            return "public_order_team"
+        return None
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         cat, penal = INCIDENT_CLASSIFICATIONS.get(trigger.incident_type.value, ("SUPPORT", None))

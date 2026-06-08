@@ -47,7 +47,10 @@ class TownCouncilSimulator(BaseAgencySimulator):
     SERVICE_NAME = "towncouncil-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             {
                 "externalOutletId": "TC-AMK-OPS",
                 "name": "Ang Mo Kio Town Council Operations Centre",
@@ -88,6 +91,7 @@ class TownCouncilSimulator(BaseAgencySimulator):
                 ],
             },
         ]
+        return self._resource_outlets
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
@@ -101,6 +105,42 @@ class TownCouncilSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        site = payload.get("site", {})
+        deployed = payload.get("resources_deployed", {})
+        outlet_id = self._outlet_for_town(site.get("town", "Ang Mo Kio"))
+
+        self.allocate_resource(
+            ticket["ticket_id"],
+            outlet_id,
+            "maintenance_crew",
+            int(deployed.get("maintenance_crews", 1)),
+        )
+        self.allocate_resource(
+            ticket["ticket_id"],
+            outlet_id,
+            "portable_pump",
+            int(deployed.get("water_pumps", 0)),
+        )
+        self.allocate_resource(
+            ticket["ticket_id"],
+            outlet_id,
+            "temporary_barrier",
+            int(deployed.get("barriers_placed", 0)),
+        )
+
+        if payload.get("contractor_assigned"):
+            self.allocate_resource(ticket["ticket_id"], outlet_id, "contractor_team", 1)
+
+    def _outlet_for_town(self, town: str) -> str:
+        normalized = town.lower()
+        if "tampines" in normalized or "bedok" in normalized:
+            return "TC-TPE-OPS"
+        if "jurong" in normalized or "clementi" in normalized or "bukit" in normalized:
+            return "TC-JRG-OPS"
+        return "TC-AMK-OPS"
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         tc_code, tc_name = random.choice(TOWN_COUNCILS)

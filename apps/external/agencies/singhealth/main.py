@@ -36,12 +36,16 @@ class SingHealthSimulator(BaseAgencySimulator):
     SERVICE_NAME = "singhealth-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             self._hospital_outlet("SGH", "Singapore General Hospital", "Central", "Outram Road", 1.2797, 103.8344, 76, 48, 18, 4, 6, 14, 8, 4, 1, 1, 182, 131, 35, 10, 6),
             self._hospital_outlet("CGH", "Changi General Hospital", "East", "2 Simei Street 3", 1.3404, 103.9499, 58, 37, 15, 3, 3, 8, 5, 2, 0, 1, 136, 94, 30, 8, 4),
             self._hospital_outlet("SKH", "Sengkang General Hospital", "North-East", "110 Sengkang East Way", 1.3950, 103.8938, 52, 32, 14, 3, 3, 7, 4, 2, 0, 1, 124, 87, 27, 6, 4),
             self._hospital_outlet("KKH", "KK Women's and Children's Hospital", "Central", "100 Bukit Timah Road", 1.3106, 103.8465, 42, 24, 12, 3, 3, 6, 3, 2, 0, 1, 118, 82, 25, 7, 4),
         ]
+        return self._resource_outlets
 
     def _hospital_outlet(
         self,
@@ -93,6 +97,21 @@ class SingHealthSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        facility = payload.get("receiving_facility", {})
+        outlet_id = f"SINGHEALTH-{facility.get('hospital_code', 'SGH')}"
+        intake = payload.get("patient_intake", {})
+        triage = intake.get("triage_breakdown", {})
+        staff = payload.get("staff_mobilised", {})
+        patient_count = int(intake.get("expected_count", 1))
+        icu_count = int(triage.get("P1", 0))
+        nurse_count = max(2, min(int(staff.get("nurses", 5)), patient_count * 3))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "ed_bed", patient_count)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "icu_bed", icu_count)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "nurse_on_duty", nurse_count)
 
     def create_app(self):
         app = super().create_app()

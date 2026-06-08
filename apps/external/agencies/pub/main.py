@@ -23,7 +23,10 @@ class PUBSimulator(BaseAgencySimulator):
     SERVICE_NAME = "pub-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             {
                 "externalOutletId": "PUB-KALLANG-DEPOT",
                 "name": "Kallang Drainage Operations Depot",
@@ -64,6 +67,7 @@ class PUBSimulator(BaseAgencySimulator):
                 ],
             },
         ]
+        return self._resource_outlets
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
@@ -77,6 +81,24 @@ class PUBSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        field_response = payload.get("field_response", {})
+        outlet_id = self._outlet_for_catchment(payload.get("catchment", "Kallang"))
+        pumps = int(field_response.get("portable_pumps", 0))
+        barrier_count = max(10, trigger.severity * 20)
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "portable_pump", pumps)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "drainage_crew", 1)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "flood_barrier", barrier_count)
+
+    def _outlet_for_catchment(self, catchment: str) -> str:
+        if catchment in ("Pandan", "Jurong", "Bukit Timah"):
+            return "PUB-JURONG-DEPOT"
+        if catchment in ("Bedok", "Punggol"):
+            return "PUB-BEDOK-DEPOT"
+        return "PUB-KALLANG-DEPOT"
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         water_level = round(random.uniform(0.2, 1.8) + (trigger.severity * 0.18), 2)

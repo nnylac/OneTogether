@@ -28,7 +28,10 @@ class NEASimulator(BaseAgencySimulator):
     SERVICE_NAME = "nea-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             {
                 "externalOutletId": "NEA-CENTRAL-FIELD",
                 "name": "Central Environmental Health Field Office",
@@ -69,6 +72,7 @@ class NEASimulator(BaseAgencySimulator):
                 ],
             },
         ]
+        return self._resource_outlets
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
@@ -82,6 +86,28 @@ class NEASimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        site = payload.get("site", {})
+        field_action = payload.get("field_action", {})
+        outlet_id = self._outlet_for_region(site.get("planning_area", "Central"))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "inspection_team", 1)
+
+        if field_action.get("fogging_or_larviciding_required"):
+            self.allocate_resource(ticket["ticket_id"], outlet_id, "vector_control_team", 1)
+            self.allocate_resource(ticket["ticket_id"], outlet_id, "fogging_unit", 1)
+        elif trigger.severity >= 3:
+            self.allocate_resource(ticket["ticket_id"], outlet_id, "sampling_kit", 2)
+
+    def _outlet_for_region(self, region: str) -> str:
+        normalized = region.lower()
+        if "east" in normalized or "tampines" in normalized or "bedok" in normalized:
+            return "NEA-EAST-FIELD"
+        if "west" in normalized or "jurong" in normalized or "clementi" in normalized:
+            return "NEA-WEST-FIELD"
+        return "NEA-CENTRAL-FIELD"
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         inspection_type = INSPECTION_TYPES.get(trigger.incident_type.value, "ENVIRONMENTAL_HEALTH_SUPPORT")

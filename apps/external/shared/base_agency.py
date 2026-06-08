@@ -92,6 +92,7 @@ class BaseAgencySimulator(ABC):
         self.middleware_url: str = os.getenv("MIDDLEWARE_URL", "")
         self.tickets: dict[str, dict] = {}          # ticket_id → full ticket record
         self.active_incidents: dict[str, str] = {}  # incident_id → ticket_id
+        self.resource_allocations: dict[str, list[dict[str, Any]]] = {}
         self.http: Optional[httpx.AsyncClient] = None
 
     def create_app(self) -> FastAPI:
@@ -156,6 +157,101 @@ class BaseAgencySimulator(ABC):
     def resource_outlets(self) -> list[dict[str, Any]]:
         return []
 
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        return None
+
+    def apply_resource_status_update(
+        self,
+        ticket: dict,
+        status: TicketStatus,
+        note: str,
+    ):
+        if status in (TicketStatus.RESOLVED, TicketStatus.CLOSED):
+            self.release_ticket_resources(ticket["ticket_id"])
+
+    def allocate_resource(
+        self,
+        ticket_id: str,
+        external_outlet_id: str,
+        external_resource_id: str,
+        quantity: int,
+    ) -> int:
+        if quantity <= 0:
+            return 0
+
+        resource = self.find_resource(external_outlet_id, external_resource_id)
+        if not resource:
+            return 0
+
+        allocated = min(quantity, int(resource.get("available", 0)))
+        if allocated <= 0:
+            return 0
+
+        resource["available"] = int(resource.get("available", 0)) - allocated
+        resource["deployed"] = int(resource.get("deployed", 0)) + allocated
+        log.info(
+            "%s has dispatched %s of %s",
+            self.outlet_name(external_outlet_id),
+            allocated,
+            resource.get("name", external_resource_id),
+        )
+        self.resource_allocations.setdefault(ticket_id, []).append({
+            "external_outlet_id": external_outlet_id,
+            "external_resource_id": external_resource_id,
+            "quantity": allocated,
+        })
+        return allocated
+
+    def release_ticket_resources(self, ticket_id: str):
+        allocations = self.resource_allocations.pop(ticket_id, [])
+
+        for allocation in allocations:
+            resource = self.find_resource(
+                allocation["external_outlet_id"],
+                allocation["external_resource_id"],
+            )
+            if not resource:
+                continue
+
+            quantity = int(allocation["quantity"])
+            resource["deployed"] = max(0, int(resource.get("deployed", 0)) - quantity)
+            max_available = max(
+                0,
+                int(resource.get("total", 0))
+                - int(resource.get("deployed", 0))
+                - int(resource.get("reserved", 0))
+                - int(resource.get("maintenance", 0)),
+            )
+            resource["available"] = min(
+                max_available,
+                int(resource.get("available", 0)) + quantity,
+            )
+            log.info(
+                "%s of %s has returned to %s",
+                quantity,
+                resource.get("name", allocation["external_resource_id"]),
+                self.outlet_name(allocation["external_outlet_id"]),
+            )
+
+    def find_resource(
+        self,
+        external_outlet_id: str,
+        external_resource_id: str,
+    ) -> dict[str, Any] | None:
+        for outlet in self.resource_outlets():
+            if outlet.get("externalOutletId") != external_outlet_id:
+                continue
+            for resource in outlet.get("resources", []):
+                if resource.get("externalResourceId") == external_resource_id:
+                    return resource
+        return None
+
+    def outlet_name(self, external_outlet_id: str) -> str:
+        for outlet in self.resource_outlets():
+            if outlet.get("externalOutletId") == external_outlet_id:
+                return str(outlet.get("name", external_outlet_id))
+        return external_outlet_id
+
     # ─── Core incident handling ──────────────────────────────────────────────
 
     async def _handle_incident(self, trigger: IncidentTrigger):
@@ -181,6 +277,7 @@ class BaseAgencySimulator(ABC):
         }
         self.tickets[ticket_id] = ticket
         self.active_incidents[trigger.incident_id] = ticket_id
+        self.apply_resource_deployment(ticket, trigger)
 
         # Emit TICKET.CREATED
         await self._emit(
@@ -238,6 +335,7 @@ class BaseAgencySimulator(ABC):
                 "to": next_status.value,
                 "note": note,
             })
+            self.apply_resource_status_update(ticket, next_status, note)
 
             log.info(
                 f"[{self.SERVICE_NAME}] {ticket['ticket_id']} "
@@ -317,6 +415,7 @@ class BaseAgencySimulator(ABC):
             "to": next_status.value,
             "note": note,
         })
+        self.apply_resource_status_update(ticket, next_status, note)
 
         log.info(
             f"[{self.SERVICE_NAME}] {ticket['ticket_id']} "

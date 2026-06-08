@@ -62,7 +62,10 @@ class SCDFSimulator(BaseAgencySimulator):
     SERVICE_NAME = "scdf-simulator"
 
     def resource_outlets(self) -> list[dict]:
-        return [
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
             {
                 "externalOutletId": "SCDF-CENTRAL",
                 "name": "Central Fire Station",
@@ -116,6 +119,7 @@ class SCDFSimulator(BaseAgencySimulator):
                 ],
             },
         ]
+        return self._resource_outlets
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
@@ -129,6 +133,49 @@ class SCDFSimulator(BaseAgencySimulator):
             "reserved": reserved,
             "maintenance": maintenance,
         }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        outlet_id = self._outlet_for_station(payload.get("call_sign", ""))
+        resources = payload.get("resources_dispatched", {})
+        fire_engines = len(resources.get("fire_engines", []))
+        ambulances = len(resources.get("ambulances", []))
+        rescue_teams = len(resources.get("rescue_teams", []))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "fire_engine", fire_engines)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "ambulance", ambulances)
+
+        specialist_resource = self._specialist_resource(payload.get("incident_type", ""))
+        allocated_specialist = self.allocate_resource(
+            ticket["ticket_id"],
+            outlet_id,
+            specialist_resource,
+            rescue_teams,
+        )
+
+        if allocated_specialist < rescue_teams and specialist_resource != "rescue_team":
+            self.allocate_resource(
+                ticket["ticket_id"],
+                outlet_id,
+                "rescue_team",
+                rescue_teams - allocated_specialist,
+            )
+
+    def _outlet_for_station(self, call_sign: str) -> str:
+        station_code = call_sign.split("-")[1] if "-" in call_sign else ""
+        return {
+            "CDS": "SCDF-CENTRAL",
+            "TOA": "SCDF-TOA",
+            "JRG": "SCDF-JRG",
+            "BDK": "SCDF-BDK",
+        }.get(station_code, "SCDF-CENTRAL")
+
+    def _specialist_resource(self, incident_type: str) -> str:
+        if incident_type == "HAZMAT":
+            return "hazmat_unit"
+        if incident_type == "RESCUE":
+            return "water_rescue_team"
+        return "rescue_team"
 
     async def _handle_incident(self, trigger: IncidentTrigger):
         await super()._handle_incident(trigger)
