@@ -8,30 +8,74 @@ import {
   useMap,
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
-import { Activity, AlertTriangle, Siren } from 'lucide-react'
+import {
+  Activity,
+  AlertTriangle,
+  Ambulance,
+  Flame,
+  LifeBuoy,
+  Shield,
+  Siren,
+  Truck,
+} from 'lucide-react'
 import { Box, Flex, HStack, Heading, Icon, Text, VStack } from '../../../../components/chakra-ui'
 import { fetchIncidentMap } from '../api/incidentMapApi'
 import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
-import {
-  ARRIVED_STATUSES,
-  MOVING_STATUSES,
-  agencyColor,
-  clamp01,
-  destinationOf,
-  kindMeta,
-  liveEtaMinutes,
-  originOf,
-  progressOf,
-  remainingKm,
-  statusColor,
-  statusLabel,
-} from '../utils/incidentMapResource'
-import type { LatLng } from '../utils/incidentMapResource'
 
 const MAP_REFRESH_MS = 2500
 const CLOCK_TICK_MS = 1000
 const SINGAPORE_CENTRE = { lat: 1.3521, lng: 103.8198 }
 const MAP_ID = 'DEMO_MAP_ID'
+
+type LatLng = { lat: number; lng: number }
+
+type KindMeta = { label: string; icon: ElementType }
+
+const KIND_META: Record<string, KindMeta> = {
+  fire_engine: { label: 'Fire engine', icon: Flame },
+  rescue_team: { label: 'Rescue team', icon: LifeBuoy },
+  ambulance: { label: 'Ambulance', icon: Ambulance },
+  police: { label: 'Police', icon: Shield },
+  other: { label: 'Unit', icon: Truck },
+}
+
+const STATUS_META: Record<string, { label: string; color: string }> = {
+  dispatched: { label: 'Dispatched', color: '#3b82f6' },
+  en_route: { label: 'En route', color: '#f59e0b' },
+  on_scene: { label: 'On scene', color: '#22c55e' },
+  returning: { label: 'Returning', color: '#a855f7' },
+  unavailable: { label: 'Unavailable', color: '#9ca3af' },
+  completed: { label: 'Completed', color: '#14b8a6' },
+}
+
+const MOVING_STATUSES = new Set(['dispatched', 'en_route'])
+
+/** Agency badge colours so a unit's owning agency reads at a glance. */
+const AGENCY_META: Record<string, { color: string }> = {
+  SCDF: { color: '#d7263d' },
+  SPF: { color: '#1d3f8a' },
+  SGH: { color: '#0d9488' },
+  SINGHEALTH: { color: '#0d9488' },
+  NUHS: { color: '#0d9488' },
+  PUB: { color: '#2563eb' },
+  NEA: { color: '#16a34a' },
+}
+
+function kindMeta(kind: string): KindMeta {
+  return KIND_META[kind] ?? KIND_META.other
+}
+
+function agencyColor(agency: string): string {
+  return AGENCY_META[agency?.toUpperCase()]?.color ?? '#374151'
+}
+
+function statusColor(status: string): string {
+  return STATUS_META[status]?.color ?? '#9ca3af'
+}
+
+function statusLabel(status: string): string {
+  return STATUS_META[status]?.label ?? status
+}
 
 function severityColor(severity: number): string {
   if (severity >= 4) return '#ef4444'
@@ -41,6 +85,42 @@ function severityColor(severity: number): string {
 
 function lerp(from: number, to: number, t: number): number {
   return from + (to - from) * t
+}
+
+function clamp01(value: number): number {
+  return Math.min(1, Math.max(0, value))
+}
+
+function originOf(resource: IncidentMapResourceDto): LatLng | null {
+  return resource.originLat != null && resource.originLng != null
+    ? { lat: resource.originLat, lng: resource.originLng }
+    : null
+}
+
+function destinationOf(resource: IncidentMapResourceDto): LatLng | null {
+  return resource.destLat != null && resource.destLng != null
+    ? { lat: resource.destLat, lng: resource.destLng }
+    : null
+}
+
+/** Fraction of the journey a unit has completed, derived from real ETA + dispatch time. */
+function progressOf(resource: IncidentMapResourceDto, nowMs: number): number {
+  if (resource.status === 'on_scene' || resource.status === 'completed' || resource.status === 'returning') {
+    return 1
+  }
+  if (resource.status === 'unavailable') {
+    return 0
+  }
+  if (!MOVING_STATUSES.has(resource.status)) {
+    return 0
+  }
+
+  const start = Date.parse(resource.dispatchedAt)
+  const end = resource.etaAt ? Date.parse(resource.etaAt) : Number.NaN
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) {
+    return 0
+  }
+  return clamp01((nowMs - start) / (end - start))
 }
 
 /** Interpolated current position of a unit along its origin -> incident path. */
@@ -281,7 +361,7 @@ export function IncidentMap({ incidentId }: IncidentMapProps) {
           onToggleKind={(kind) => setDisabledKinds((prev) => toggle(prev, kind))}
           onToggleStatus={(status) => setDisabledStatuses((prev) => toggle(prev, status))}
         />
-        <ResourceList resources={visibleResources} nowMs={nowMs} />
+        <ResourceList resources={visibleResources} />
       </Box>
 
       <Box flex="1" position="relative" minH={{ base: '360px', lg: 'auto' }}>
@@ -418,7 +498,7 @@ function MapLayers({
 
       {selected && selectedPosition && (
         <InfoWindow position={selectedPosition} onCloseClick={() => setSelectedId(null)}>
-          <ResourceCallout resource={selected} nowMs={nowMs} />
+          <ResourceCallout resource={selected} />
         </InfoWindow>
       )}
     </>
@@ -426,12 +506,10 @@ function MapLayers({
 }
 
 /** Read-only detail card shown when a unit marker is clicked. */
-function ResourceCallout({ resource, nowMs }: { resource: IncidentMapResourceDto; nowMs: number }) {
-  const arrived = ARRIVED_STATUSES.has(resource.status)
-  const eta = liveEtaMinutes(resource, nowMs)
-  const remaining = remainingKm(resource, nowMs)
+function ResourceCallout({ resource }: { resource: IncidentMapResourceDto }) {
+  const arrived = resource.status === 'on_scene' || resource.status === 'completed'
   return (
-    <div style={{ minWidth: 188, fontFamily: 'inherit', color: '#111827' }}>
+    <div style={{ minWidth: 168, fontFamily: 'inherit', color: '#111827' }}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
         <span
           style={{
@@ -446,46 +524,19 @@ function ResourceCallout({ resource, nowMs }: { resource: IncidentMapResourceDto
       </div>
       <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>
         {kindMeta(resource.resourceKind).label} · {resource.agency}
+        {resource.originStation ? ` (${resource.originStation})` : ''}
       </div>
       <div style={{ fontSize: 12, marginTop: 4 }}>
         <span style={{ fontWeight: 600, color: statusColor(resource.status) }}>
           {statusLabel(resource.status)}
         </span>
-        {!arrived && eta != null && (
-          <span style={{ color: '#6b7280' }}> · ETA {eta} min</span>
-        )}
-        {!arrived && remaining != null && (
-          <span style={{ color: '#6b7280' }}> · {remaining.toFixed(1)} km out</span>
+        {!arrived && resource.etaMinutes != null && (
+          <span style={{ color: '#6b7280' }}> · ETA {resource.etaMinutes} min</span>
         )}
         {arrived && <span style={{ color: '#6b7280' }}> · at incident</span>}
       </div>
-      <div style={{ borderTop: '1px solid #e5e7eb', marginTop: 6, paddingTop: 6, fontSize: 12 }}>
-        <CalloutRow label="Responding from" value={resource.originStation ?? '—'} />
-        <CalloutRow label="Dispatched" value={formatClockTime(resource.dispatchedAt)} />
-        {resource.notes?.trim() && <CalloutRow label="Notes" value={resource.notes.trim()} />}
-      </div>
     </div>
   )
-}
-
-function CalloutRow({ label, value }: { label: string; value: string }) {
-  return (
-    <div style={{ display: 'flex', gap: 6, marginTop: 2 }}>
-      <span style={{ color: '#9ca3af', minWidth: 92, flexShrink: 0 }}>{label}</span>
-      <span style={{ color: '#374151' }}>{value}</span>
-    </div>
-  )
-}
-
-function formatClockTime(value: string): string {
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) {
-    return value
-  }
-  return new Intl.DateTimeFormat('en-SG', {
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(date)
 }
 
 /** Fits the viewport to the incident and all unit origins once per incident. */
@@ -738,13 +789,7 @@ function FilterChip({
   )
 }
 
-function ResourceList({
-  resources,
-  nowMs,
-}: {
-  resources: IncidentMapResourceDto[]
-  nowMs: number
-}) {
+function ResourceList({ resources }: { resources: IncidentMapResourceDto[] }) {
   return (
     <Box p="4">
       <Text fontSize="xs" color="gray.500" fontWeight="700" textTransform="uppercase" mb="2">
@@ -756,49 +801,42 @@ function ResourceList({
         </Text>
       ) : (
         <VStack align="stretch" gap="2">
-          {resources.map((resource) => {
-            const arrived = ARRIVED_STATUSES.has(resource.status)
-            const eta = liveEtaMinutes(resource, nowMs)
-            const remaining = remainingKm(resource, nowMs)
-            return (
-              <Box
-                key={resource.id}
-                borderWidth="1px"
-                borderColor="gray.200"
-                borderRadius="sm"
-                px="3"
-                py="2"
-              >
-                <Flex justify="space-between" align="center" gap="2">
-                  <HStack gap="2" minW="0">
-                    <Icon as={kindMeta(resource.resourceKind).icon} color="gray.600" boxSize="4" />
-                    <Text fontWeight="700" color="gray.900" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                      {resource.unitRef}
-                    </Text>
-                  </HStack>
-                  <HStack gap="1" flexShrink="0">
-                    <Box width="8px" height="8px" borderRadius="full" bg={statusColor(resource.status)} />
-                    <Text fontSize="xs" color="gray.600" fontWeight="600">
-                      {statusLabel(resource.status)}
-                    </Text>
-                  </HStack>
-                </Flex>
-                <Flex justify="space-between" mt="1" gap="2">
-                  <Text fontSize="xs" color="gray.500" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    {resource.agency}
-                    {resource.originStation ? ` · ${resource.originStation}` : ''}
+          {resources.map((resource) => (
+            <Box
+              key={resource.id}
+              borderWidth="1px"
+              borderColor="gray.200"
+              borderRadius="sm"
+              px="3"
+              py="2"
+            >
+              <Flex justify="space-between" align="center" gap="2">
+                <HStack gap="2" minW="0">
+                  <Icon as={kindMeta(resource.resourceKind).icon} color="gray.600" boxSize="4" />
+                  <Text fontWeight="700" color="gray.900" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {resource.unitRef}
                   </Text>
-                  {!arrived && (eta != null || remaining != null) && (
-                    <Text fontSize="xs" color="gray.500" flexShrink="0">
-                      {eta != null ? `ETA ${eta} min` : ''}
-                      {eta != null && remaining != null ? ' · ' : ''}
-                      {remaining != null ? `${remaining.toFixed(1)} km` : ''}
-                    </Text>
-                  )}
-                </Flex>
-              </Box>
-            )
-          })}
+                </HStack>
+                <HStack gap="1" flexShrink="0">
+                  <Box width="8px" height="8px" borderRadius="full" bg={statusColor(resource.status)} />
+                  <Text fontSize="xs" color="gray.600" fontWeight="600">
+                    {statusLabel(resource.status)}
+                  </Text>
+                </HStack>
+              </Flex>
+              <Flex justify="space-between" mt="1">
+                <Text fontSize="xs" color="gray.500">
+                  {resource.agency}
+                  {resource.originStation ? ` · ${resource.originStation}` : ''}
+                </Text>
+                {resource.etaMinutes != null && resource.status !== 'on_scene' && resource.status !== 'completed' && (
+                  <Text fontSize="xs" color="gray.500">
+                    ETA {resource.etaMinutes} min
+                  </Text>
+                )}
+              </Flex>
+            </Box>
+          ))}
         </VStack>
       )}
     </Box>
