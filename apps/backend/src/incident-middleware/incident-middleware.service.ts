@@ -2,7 +2,6 @@ import { Injectable } from '@nestjs/common';
 import type { AssignedOrganisationStatus } from '../incidents/assigned-organisation-status';
 import { PrismaService } from '../prisma/prisma.service';
 import { IncidentNormalizerService } from './incident-normalizer.service';
-import { IncidentResourceExtractorService } from './incident-resource-extractor.service';
 import {
   NormalizedIncidentTicket,
   RawAgencyMessage,
@@ -15,7 +14,6 @@ export class IncidentMiddlewareService {
     private readonly prisma: PrismaService,
     private readonly normalizer: IncidentNormalizerService,
     private readonly analyzer: SemanticIncidentAnalyzerService,
-    private readonly resourceExtractor: IncidentResourceExtractorService,
   ) {}
 
   async ingest(message: RawAgencyMessage) {
@@ -35,9 +33,6 @@ export class IncidentMiddlewareService {
               match.incident.confidence_score ?? 0,
               normalized.confidenceScore,
             ),
-            // Backfill coordinates if an earlier report lacked them.
-            lat: match.incident.lat ?? normalized.lat,
-            lng: match.incident.lng ?? normalized.lng,
           },
         })
       : await this.prisma.incidents.create({
@@ -51,8 +46,6 @@ export class IncidentMiddlewareService {
             inc_location: normalized.location,
             report: this.buildReport(normalized.rawMessage),
             confidence_score: normalized.confidenceScore,
-            lat: normalized.lat,
-            lng: normalized.lng,
           },
         });
 

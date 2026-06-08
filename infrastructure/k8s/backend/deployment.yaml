@@ -41,7 +41,7 @@ spec:
       containers:
         - name: backend
           # CI/CD pipeline replaces this image tag on every build
-          image: 461802173878.dkr.ecr.ap-southeast-1.amazonaws.com/onetogether-production-backend:latest
+          image: ACCOUNT_ID.dkr.ecr.ap-southeast-1.amazonaws.com/onetogether-production-backend:latest
           imagePullPolicy: Always
           ports:
             - containerPort: 3001
