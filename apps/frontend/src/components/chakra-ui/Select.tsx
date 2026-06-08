@@ -1,7 +1,8 @@
 import { NativeSelect } from '@chakra-ui/react'
-import type { ComponentProps } from 'react'
+import type { ComponentProps, ReactNode } from 'react'
 
 type SelectProps = ComponentProps<typeof NativeSelect.Field> & {
+  children: ReactNode
   rootProps?: ComponentProps<typeof NativeSelect.Root>
 }
 
