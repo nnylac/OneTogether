@@ -18,6 +18,7 @@ export type RawAgencyMessage = {
       lat?: number;
       lng?: number;
       postal_code?: string;
+      reported_accuracy?: string;
     };
     description?: string;
     triggered_at?: string;
@@ -28,6 +29,7 @@ export type RawAgencyMessage = {
     data?: Record<string, unknown>;
   };
   logs?: unknown[];
+  status_change?: Record<string, unknown>;
   handoff?: Record<string, unknown>;
   quality?: Record<string, unknown>;
 };
@@ -45,6 +47,8 @@ export type NormalizedIncidentTicket = {
   severity: number;
   priority: string;
   location: string | null;
+  latitude: number | null;
+  longitude: number | null;
   confidenceScore: number;
   rawMessage: RawAgencyMessage;
 };

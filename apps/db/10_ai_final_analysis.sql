@@ -1,0 +1,8 @@
+\c one_together;
+
+ALTER TABLE incidents
+  ADD COLUMN IF NOT EXISTS analysis_status VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED',
+  ADD COLUMN IF NOT EXISTS executive_summary TEXT,
+  ADD COLUMN IF NOT EXISTS response_plan TEXT,
+  ADD COLUMN IF NOT EXISTS entities TEXT,
+  ADD COLUMN IF NOT EXISTS analysis_finalized_at TIMESTAMPTZ;

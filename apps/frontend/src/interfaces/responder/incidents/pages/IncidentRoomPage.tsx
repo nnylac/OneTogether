@@ -1,169 +1,237 @@
-import { useEffect, useRef, useState } from 'react'
-import type { FormEvent } from 'react'
-import { Navigate, useParams } from 'react-router-dom'
-import { Box, Stack, Text } from '../../../../components/chakra-ui'
-import { fetchIncident } from '../api/incidentsApi'
+import { useEffect, useRef, useState } from "react";
+import type { FormEvent } from "react";
+import { Navigate, useParams } from "react-router-dom";
+import { Box, Stack, Text } from "../../../../components/chakra-ui";
+import {
+  fetchIncident,
+  regenerateFinalAnalysis,
+  updateIncident,
+} from "../api/incidentsApi";
 import {
   createIncidentRoomSocket,
   fetchIncidentRoomMessages,
   mapIncidentRoomMessage,
-} from '../api/incidentRoomApi'
-import type { IncidentRoomMessageApiDto } from '../api/incidentRoomApi'
-import type { ChatMessage } from '../components/IncidentDiscussion'
-import { IncidentRoomHeader } from '../components/IncidentRoomHeader'
-import { IncidentRoomTabs } from '../components/IncidentRoomTabs'
-import { useAuth } from '../../../auth/useAuth'
-import type { Incident, IncidentReportDraft } from '../types'
-import type { Socket } from 'socket.io-client'
+} from "../api/incidentRoomApi";
+import type { IncidentRoomMessageApiDto } from "../api/incidentRoomApi";
+import type { ChatMessage } from "../components/IncidentDiscussion";
+import { IncidentRoomHeader } from "../components/IncidentRoomHeader";
+import { IncidentRoomTabs } from "../components/IncidentRoomTabs";
+import { useAuth } from "../../../auth/useAuth";
+import type { Incident, IncidentReportDraft } from "../types";
+import type { Socket } from "socket.io-client";
 
 function createReportDraft(incident: Incident): IncidentReportDraft {
   return {
     incidentName: incident.title,
     incidentDate: incident.date,
     incidentDescription: incident.description,
-    responsePlan: incident.report ?? '',
-    otherNotes: '',
-  }
+    executiveSummary: incident.analysis?.finalAnalysis.executiveSummary ?? "",
+    responsePlan:
+      incident.analysis?.finalAnalysis.responsePlan ?? incident.report ?? "",
+    entities: incident.analysis?.finalAnalysis.entities ?? "",
+  };
 }
 
 export function IncidentRoomPage() {
-  const { incidentId } = useParams()
-  const { user } = useAuth()
-  const [incident, setIncident] = useState<Incident | null>(null)
-  const [error, setError] = useState<string | null>(null)
-  const [discussionError, setDiscussionError] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
-  const [messages, setMessages] = useState<ChatMessage[]>([])
-  const [discussionDraft, setDiscussionDraft] = useState('')
-  const [reportDraft, setReportDraft] = useState<IncidentReportDraft | null>(null)
-  const roomSocketRef = useRef<Socket | null>(null)
+  const { incidentId } = useParams();
+  const { user } = useAuth();
+  const [incident, setIncident] = useState<Incident | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [discussionError, setDiscussionError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [messages, setMessages] = useState<ChatMessage[]>([]);
+  const [discussionDraft, setDiscussionDraft] = useState("");
+  const [reportDraft, setReportDraft] = useState<IncidentReportDraft | null>(
+    null,
+  );
+  const [reportError, setReportError] = useState<string | null>(null);
+  const [reportIsGenerating, setReportIsGenerating] = useState(false);
+  const [reportIsSaving, setReportIsSaving] = useState(false);
+  const roomSocketRef = useRef<Socket | null>(null);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
 
     async function loadIncident() {
       if (!incidentId) {
-        return
+        return;
       }
 
       try {
-        setError(null)
-        setIsLoading(true)
-        const nextIncident = await fetchIncident(incidentId)
+        setError(null);
+        setIsLoading(true);
+        const nextIncident = await fetchIncident(incidentId);
 
         if (isMounted) {
-          setIncident(nextIncident)
-          setReportDraft(createReportDraft(nextIncident))
+          setIncident(nextIncident);
+          setReportDraft(createReportDraft(nextIncident));
         }
       } catch {
         if (isMounted) {
-          setError('Unable to load this incident from the backend.')
+          setError("Unable to load this incident from the backend.");
         }
       } finally {
         if (isMounted) {
-          setIsLoading(false)
+          setIsLoading(false);
         }
       }
     }
 
-    void loadIncident()
+    void loadIncident();
 
     return () => {
-      isMounted = false
-    }
-  }, [incidentId])
+      isMounted = false;
+    };
+  }, [incidentId]);
 
   useEffect(() => {
     if (!incidentId) {
-      return
+      return;
     }
 
-    const activeIncidentId = incidentId
-    let isMounted = true
-    const socket = createIncidentRoomSocket(activeIncidentId)
-    roomSocketRef.current = socket
+    const activeIncidentId = incidentId;
+    let isMounted = true;
+    const socket = createIncidentRoomSocket(activeIncidentId);
+    roomSocketRef.current = socket;
 
     function addMessage(message: ChatMessage) {
       setMessages((currentMessages) => {
-        if (currentMessages.some((currentMessage) => currentMessage.id === message.id)) {
-          return currentMessages
+        if (
+          currentMessages.some(
+            (currentMessage) => currentMessage.id === message.id,
+          )
+        ) {
+          return currentMessages;
         }
 
-        return [...currentMessages, message]
-      })
+        return [...currentMessages, message];
+      });
     }
 
     async function loadMessages() {
       try {
-        setDiscussionError(null)
-        const nextMessages = await fetchIncidentRoomMessages(activeIncidentId)
+        setDiscussionError(null);
+        const nextMessages = await fetchIncidentRoomMessages(activeIncidentId);
 
         if (isMounted) {
-          setMessages(nextMessages)
+          setMessages(nextMessages);
         }
       } catch {
         if (isMounted) {
-          setDiscussionError('Unable to load discussion messages.')
+          setDiscussionError("Unable to load discussion messages.");
         }
       }
     }
 
-    socket.on('incident-room.message.created', (message: IncidentRoomMessageApiDto) => {
-      addMessage(mapIncidentRoomMessage(message))
-    })
-    socket.on('incident-room.message.error', () => {
-      setDiscussionError('Unable to send message.')
-    })
+    socket.on(
+      "incident-room.message.created",
+      (message: IncidentRoomMessageApiDto) => {
+        addMessage(mapIncidentRoomMessage(message));
+      },
+    );
+    socket.on("incident-room.message.error", () => {
+      setDiscussionError("Unable to send message.");
+    });
 
-    void loadMessages()
+    void loadMessages();
 
     return () => {
-      isMounted = false
+      isMounted = false;
       if (roomSocketRef.current === socket) {
-        roomSocketRef.current = null
+        roomSocketRef.current = null;
       }
-      socket.disconnect()
-    }
-  }, [incidentId])
+      socket.disconnect();
+    };
+  }, [incidentId]);
 
   function updateDiscussionDraft(nextDraft: string) {
-    setDiscussionDraft(nextDraft)
+    setDiscussionDraft(nextDraft);
     if (discussionError) {
-      setDiscussionError(null)
+      setDiscussionError(null);
     }
   }
 
   function submitDiscussionMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault()
+    event.preventDefault();
 
-    const body = discussionDraft.trim()
+    const body = discussionDraft.trim();
 
     if (!body || !incidentId || !user) {
-      return
+      return;
     }
 
-    const socket = roomSocketRef.current
+    const socket = roomSocketRef.current;
 
     if (!socket) {
-      setDiscussionError('Unable to connect to discussion room.')
-      return
+      setDiscussionError("Unable to connect to discussion room.");
+      return;
     }
 
     try {
-      setDiscussionError(null)
-      socket.emit('incident-room.message.create', {
+      setDiscussionError(null);
+      socket.emit("incident-room.message.create", {
         incidentId,
         senderId: user.id,
         body,
-      })
-      setDiscussionDraft('')
+      });
+      setDiscussionDraft("");
     } catch {
-      setDiscussionError('Unable to send message.')
+      setDiscussionError("Unable to send message.");
+    }
+  }
+
+  async function saveReport() {
+    if (!incident || !reportDraft) {
+      return;
+    }
+    try {
+      setReportError(null);
+      setReportIsSaving(true);
+      const updated = await updateIncident(incident.id, {
+        title: reportDraft.incidentName,
+        description: reportDraft.incidentDescription,
+        report: reportDraft.responsePlan,
+        executiveSummary: reportDraft.executiveSummary,
+        responsePlan: reportDraft.responsePlan,
+        entities: reportDraft.entities,
+      });
+      setIncident(updated);
+      setReportDraft(createReportDraft(updated));
+    } catch (saveError) {
+      setReportError(
+        saveError instanceof Error
+          ? saveError.message
+          : "Unable to save report.",
+      );
+    } finally {
+      setReportIsSaving(false);
+    }
+  }
+
+  async function generateReport() {
+    if (!incident || incident.status !== "closed") {
+      return;
+    }
+    try {
+      setReportError(null);
+      setReportIsGenerating(true);
+      await regenerateFinalAnalysis(incident.id);
+      const updated = await fetchIncident(incident.id);
+      setIncident(updated);
+      setReportDraft(createReportDraft(updated));
+    } catch (generateError) {
+      setReportError(
+        generateError instanceof Error
+          ? generateError.message
+          : "Unable to generate analysis.",
+      );
+    } finally {
+      setReportIsGenerating(false);
     }
   }
 
   if (!incidentId) {
-    return <Navigate to="/responder/incidents" replace />
+    return <Navigate to="/responder/incidents" replace />;
   }
 
   if (isLoading) {
@@ -171,15 +239,15 @@ export function IncidentRoomPage() {
       <Box color="gray.500" p="6">
         <Text>Loading incident...</Text>
       </Box>
-    )
+    );
   }
 
   if (error || !incident || !reportDraft) {
     return (
       <Box color="red.700" p="6">
-        <Text fontWeight="700">{error ?? 'Incident not found.'}</Text>
+        <Text fontWeight="700">{error ?? "Incident not found."}</Text>
       </Box>
-    )
+    );
   }
 
   return (
@@ -192,11 +260,16 @@ export function IncidentRoomPage() {
         discussionError={discussionError}
         incident={incident}
         messages={messages}
+        reportError={reportError}
+        reportIsGenerating={reportIsGenerating}
+        reportIsSaving={reportIsSaving}
         onDiscussionDraftChange={updateDiscussionDraft}
+        onGenerateReport={generateReport}
         onReportDraftChange={setReportDraft}
+        onSaveReport={saveReport}
         onSendMessage={submitDiscussionMessage}
         reportDraft={reportDraft}
       />
     </Stack>
-  )
+  );
 }

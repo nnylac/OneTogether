@@ -16,6 +16,7 @@ import os
 import random
 import socket
 from abc import ABC, abstractmethod
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from typing import Any, Optional
 
@@ -26,7 +27,7 @@ import sys
 sys.path.insert(0, "/app/shared")
 from models import (
     AgencyID, EventType, HealthResponse, IncidentTrigger, IncidentType,
-    QualityFlags, TicketStatus, NoiseType, utcnow,
+    Location, QualityFlags, TicketStatus, NoiseType, utcnow,
 )
 
 log = logging.getLogger(__name__)
@@ -96,17 +97,15 @@ class BaseAgencySimulator(ABC):
         self.http: Optional[httpx.AsyncClient] = None
 
     def create_app(self) -> FastAPI:
-        app = FastAPI(title=self.SERVICE_NAME)
-
-        @app.on_event("startup")
-        async def startup():
+        @asynccontextmanager
+        async def lifespan(app: FastAPI):
             self.http = httpx.AsyncClient()
             log.info(f"[{self.SERVICE_NAME}] started | middleware={self.middleware_url or 'NOT SET'}")
-
-        @app.on_event("shutdown")
-        async def shutdown():
+            yield
             if self.http:
                 await self.http.aclose()
+
+        app = FastAPI(title=self.SERVICE_NAME, lifespan=lifespan)
 
         @app.get("/health", response_model=HealthResponse)
         async def health():
@@ -260,13 +259,17 @@ class BaseAgencySimulator(ABC):
         ticket_id = f"{self.AGENCY_ID.value}-{trigger.incident_id[:8].upper()}{handoff_suffix}"
         log.info(f"[{self.SERVICE_NAME}] Creating ticket {ticket_id} for {trigger.incident_type.value}")
 
-        # Build the ticket in this agency's own schema
-        payload = self.build_ticket_payload(trigger, ticket_id)
+        reported_trigger = trigger.model_copy(
+            update={"location": self._fuzz_location(trigger.location)}
+        )
+
+        # Build the ticket from this agency's approximate initial report.
+        payload = self.build_ticket_payload(reported_trigger, ticket_id)
 
         ticket = {
             "ticket_id": ticket_id,
             "incident_id": trigger.incident_id,
-            "incident": trigger.model_dump(mode="json"),
+            "incident": reported_trigger.model_dump(mode="json"),
             "status": TicketStatus.OPEN.value,
             "created_at": utcnow().isoformat(),
             "updated_at": utcnow().isoformat(),
@@ -296,7 +299,10 @@ class BaseAgencySimulator(ABC):
 
         for i in range(n_updates):
             # Wait a realistic interval between updates
-            wait = random.uniform(8, 30)
+            wait = random.uniform(
+                max(4, 20 - trigger.severity * 3),
+                max(10, 45 - trigger.severity * 4),
+            )
             await asyncio.sleep(wait)
 
             nexts = STATUS_PROGRESSIONS.get(current_status, [])
@@ -306,6 +312,20 @@ class BaseAgencySimulator(ABC):
             next_status = random.choices(nexts, weights=weights, k=1)[0]
 
             note = random.choice(GENERIC_NOTES.get(next_status, ["Status updated"]))
+            if (
+                next_status == TicketStatus.IN_PROGRESS
+                and not ticket.get("location_confirmed")
+                and random.random() < 0.7
+            ):
+                pinpoint = self._pinpoint_location(trigger.location)
+                note = (
+                    "Location confirmed on scene. "
+                    f"Coordinates updated to ({pinpoint.lat:.5f}, {pinpoint.lng:.5f}). "
+                    "Accuracy: PINPOINT."
+                )
+                ticket["confirmed_location"] = pinpoint.model_dump(mode="json")
+                ticket["incident"]["location"] = ticket["confirmed_location"]
+                ticket["location_confirmed"] = True
             update_payload = self.build_update_payload(ticket, next_status, note)
 
             # Noise injection
@@ -481,6 +501,22 @@ class BaseAgencySimulator(ABC):
             )
         except Exception as e:
             log.warning(f"[{self.SERVICE_NAME}] emit failed: {e}")
+
+    def _fuzz_location(self, location: Location) -> Location:
+        """Return an initial report nudged by up to roughly 200 metres."""
+        return location.model_copy(update={
+            "lat": location.lat + random.uniform(-0.0018, 0.0018),
+            "lng": location.lng + random.uniform(-0.0018, 0.0018),
+            "reported_accuracy": "APPROXIMATE",
+        })
+
+    def _pinpoint_location(self, location: Location) -> Location:
+        """Return a tighter on-scene GPS confirmation."""
+        return location.model_copy(update={
+            "lat": location.lat + random.uniform(-0.0004, 0.0004),
+            "lng": location.lng + random.uniform(-0.0004, 0.0004),
+            "reported_accuracy": "PINPOINT",
+        })
 
     # ─── Abstract methods ─────────────────────────────────────────────────────
 

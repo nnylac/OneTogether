@@ -41,6 +41,7 @@ Agency simulator
 
 Incident middleware
   -> normalises messy agency shape
+  -> checks the canonical external incident identity
   -> checks existing incident_sources
   -> falls back to simple rule-based similarity
   -> creates or updates incidents
@@ -215,13 +216,34 @@ Important fields:
 The ingest service performs these steps:
 
 1. Normalise raw agency data into a `NormalizedIncidentTicket`.
-2. Look for an existing `incident_sources` match by `externalTicketId` or `externalIncidentId`.
-3. If no exact source match exists, compare recent open incidents using simple token similarity.
-4. If matched, update the existing incident status, severity, and confidence score.
-5. If unmatched, create a new row in `incidents`.
-6. Upsert source links in `incident_sources`.
-7. Upsert the sender organisation and assign it in `assigned_orgs`.
-8. Create a readable timeline entry in `logs.content`.
+2. Look for an existing canonical incident by `externalIncidentId`.
+3. Look for an existing `incident_sources` match by `externalTicketId`.
+4. If no exact match exists, compare recent open incidents using text and location proximity.
+5. If matched, update the existing incident status, severity, and confidence score.
+6. If unmatched, atomically reserve `externalIncidentId` while creating `incidents`.
+7. Upsert the agency ticket link in `incident_sources`.
+8. Upsert the sender organisation and assign it in `assigned_orgs`.
+9. Create a readable timeline entry in `logs.content`.
+10. Run deterministic category, urgency, severity, and confidence analysis.
+
+When every assigned organisation reaches `COMPLETED`, middleware closes the
+canonical incident and builds a final analysis from its chronological timeline.
+The rule engine returns three editable paragraphs: an executive summary, a
+response record, and extracted entities.
+
+Classification uses weighted incident keywords, agency-reported severity,
+priority, casualty indicators, and response evidence. It also updates the
+canonical incident severity and confidence without any external model or API.
+Public incident status is intentionally limited to `active` and `closed`.
+Agency-level assignments retain their more detailed dispatched/on-scene/
+completed status.
+
+Manual inspection or regeneration is available through:
+
+```txt
+GET  /api/incidents/:id/final-analysis
+POST /api/incidents/:id/final-analysis
+```
 
 The response looks like:
 
@@ -256,7 +278,7 @@ For an existing incident:
 The module writes to:
 
 - `incidents`: canonical OneTogether incident.
-- `incident_sources`: links external tickets/incident IDs to the canonical incident.
+- `incident_sources`: links agency ticket IDs to the canonical incident.
 - `logs`: frontend-readable timeline text.
 - `organisations`: sender organisation if it does not already exist.
 - `assigned_orgs`: assigns the sender organisation to the incident.

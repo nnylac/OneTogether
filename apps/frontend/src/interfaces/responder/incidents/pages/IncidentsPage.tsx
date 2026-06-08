@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react'
-import type { ReactNode } from 'react'
-import { ChevronLeft, ChevronRight, ExternalLink } from 'lucide-react'
-import { Link } from 'react-router-dom'
+import { useEffect, useMemo, useState } from "react";
+import type { ReactNode } from "react";
+import { ChevronLeft, ChevronRight, ExternalLink } from "lucide-react";
+import { Link } from "react-router-dom";
 import {
   Box,
   Button,
@@ -12,147 +12,149 @@ import {
   Stack,
   Text,
   VStack,
-} from '../../../../components/chakra-ui'
-import { BackToDashboardLink } from '../../components/BackToDashboardLink'
-import { useAuth } from '../../../auth/useAuth'
-import { fetchIncidents, fetchOrganisations } from '../api/incidentsApi'
-import { IncidentStatusBadge } from '../components/IncidentStatusBadge'
-import type { AuthUser } from '../../../auth/types'
-import type { Incident } from '../types'
+} from "../../../../components/chakra-ui";
+import { BackToDashboardLink } from "../../components/BackToDashboardLink";
+import { useAuth } from "../../../auth/useAuth";
+import { fetchIncidents, fetchOrganisations } from "../api/incidentsApi";
+import { IncidentStatusBadge } from "../components/IncidentStatusBadge";
+import type { AuthUser } from "../../../auth/types";
+import type { Incident } from "../types";
 
-type IncidentFilter = 'all' | 'active' | 'critical'
+type IncidentFilter = "all" | "active" | "critical";
 
-const pageSize = 6
-const incidentPollingIntervalMs = 5000
+const pageSize = 6;
+const incidentPollingIntervalMs = 5000;
 
 const filterLabels: Record<IncidentFilter, string> = {
-  all: 'All incidents',
-  active: 'Active',
-  critical: 'Critical',
-}
+  all: "All incidents",
+  active: "Active",
+  critical: "Critical",
+};
 
 function getFilteredIncidents(filter: IncidentFilter, incidents: Incident[]) {
-  if (filter === 'active') {
-    return incidents.filter((incident) => incident.status !== 'closed')
+  if (filter === "active") {
+    return incidents.filter((incident) => incident.status !== "closed");
   }
 
-  if (filter === 'critical') {
-    return incidents.filter((incident) => incident.isCritical)
+  if (filter === "critical") {
+    return incidents.filter((incident) => incident.isCritical);
   }
 
-  return incidents
+  return incidents;
 }
 
 function getFallbackOrganisationName(user: AuthUser | null) {
-  const source = `${user?.username ?? ''} ${user?.email ?? ''}`.toLowerCase()
+  const source = `${user?.username ?? ""} ${user?.email ?? ""}`.toLowerCase();
 
-  if (source.includes('scdf') || user?.username === 'responder') {
-    return 'SCDF'
+  if (source.includes("scdf") || user?.username === "responder") {
+    return "SCDF";
   }
-  if (source.includes('spf')) {
-    return 'SPF'
+  if (source.includes("spf")) {
+    return "SPF";
   }
-  if (source.includes('moh')) {
-    return 'MOH'
+  if (source.includes("moh")) {
+    return "MOH";
   }
-  if (source.includes('pub')) {
-    return 'PUB'
+  if (source.includes("pub")) {
+    return "PUB";
   }
-  if (source.includes('lta')) {
-    return 'LTA'
+  if (source.includes("lta")) {
+    return "LTA";
   }
 
-  return null
+  return null;
 }
 
 export function IncidentsPage() {
-  const { user } = useAuth()
-  const [incidents, setIncidents] = useState<Incident[]>([])
-  const [error, setError] = useState<string | null>(null)
-  const [filter, setFilter] = useState<IncidentFilter>('all')
-  const [isLoading, setIsLoading] = useState(true)
-  const [page, setPage] = useState(1)
-  const assignedOrganisationId = user?.userOrganisationId ?? user?.organisations[0]?.id
+  const { user } = useAuth();
+  const [incidents, setIncidents] = useState<Incident[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [filter, setFilter] = useState<IncidentFilter>("all");
+  const [isLoading, setIsLoading] = useState(true);
+  const [page, setPage] = useState(1);
+  const assignedOrganisationName =
+    user?.organisations[0]?.orgName ?? getFallbackOrganisationName(user);
 
   useEffect(() => {
-    let isMounted = true
+    let isMounted = true;
 
-    async function loadIncidents({ showLoading = false }: { showLoading?: boolean } = {}) {
+    async function loadIncidents({
+      showLoading = false,
+    }: { showLoading?: boolean } = {}) {
       try {
-        setError(null)
+        setError(null);
 
         if (showLoading) {
-          setIsLoading(true)
+          setIsLoading(true);
         }
 
-        let organisationId = assignedOrganisationId
-
-        if (!organisationId) {
-          const fallbackOrganisationName = getFallbackOrganisationName(user)
-          const organisations = fallbackOrganisationName ? await fetchOrganisations() : []
-          organisationId = organisations.find(
-            (organisation) => organisation.orgName === fallbackOrganisationName,
-          )?.id
-        }
-
-        if (!organisationId) {
-          if (isMounted) {
-            setIncidents([])
-          }
-          return
-        }
-
-        const nextIncidents = await fetchIncidents({
-          organisationId,
-        })
+        const organisations = assignedOrganisationName
+          ? await fetchOrganisations()
+          : [];
+        const organisationId = organisations.find(
+          (organisation) =>
+            organisation.orgName.toLowerCase() ===
+            assignedOrganisationName?.toLowerCase(),
+        )?.id;
+        const nextIncidents = await fetchIncidents(
+          organisationId ? { organisationId } : {},
+        );
 
         if (isMounted) {
-          setIncidents(nextIncidents)
+          setIncidents(nextIncidents);
         }
       } catch {
         if (isMounted) {
-          setError('Unable to load incidents from the backend.')
+          setError("Unable to load incidents from the backend.");
         }
       } finally {
         if (isMounted && showLoading) {
-          setIsLoading(false)
+          setIsLoading(false);
         }
       }
     }
 
-    void loadIncidents({ showLoading: true })
+    void loadIncidents({ showLoading: true });
     const pollingId = window.setInterval(() => {
-      void loadIncidents()
-    }, incidentPollingIntervalMs)
+      void loadIncidents();
+    }, incidentPollingIntervalMs);
 
     return () => {
-      isMounted = false
-      window.clearInterval(pollingId)
-    }
-  }, [assignedOrganisationId, user])
+      isMounted = false;
+      window.clearInterval(pollingId);
+    };
+  }, [assignedOrganisationName]);
 
   const filteredIncidents = useMemo(
     () => getFilteredIncidents(filter, incidents),
     [filter, incidents],
-  )
-  const pageCount = Math.max(Math.ceil(filteredIncidents.length / pageSize), 1)
-  const pageStart = (page - 1) * pageSize
-  const visibleIncidents = filteredIncidents.slice(pageStart, pageStart + pageSize)
+  );
+  const pageCount = Math.max(Math.ceil(filteredIncidents.length / pageSize), 1);
+  const pageStart = (page - 1) * pageSize;
+  const visibleIncidents = filteredIncidents.slice(
+    pageStart,
+    pageStart + pageSize,
+  );
 
   const counts = {
     all: incidents.length,
-    active: incidents.filter((incident) => incident.status !== 'closed').length,
+    active: incidents.filter((incident) => incident.status !== "closed").length,
     critical: incidents.filter((incident) => incident.isCritical).length,
-  }
+  };
 
   function selectFilter(nextFilter: IncidentFilter) {
-    setFilter(nextFilter)
-    setPage(1)
+    setFilter(nextFilter);
+    setPage(1);
   }
 
   return (
     <Stack gap="6">
-      <Flex justify="space-between" align={{ base: 'stretch', lg: 'end' }} gap="4" direction={{ base: 'column', lg: 'row' }}>
+      <Flex
+        justify="space-between"
+        align={{ base: "stretch", lg: "end" }}
+        gap="4"
+        direction={{ base: "column", lg: "row" }}
+      >
         <Box>
           <BackToDashboardLink />
           <Heading size="3xl" color="gray.900">
@@ -165,33 +167,45 @@ export function IncidentsPage() {
 
         <HStack gap="2" wrap="wrap">
           {(Object.keys(filterLabels) as IncidentFilter[]).map((filterKey) => {
-            const isSelected = filter === filterKey
+            const isSelected = filter === filterKey;
 
             return (
               <Button
                 key={filterKey}
-                variant={isSelected ? 'solid' : 'outline'}
-                bg={isSelected ? 'gray.900' : 'white'}
-                color={isSelected ? 'white' : 'gray.700'}
+                variant={isSelected ? "solid" : "outline"}
+                bg={isSelected ? "gray.900" : "white"}
+                color={isSelected ? "white" : "gray.700"}
                 borderColor="gray.300"
-                _hover={{ bg: isSelected ? 'gray.800' : 'gray.50' }}
+                _hover={{ bg: isSelected ? "gray.800" : "gray.50" }}
                 onClick={() => selectFilter(filterKey)}
               >
                 {filterLabels[filterKey]} ({counts[filterKey]})
               </Button>
-            )
+            );
           })}
         </HStack>
       </Flex>
 
       {error && (
-        <Box bg="red.50" borderWidth="1px" borderColor="red.200" color="red.700" p="4">
+        <Box
+          bg="red.50"
+          borderWidth="1px"
+          borderColor="red.200"
+          color="red.700"
+          p="4"
+        >
           <Text fontWeight="700">{error}</Text>
         </Box>
       )}
 
       <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-        <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="900px">
+        <Box
+          as="table"
+          width="100%"
+          borderCollapse="collapse"
+          tableLayout="fixed"
+          minW="900px"
+        >
           <Box as="colgroup">
             <Box as="col" width="51%" />
             <Box as="col" width="16%" />
@@ -229,59 +243,75 @@ export function IncidentsPage() {
               </Box>
             )}
 
-            {!isLoading && visibleIncidents.map((incident) => (
-              <Box
-                key={incident.id}
-                as="tr"
-                borderBottomWidth="1px"
-                borderColor="gray.100"
-                _hover={{ bg: 'gray.50' }}
-              >
-                <BodyCell>
-                  <VStack gap="1" align="stretch">
-                    <Text color="gray.900" fontSize="lg" fontWeight="700">
-                      {incident.title}
-                    </Text>
-                    <Text color="gray.500" fontSize="sm" fontWeight="700">
-                      {incident.location}
-                    </Text>
-                    <Text
-                      color="gray.500"
-                      display="-webkit-box"
-                      fontSize="sm"
-                      overflow="hidden"
-                      style={{ WebkitBoxOrient: 'vertical', WebkitLineClamp: 2 }}
+            {!isLoading &&
+              visibleIncidents.map((incident) => (
+                <Box
+                  key={incident.id}
+                  as="tr"
+                  borderBottomWidth="1px"
+                  borderColor="gray.100"
+                  _hover={{ bg: "gray.50" }}
+                >
+                  <BodyCell>
+                    <VStack gap="1" align="stretch">
+                      <Text color="gray.900" fontSize="lg" fontWeight="700">
+                        {incident.title}
+                      </Text>
+                      <Text color="gray.500" fontSize="sm" fontWeight="700">
+                        {incident.location}
+                      </Text>
+                      <Text
+                        color="gray.500"
+                        display="-webkit-box"
+                        fontSize="sm"
+                        overflow="hidden"
+                        style={{
+                          WebkitBoxOrient: "vertical",
+                          WebkitLineClamp: 2,
+                        }}
+                      >
+                        {incident.description}
+                      </Text>
+                    </VStack>
+                  </BodyCell>
+
+                  <BodyCell textAlign="center">
+                    <IncidentStatusBadge status={incident.status} />
+                  </BodyCell>
+
+                  <BodyCell>
+                    <Text color="gray.600">{incident.date}</Text>
+                  </BodyCell>
+
+                  <BodyCell textAlign="right">
+                    <Button
+                      asChild
+                      bg="gray.900"
+                      color="white"
+                      minW="28"
+                      _hover={{ bg: "gray.800" }}
                     >
-                      {incident.description}
-                    </Text>
-                  </VStack>
-                </BodyCell>
-
-                <BodyCell textAlign="center">
-                  <IncidentStatusBadge status={incident.status} />
-                </BodyCell>
-
-                <BodyCell>
-                  <Text color="gray.600">{incident.date}</Text>
-                </BodyCell>
-
-                <BodyCell textAlign="right">
-                  <Button asChild bg="gray.900" color="white" minW="28" _hover={{ bg: 'gray.800' }}>
-                    <Link to={`/responder/incidents/${incident.id}/room`}>
-                      <Icon as={ExternalLink} />
-                      Open room
-                    </Link>
-                  </Button>
-                </BodyCell>
-              </Box>
-            ))}
+                      <Link to={`/responder/incidents/${incident.id}/room`}>
+                        <Icon as={ExternalLink} />
+                        Open room
+                      </Link>
+                    </Button>
+                  </BodyCell>
+                </Box>
+              ))}
           </Box>
         </Box>
       </Box>
 
-      <Flex justify="space-between" align="center" gap="4" direction={{ base: 'column', md: 'row' }}>
+      <Flex
+        justify="space-between"
+        align="center"
+        gap="4"
+        direction={{ base: "column", md: "row" }}
+      >
         <Text color="gray.500" fontSize="sm">
-          Showing {filteredIncidents.length === 0 ? 0 : pageStart + 1}-{Math.min(pageStart + pageSize, filteredIncidents.length)} of{' '}
+          Showing {filteredIncidents.length === 0 ? 0 : pageStart + 1}-
+          {Math.min(pageStart + pageSize, filteredIncidents.length)} of{" "}
           {filteredIncidents.length} incidents
         </Text>
 
@@ -290,7 +320,9 @@ export function IncidentsPage() {
             variant="outline"
             borderColor="gray.300"
             disabled={page === 1}
-            onClick={() => setPage((currentPage) => Math.max(currentPage - 1, 1))}
+            onClick={() =>
+              setPage((currentPage) => Math.max(currentPage - 1, 1))
+            }
           >
             <Icon as={ChevronLeft} />
             Previous
@@ -304,7 +336,9 @@ export function IncidentsPage() {
             variant="outline"
             borderColor="gray.300"
             disabled={page === pageCount}
-            onClick={() => setPage((currentPage) => Math.min(currentPage + 1, pageCount))}
+            onClick={() =>
+              setPage((currentPage) => Math.min(currentPage + 1, pageCount))
+            }
           >
             Next
             <Icon as={ChevronRight} />
@@ -312,15 +346,15 @@ export function IncidentsPage() {
         </HStack>
       </Flex>
     </Stack>
-  )
+  );
 }
 
 function HeaderCell({
   children,
-  textAlign = 'left',
+  textAlign = "left",
 }: {
-  children: ReactNode
-  textAlign?: 'left' | 'center' | 'right'
+  children: ReactNode;
+  textAlign?: "left" | "center" | "right";
 }) {
   return (
     <Box
@@ -329,32 +363,32 @@ function HeaderCell({
       fontSize="xs"
       fontWeight="700"
       letterSpacing="0"
-      px={textAlign === 'right' ? '3' : '5'}
+      px={textAlign === "right" ? "3" : "5"}
       py="3"
       textAlign={textAlign}
       textTransform="uppercase"
     >
       {children}
     </Box>
-  )
+  );
 }
 
 function BodyCell({
   children,
-  textAlign = 'left',
+  textAlign = "left",
 }: {
-  children: ReactNode
-  textAlign?: 'left' | 'center' | 'right'
+  children: ReactNode;
+  textAlign?: "left" | "center" | "right";
 }) {
   return (
     <Box
       as="td"
-      px={textAlign === 'right' ? '3' : '5'}
+      px={textAlign === "right" ? "3" : "5"}
       py="4"
       textAlign={textAlign}
       verticalAlign="middle"
     >
       {children}
     </Box>
-  )
+  );
 }

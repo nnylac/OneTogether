@@ -25,6 +25,8 @@ INCIDENT_CLASSIFICATIONS = {
     "BUILDING_COLLAPSE": ("PUBLIC_ORDER", None),
     "MISSING_PERSON":    ("MISSING_PERSON", "MISC/2024/001"),
     "DISEASE_OUTBREAK":  ("SUPPORT",      None),
+    "HAZE":              ("SUPPORT",      None),
+    "CIVIL_DISTURBANCE": ("PUBLIC_ORDER", None),
 }
 SHIFT_ICS = ["IC/OFF/3421", "IC/OFF/7782", "IC/OFF/1130", "IC/OFF/9905", "IC/OFF/4467"]
 ADDRESS_VARIANTS = [
@@ -33,6 +35,7 @@ ADDRESS_VARIANTS = [
     "Blk {n} (opp MRT)",
     "{n} (nr junction)",
 ]
+FIELD_OMIT_CHANCE = 0.25
 
 
 class SPFSimulator(BaseAgencySimulator):
@@ -139,6 +142,9 @@ class SPFSimulator(BaseAgencySimulator):
         blk = random.randint(1, 999)
         addr_template = random.choice(ADDRESS_VARIANTS)
         beat = random.choice(BEAT_SECTORS).format(random.randint(1, 20))
+        narrative = trigger.description
+        if random.random() < FIELD_OMIT_CHANCE:
+            narrative = trigger.description.split(".", 1)[0]
 
         return {
             # SPF calls it report_number, not ticket_id
@@ -152,17 +158,19 @@ class SPFSimulator(BaseAgencySimulator):
                 "beat_sector": beat,
                 # deliberate abbreviation / alt-name noise
                 "address_verbatim": addr_template.format(n=blk) + f" {trigger.location.area}",
-                "lat": trigger.location.lat + random.uniform(-0.0002, 0.0002),
-                "lng": trigger.location.lng + random.uniform(-0.0002, 0.0002),
+                "lat": trigger.location.lat,
+                "lng": trigger.location.lng,
             },
             "deployment": {
                 "officers_deployed": random.randint(2, 8),
                 "patrol_cars": random.randint(1, 4),
-                "shift_ic": random.choice(SHIFT_ICS),
+                "shift_ic": random.choice(SHIFT_ICS) if random.random() >= 0.3 else None,
             },
             # narrative grows over time; starts minimal
-            "narrative": trigger.description,
-            "priority_flag": "P1" if trigger.severity >= 4 else "P2" if trigger.severity >= 2 else "P3",
+            "narrative": narrative,
+            "priority_flag": (
+                "P1" if trigger.severity >= 4 else "P2" if trigger.severity >= 2 else "P3"
+            ) if random.random() >= 0.2 else None,
             "inter_agency_refs": [],
         }
 

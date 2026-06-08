@@ -7,11 +7,22 @@ export class SemanticIncidentAnalyzerService {
   constructor(private readonly prisma: PrismaService) {}
 
   async findLikelyIncident(ticket: NormalizedIncidentTicket) {
-    const exactSource = await this.prisma.incident_sources.findFirst({
+    const exactIncident = await this.prisma.incidents.findUnique({
       where: {
-        external_ticket_id: {
-          in: [ticket.externalTicketId, ticket.externalIncidentId],
-        },
+        external_incident_id: ticket.externalIncidentId,
+      },
+    });
+
+    if (exactIncident) {
+      return {
+        incident: exactIncident,
+        reason: 'external_incident_match',
+      };
+    }
+
+    const exactSource = await this.prisma.incident_sources.findUnique({
+      where: {
+        external_ticket_id: ticket.externalTicketId,
       },
       include: {
         incidents: true,
@@ -25,11 +36,15 @@ export class SemanticIncidentAnalyzerService {
       };
     }
 
+    const since = new Date(Date.now() - 30 * 60 * 1000);
     const recentCandidates = await this.prisma.incidents.findMany({
       where: {
         incident_type: ticket.incidentType,
         inc_status: {
           not: 'CLOSED',
+        },
+        created_at: {
+          gte: since,
         },
       },
       orderBy: {
@@ -47,7 +62,8 @@ export class SemanticIncidentAnalyzerService {
       );
       const score =
         this.overlap(locationTokens, candidateTokens) * 0.6 +
-        this.overlap(descriptionTokens, candidateTokens) * 0.4;
+        this.overlap(descriptionTokens, candidateTokens) * 0.4 +
+        (this.isNearby(ticket, candidate) ? 0.2 : 0);
 
       if (score >= 0.55) {
         return {
@@ -58,6 +74,57 @@ export class SemanticIncidentAnalyzerService {
     }
 
     return null;
+  }
+
+  private isNearby(
+    ticket: NormalizedIncidentTicket,
+    candidate: { latitude: unknown; longitude: unknown },
+  ) {
+    if (
+      ticket.latitude === null ||
+      ticket.longitude === null ||
+      candidate.latitude === null ||
+      candidate.longitude === null
+    ) {
+      return false;
+    }
+
+    const candidateLatitude = Number(candidate.latitude);
+    const candidateLongitude = Number(candidate.longitude);
+    if (
+      !Number.isFinite(candidateLatitude) ||
+      !Number.isFinite(candidateLongitude)
+    ) {
+      return false;
+    }
+
+    return (
+      this.distanceMetres(
+        ticket.latitude,
+        ticket.longitude,
+        candidateLatitude,
+        candidateLongitude,
+      ) < 500
+    );
+  }
+
+  private distanceMetres(
+    latitudeA: number,
+    longitudeA: number,
+    latitudeB: number,
+    longitudeB: number,
+  ) {
+    const earthRadiusMetres = 6_371_000;
+    const toRadians = (value: number) => (value * Math.PI) / 180;
+    const deltaLatitude = toRadians(latitudeB - latitudeA);
+    const deltaLongitude = toRadians(longitudeB - longitudeA);
+    const a =
+      Math.sin(deltaLatitude / 2) ** 2 +
+      Math.cos(toRadians(latitudeA)) *
+        Math.cos(toRadians(latitudeB)) *
+        Math.sin(deltaLongitude / 2) ** 2;
+
+    return 2 * earthRadiusMetres * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
   }
 
   private tokens(value: string) {

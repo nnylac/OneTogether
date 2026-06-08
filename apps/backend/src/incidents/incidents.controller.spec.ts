@@ -5,7 +5,7 @@ describe('IncidentsController', () => {
   let controller: IncidentsController;
 
   beforeEach(() => {
-    controller = new IncidentsController({} as IncidentsService);
+    controller = new IncidentsController({} as IncidentsService, {} as never);
   });
 
   it('should be defined', () => {

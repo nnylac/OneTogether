@@ -11,7 +11,7 @@ import { BroadcastsModule } from './broadcasts/broadcasts.module';
 import { VolunteerModule } from './volunteer/volunteer.module';
 import { NotificationsModule } from './notifications/notifications.module';
 import { MapsModule } from './maps/maps.module';
-import { AiModule } from './ai/ai.module';
+import { IncidentAnalysisModule } from './analysis/incident-analysis.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { IncidentMiddlewareModule } from './incident-middleware/incident-middleware.module';
 import { PrismaModule } from './prisma/prisma.module';
@@ -29,7 +29,7 @@ import { PrismaModule } from './prisma/prisma.module';
     VolunteerModule,
     NotificationsModule,
     MapsModule,
-    AiModule,
+    IncidentAnalysisModule,
     IntegrationsModule,
     IncidentMiddlewareModule,
   ],

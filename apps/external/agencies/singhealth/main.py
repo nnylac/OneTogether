@@ -28,6 +28,7 @@ CLUSTER_URLS = {
     AgencyID.SINGHEALTH: os.getenv("SINGHEALTH_URL", "http://singhealth:8000"),
     AgencyID.NUHS: os.getenv("NUHS_URL", "http://nuhs:8000"),
 }
+FIELD_OMIT_CHANCE = 0.25
 
 
 class SingHealthSimulator(BaseAgencySimulator):
@@ -188,6 +189,10 @@ class SingHealthSimulator(BaseAgencySimulator):
 
         if random.random() < 0.2:
             payload.pop("clinical_notes")
+        if random.random() < 0.2:
+            payload.pop("capacity_snapshot")
+        if random.random() < 0.15:
+            payload.pop("staff_mobilised")
 
         return payload
 
@@ -198,10 +203,10 @@ class SingHealthSimulator(BaseAgencySimulator):
         intake["received_count"] = min(expected, intake.get("received_count", 0) + random.randint(0, 3))
         p["patient_intake"] = intake
 
-        cap = p.get("capacity_snapshot", {})
-        cap["beds_available"] = max(0, cap.get("beds_available", 10) - random.randint(0, 3))
-        cap["icu_available"] = max(0, cap.get("icu_available", 2) - random.randint(0, 1))
-        p["capacity_snapshot"] = cap
+        if "capacity_snapshot" in p:
+            cap = p["capacity_snapshot"]
+            cap["beds_available"] = max(0, cap.get("beds_available", 10) - random.randint(0, 3))
+            cap["icu_available"] = max(0, cap.get("icu_available", 2) - random.randint(0, 1))
 
         p.setdefault("clinical_notes", []).append({"ts": utcnow().isoformat(), "note": note})
         return p

@@ -290,19 +290,13 @@ Designed for:
 
 The map is a frontend feature, but backend map data usually comes from `incidents`, `resources`, `organisations`, and this module.
 
-### `ai`
+### `analysis`
 
-Handles AI-assisted workflows.
+Runs deterministic incident analysis without an external model or API.
 
-Designed for:
-
-- Incident advisory
-- Situation reports
-- Broadcast drafts
-- Citizen guidance
-- Resource/task suggestions
-
-The provider can be Gemini, AWS Bedrock, or another model later. Keep provider-specific code inside the service or an integration wrapper.
+It classifies incidents from weighted timeline evidence, updates severity and
+confidence, extracts operational entities, and builds editable closed-incident
+summary and response paragraphs.
 
 ### `integrations`
 

@@ -23,6 +23,7 @@ services:
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
       INTERVAL_SECONDS: ${INTERVAL_SECONDS:-240}
+      PHASE_TIME_SCALE: ${PHASE_TIME_SCALE:-0.1}
       RANDOM_SEED: ${RANDOM_SEED:-}
       SPF_URL: http://spf:8000
       SCDF_URL: http://scdf:8000

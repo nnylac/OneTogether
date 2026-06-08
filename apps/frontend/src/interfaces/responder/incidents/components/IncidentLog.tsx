@@ -1,5 +1,5 @@
-import { Activity, Clock, FileText, HeartPulse, Truck } from 'lucide-react'
-import type { ElementType } from 'react'
+import { Activity, Clock, FileText, HeartPulse, Truck } from "lucide-react";
+import type { ElementType } from "react";
 import {
   Box,
   Flex,
@@ -7,41 +7,41 @@ import {
   Icon,
   Text,
   VStack,
-} from '../../../../components/chakra-ui'
-import { LabelBox } from '../../../../components/ui/LabelBox'
-import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
-import type { IncidentLogCategory, IncidentLogEntry } from '../types'
+} from "../../../../components/chakra-ui";
+import { LabelBox } from "../../../../components/ui/LabelBox";
+import type { LabelBoxTone } from "../../../../components/ui/LabelBox";
+import type { IncidentLogCategory, IncidentLogEntry } from "../types";
 
 const categoryMeta: Record<
   IncidentLogCategory,
   { label: string; tone: LabelBoxTone; icon: ElementType }
 > = {
   initial: {
-    label: 'Initial',
-    tone: 'yellow',
+    label: "Initial",
+    tone: "yellow",
     icon: Clock,
   },
   status: {
-    label: 'Status',
-    tone: 'blue',
+    label: "Status",
+    tone: "blue",
     icon: Activity,
   },
   deploy: {
-    label: 'Deploy',
-    tone: 'green',
+    label: "Deploy",
+    tone: "green",
     icon: Truck,
   },
   medical: {
-    label: 'Medical',
-    tone: 'red',
+    label: "Medical",
+    tone: "red",
     icon: HeartPulse,
   },
   note: {
-    label: 'Note',
-    tone: 'gray',
+    label: "Note",
+    tone: "gray",
     icon: FileText,
   },
-}
+};
 
 export function IncidentLog({ entries }: { entries: IncidentLogEntry[] }) {
   return (
@@ -56,17 +56,17 @@ export function IncidentLog({ entries }: { entries: IncidentLogEntry[] }) {
         ))}
       </VStack>
     </Box>
-  )
+  );
 }
 
 function IncidentLogRow({
   entry,
   isLast,
 }: {
-  entry: IncidentLogEntry
-  isLast: boolean
+  entry: IncidentLogEntry;
+  isLast: boolean;
 }) {
-  const meta = categoryMeta[entry.category]
+  const meta = categoryMeta[entry.category];
 
   return (
     <Flex align="stretch" gap="4">
@@ -86,7 +86,7 @@ function IncidentLogRow({
         {!isLast && <Box w="1px" flex="1" bg="gray.200" />}
       </VStack>
 
-      <Box flex="1" pb={isLast ? '0' : '8'}>
+      <Box flex="1" pb={isLast ? "0" : "8"}>
         <Flex justify="space-between" align="start" gap="4">
           <Box>
             <HStack gap="2" mb="1" wrap="wrap">
@@ -94,13 +94,11 @@ function IncidentLogRow({
                 {meta.label}
               </Text>
 
-              <LabelBox tone="gray">
-                {entry.source}
-              </LabelBox>
+              <LabelBox tone="gray">{entry.agencyId}</LabelBox>
             </HStack>
 
             <Text color="gray.500" fontSize="sm">
-              {entry.author}
+              Organisation update
             </Text>
 
             <Text color="gray.800" mt="1">
@@ -114,5 +112,5 @@ function IncidentLogRow({
         </Flex>
       </Box>
     </Flex>
-  )
+  );
 }

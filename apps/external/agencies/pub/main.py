@@ -15,6 +15,7 @@ logging.basicConfig(
 
 DRAINAGE_CATCHMENTS = ["Kallang", "Bukit Timah", "Pandan", "Bedok", "Punggol", "Jurong"]
 PUMP_TEAMS = ["DTF-A", "DTF-B", "DTF-C", "CANAL-OPS", "FIELD-HYDRO"]
+FIELD_OMIT_CHANCE = 0.25
 
 
 class PUBSimulator(BaseAgencySimulator):
@@ -116,12 +117,17 @@ class PUBSimulator(BaseAgencySimulator):
             "hydrology": {
                 "water_level_m": water_level,
                 "rainfall_mm_last_hour": random.randint(20, 110),
-                "tide_risk": random.choice(["LOW", "MEDIUM", "HIGH"]),
+                "tide_risk": (
+                    random.choice(["LOW", "MEDIUM", "HIGH"])
+                    if random.random() >= 0.2 else None
+                ),
             },
             "field_response": {
                 "pump_team": random.choice(PUMP_TEAMS),
                 "portable_pumps": random.randint(0, 4),
-                "drainage_crew_eta_mins": random.randint(8, 35),
+                "drainage_crew_eta_mins": (
+                    random.randint(8, 35) if random.random() >= 0.2 else None
+                ),
             },
             "notifications": {
                 "town_council_notified": True,

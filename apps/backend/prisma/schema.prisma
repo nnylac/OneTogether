@@ -39,7 +39,7 @@ model discussions {
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model incident_sources {
   incident_id        String    @db.Uuid
-  external_ticket_id String
+  external_ticket_id String    @unique
   last_synced_at     DateTime  @default(now()) @db.Timestamptz(6)
   incidents          incidents @relation(fields: [incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
@@ -48,23 +48,35 @@ model incident_sources {
 }
 
 model incidents {
-  id               String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  code             String             @unique @db.VarChar(10)
-  title            String
-  incident_type    String             @db.VarChar(50)
-  severity         Int
-  inc_status       String             @db.VarChar(50)
-  inc_description  String?
-  inc_location     String?
-  report           String?
-  created_at       DateTime           @default(now()) @db.Timestamptz(6)
-  updated_at       DateTime           @default(now()) @db.Timestamptz(6)
-  resolved_at      DateTime?          @db.Timestamptz(6)
-  confidence_score Int?
-  assigned_orgs    assigned_orgs[]
-  discussions      discussions[]
-  incident_sources incident_sources[]
-  logs             logs[]
+  id                    String             @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  code                  String             @unique @db.VarChar(10)
+  external_incident_id  String?            @unique
+  title                 String
+  incident_type         String             @db.VarChar(50)
+  severity              Int
+  inc_status            String             @db.VarChar(50)
+  inc_description       String?
+  inc_location          String?
+  latitude              Decimal?           @db.Decimal(10, 7)
+  longitude             Decimal?           @db.Decimal(10, 7)
+  category              String?
+  urgency               String?
+  severity_estimate     Int?
+  confidence            Decimal?           @db.Decimal(5, 4)
+  analysis_status       String             @default("NOT_STARTED") @db.VarChar(20)
+  executive_summary     String?
+  response_plan         String?
+  entities              String?
+  analysis_finalized_at DateTime?          @db.Timestamptz(6)
+  report                String?
+  created_at            DateTime           @default(now()) @db.Timestamptz(6)
+  updated_at            DateTime           @default(now()) @db.Timestamptz(6)
+  resolved_at           DateTime?          @db.Timestamptz(6)
+  confidence_score      Int?
+  assigned_orgs         assigned_orgs[]
+  discussions           discussions[]
+  incident_sources      incident_sources[]
+  logs                  logs[]
 
   @@index([code], map: "idx_incidents_code")
   @@index([created_at], map: "idx_incidents_created_at")
@@ -75,6 +87,7 @@ model incidents {
 model logs {
   id          String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   incident_id String    @db.Uuid
+  agency_id   String    @default("SYSTEM") @db.VarChar(50)
   content     String
   created_at  DateTime  @default(now()) @db.Timestamptz(6)
   incidents   incidents @relation(fields: [incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)

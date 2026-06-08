@@ -23,6 +23,7 @@ CLUSTER_URLS = {
     AgencyID.SINGHEALTH: os.getenv("SINGHEALTH_URL", "http://singhealth:8000"),
     AgencyID.NUHS: os.getenv("NUHS_URL", "http://nuhs:8000"),
 }
+FIELD_OMIT_CHANCE = 0.25
 
 
 class NUHSSimulator(BaseAgencySimulator):
@@ -64,7 +65,7 @@ class NUHSSimulator(BaseAgencySimulator):
         nurses_reserved: int,
         nurses_maintenance: int,
     ) -> dict:
-        return {
+        payload = {
             "externalOutletId": f"NUHS-{code}",
             "name": name,
             "type": "hospital",
@@ -142,7 +143,7 @@ class NUHSSimulator(BaseAgencySimulator):
             "cluster_alert": trigger.severity >= 4,
             "primary_site": hospital["code"],
             "primary_site_name": hospital["name"],
-            "operational_status": op_status,
+            "operational_status": "UNKNOWN" if random.random() < 0.1 else op_status,
             "patient_handoff": {
                 "ambulance_refs": handoff.get("ambulance_refs", []),
                 "patient_profile": patient_profile,
@@ -180,13 +181,18 @@ class NUHSSimulator(BaseAgencySimulator):
                 }
             ],
         }
+        if random.random() < 0.2:
+            payload.pop("resource_state")
+        if random.random() < 0.15:
+            payload.pop("staffing")
+        return payload
 
     def build_update_payload(self, ticket: dict, status: TicketStatus, note: str) -> dict:
         p = ticket["payload"].copy()
-        rs = p.get("resource_state", {})
-        rs["ed_wait_time_mins"] = max(5, rs.get("ed_wait_time_mins", 30) + random.randint(-10, 20))
-        rs["beds_available"] = max(0, rs.get("beds_available", 10) - random.randint(0, 3))
-        p["resource_state"] = rs
+        if "resource_state" in p:
+            rs = p["resource_state"]
+            rs["ed_wait_time_mins"] = max(5, rs.get("ed_wait_time_mins", 30) + random.randint(-10, 20))
+            rs["beds_available"] = max(0, rs.get("beds_available", 10) - random.randint(0, 3))
         p.setdefault("free_text_updates", []).append({
             "ts": utcnow().isoformat(),
             "author_role": random.choice(AUTHOR_ROLES),

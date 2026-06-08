@@ -24,6 +24,10 @@ That starts the scenario engine plus its agency dependencies:
 - `pub`
 - `nea`
 
+Incident classification and closed-incident reports are generated
+deterministically inside the NestJS backend. No model download, API key, or
+separate analyzer container is required.
+
 To include the local database too:
 
 ```bash
@@ -183,6 +187,8 @@ as often as common incidents.
 | Gas leak | 5 |
 | Disease outbreak | 4 |
 | Building collapse | 2 |
+| Haze | 3 |
+| Civil disturbance | 3 |
 
 These are simulation weights, not real-world statistics.
 
@@ -198,6 +204,8 @@ These are simulation weights, not real-world statistics.
 | Building collapse | SCDF, SPF | Town Council, NEA | SCDF usually routes casualties to hospital |
 | Missing person | SPF | None | Police-owned search/report flow |
 | Disease outbreak | NEA, SingHealth, NUHS | SPF, Town Council | Health clusters and NEA run parallel records |
+| Haze | NEA | SingHealth, NUHS, Town Council | Air-quality advisory and health monitoring |
+| Civil disturbance | SPF | SCDF | Crowd control with optional medical support |
 
 ## Realism Notes
 
@@ -205,6 +213,7 @@ The simulators intentionally create integration noise:
 
 - Agencies use different ticket IDs and field names.
 - Locations are represented differently across agencies.
+- Initial coordinates are approximate and may later be corrected on scene.
 - Some updates are delayed.
 - Some updates are duplicated.
 - Some optional fields are missing.
@@ -212,6 +221,7 @@ The simulators intentionally create integration noise:
 - SCDF handoff creates a parent-child relationship between agency records.
 - Hospital transfer creates another local record rather than editing the first one.
 - PUB and NEA may notify or imply follow-up by Town Council, SCDF or health clusters.
+- Scenario-level phase events add cross-agency milestones alongside agency ticket lifecycles.
 
 The goal is not perfect operational truth. The goal is realistic enough data
 shape, timing and inconsistency to test incident normalization and coordination
