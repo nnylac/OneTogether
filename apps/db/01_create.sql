@@ -54,14 +54,19 @@ CREATE TABLE logs (
 );
 
 CREATE TABLE assigned_orgs (
-    incident_id     UUID    NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
-    organisation_id UUID    NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
-    assigned_at     TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    incident_id     UUID         NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
+    organisation_id UUID         NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
+    assigned_at     TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    unit_name       VARCHAR(120) NOT NULL DEFAULT 'Response Unit',
+    status          VARCHAR(20)  NOT NULL DEFAULT 'DISPATCHED'
+                    CHECK (status IN ('DISPATCHED', 'ON SCENE', 'COMPLETED')),
+    notes           TEXT         NOT NULL DEFAULT '',
 
     PRIMARY KEY (incident_id, organisation_id)
 );
 CREATE INDEX idx_assigned_orgs_incident_id     ON assigned_orgs (incident_id);
 CREATE INDEX idx_assigned_orgs_organisation_id ON assigned_orgs (organisation_id);
+CREATE INDEX idx_assigned_orgs_status          ON assigned_orgs (status);
 
 CREATE TABLE incident_sources (
     incident_id        UUID             NOT NULL REFERENCES incidents     (id) ON DELETE CASCADE,
@@ -81,7 +86,7 @@ CREATE TABLE users (
     phone       VARCHAR(20),
     is_verified BOOLEAN      NOT NULL DEFAULT FALSE,
     role        VARCHAR(20)  NOT NULL DEFAULT 'user'
-                    CHECK (role IN ('user', 'admin', 'moderator')),
+                    CHECK (role IN ('user', 'responder', 'admin')),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_login  TIMESTAMPTZ
@@ -93,6 +98,16 @@ CREATE INDEX idx_users_email      ON users (email);
 CREATE INDEX idx_users_username   ON users (username);
 CREATE INDEX idx_users_role       ON users (role);
 CREATE INDEX idx_users_created_at ON users (created_at);
+
+CREATE TABLE user_organisations (
+    user_id         UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
+    organisation_id UUID        NOT NULL REFERENCES organisations (id) ON DELETE CASCADE,
+    created_at      TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+
+    PRIMARY KEY (user_id, organisation_id)
+);
+CREATE INDEX idx_user_organisations_user_id         ON user_organisations (user_id);
+CREATE INDEX idx_user_organisations_organisation_id ON user_organisations (organisation_id);
 
 CREATE TABLE notifications (
     id                UUID          NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -125,6 +140,96 @@ CREATE TABLE notification_recipients (
 CREATE INDEX idx_notification_recipients_notification_id ON notification_recipients (notification_id);
 CREATE INDEX idx_notification_recipients_recipient       ON notification_recipients (recipient_type, recipient_id, recipient_role);
 CREATE INDEX idx_notification_recipients_is_read         ON notification_recipients (is_read);
+
+CREATE TABLE broadcasts (
+    id                 UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    title              VARCHAR(120) NOT NULL,
+    message            TEXT         NOT NULL,
+    broadcast_type     VARCHAR(50)  NOT NULL,
+    severity           VARCHAR(20)  NOT NULL DEFAULT 'info'
+                       CHECK (severity IN ('info', 'advisory', 'warning', 'critical')),
+    broadcast_status   VARCHAR(20)  NOT NULL DEFAULT 'draft'
+                       CHECK (broadcast_status IN ('draft', 'published', 'archived', 'cancelled')),
+    created_by_user_id UUID         REFERENCES users (id) ON DELETE SET NULL,
+    published_at       TIMESTAMPTZ,
+    archived_at        TIMESTAMPTZ,
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE TRIGGER trg_broadcasts_updated_at
+BEFORE UPDATE ON broadcasts
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_broadcasts_created_at ON broadcasts (created_at);
+CREATE INDEX idx_broadcasts_status     ON broadcasts (broadcast_status);
+CREATE INDEX idx_broadcasts_type       ON broadcasts (broadcast_type);
+CREATE INDEX idx_broadcasts_severity   ON broadcasts (severity);
+
+CREATE TABLE broadcast_audiences (
+    id              UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    broadcast_id    UUID         NOT NULL REFERENCES broadcasts (id) ON DELETE CASCADE,
+    audience_type   VARCHAR(20)  NOT NULL
+                    CHECK (audience_type IN ('public', 'role', 'organisation', 'region')),
+    audience_role   VARCHAR(50),
+    organisation_id UUID         REFERENCES organisations (id) ON DELETE CASCADE,
+    region          VARCHAR(100),
+
+    CHECK (
+        (audience_type = 'public' AND audience_role IS NULL AND organisation_id IS NULL AND region IS NULL)
+        OR
+        (audience_type = 'role' AND audience_role IS NOT NULL AND organisation_id IS NULL AND region IS NULL)
+        OR
+        (audience_type = 'organisation' AND organisation_id IS NOT NULL AND audience_role IS NULL AND region IS NULL)
+        OR
+        (audience_type = 'region' AND region IS NOT NULL AND audience_role IS NULL AND organisation_id IS NULL)
+    )
+);
+CREATE INDEX idx_broadcast_audiences_broadcast_id ON broadcast_audiences (broadcast_id);
+CREATE INDEX idx_broadcast_audiences_target       ON broadcast_audiences (audience_type, audience_role, organisation_id, region);
+
+CREATE TABLE volunteer_sources (
+    id              UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    source_name     VARCHAR(100) NOT NULL,
+    source_url      TEXT         NOT NULL UNIQUE,
+    organisation_id UUID         REFERENCES organisations (id) ON DELETE SET NULL,
+    is_active       BOOLEAN      NOT NULL DEFAULT TRUE,
+    last_synced_at  TIMESTAMPTZ,
+    created_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at      TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+);
+CREATE TRIGGER trg_volunteer_sources_updated_at
+BEFORE UPDATE ON volunteer_sources
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_volunteer_sources_active          ON volunteer_sources (is_active);
+CREATE INDEX idx_volunteer_sources_organisation_id ON volunteer_sources (organisation_id);
+
+CREATE TABLE volunteer_opportunities (
+    id                  UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    source_id           UUID         NOT NULL REFERENCES volunteer_sources (id) ON DELETE CASCADE,
+    external_id         TEXT         NOT NULL,
+    title               VARCHAR(150) NOT NULL,
+    description         TEXT,
+    opportunity_type    VARCHAR(50),
+    location            TEXT,
+    region              VARCHAR(100),
+    start_at            TIMESTAMPTZ,
+    end_at              TIMESTAMPTZ,
+    signup_url          TEXT         NOT NULL,
+    source_url          TEXT,
+    external_updated_at TIMESTAMPTZ,
+    opportunity_status  VARCHAR(30)  NOT NULL DEFAULT 'open',
+    created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    UNIQUE (source_id, external_id)
+);
+CREATE TRIGGER trg_volunteer_opportunities_updated_at
+BEFORE UPDATE ON volunteer_opportunities
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_volunteer_opportunities_source_id ON volunteer_opportunities (source_id);
+CREATE INDEX idx_volunteer_opportunities_status    ON volunteer_opportunities (opportunity_status);
+CREATE INDEX idx_volunteer_opportunities_region    ON volunteer_opportunities (region);
+CREATE INDEX idx_volunteer_opportunities_type      ON volunteer_opportunities (opportunity_type);
+CREATE INDEX idx_volunteer_opportunities_start_at  ON volunteer_opportunities (start_at);
 
 CREATE TABLE accounts (
     id              UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -178,7 +283,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
 
 
 

@@ -14,11 +14,12 @@ import {
 import {
   assignOrganisationToIncident,
   fetchOrganisations,
+  updateIncidentAssignedOrganisation,
 } from '../api/incidentsApi'
 import { fetchIncidentMap } from '../api/incidentMapApi'
 import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
 import type { OrganisationApiDto } from '../api/incidentsDto'
-import type { IncidentResource } from '../types'
+import type { IncidentResource, IncidentResourceStatus } from '../types'
 import {
   ARRIVED_STATUSES,
   kindMeta,
@@ -47,6 +48,8 @@ export function IncidentResources({
   const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false)
   const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
   const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
+  const [resourceUpdateError, setResourceUpdateError] = useState<string | null>(null)
+  const [savingResourceId, setSavingResourceId] = useState<string | null>(null)
   const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
 
   const [snapshot, setSnapshot] = useState<IncidentMapDto | null>(null)
@@ -129,6 +132,52 @@ export function IncidentResources({
       ? selectedOrganisationId
       : assignableOrganisations[0]?.id ?? ''
 
+  function getResourceOrganisationId(resource: IncidentResource) {
+    return resource.organisationId ?? resource.id.split(':')[1] ?? ''
+  }
+
+  async function persistResourceUpdate(
+    resource: IncidentResource,
+    updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>,
+  ) {
+    const organisationId = getResourceOrganisationId(resource)
+
+    if (!organisationId) {
+      setResourceUpdateError('Unable to identify the assigned organisation.')
+      return
+    }
+
+    setResourceUpdateError(null)
+    setSavingResourceId(resource.id)
+
+    try {
+      const updatedIncident = await updateIncidentAssignedOrganisation(
+        incidentId,
+        organisationId,
+        updates,
+      )
+
+      onResourcesChange(updatedIncident.resources ?? [])
+    } catch (error) {
+      setResourceUpdateError(
+        error instanceof Error ? error.message : 'Unable to save resource updates.',
+      )
+      onResourcesChange(resources)
+    } finally {
+      setSavingResourceId(null)
+    }
+  }
+
+  async function updateResourceStatus(resource: IncidentResource, status: IncidentResourceStatus) {
+    updateResource(resource.id, { status })
+    await persistResourceUpdate(resource, { status })
+  }
+
+  async function closeResourceNotes(resource: IncidentResource) {
+    await persistResourceUpdate(resource, { notes: resource.notes })
+    setOpenNotesResourceId(null)
+  }
+
   async function assignOrganisation() {
     if (!effectiveSelectedId) {
       return
@@ -153,139 +202,159 @@ export function IncidentResources({
   }
 
   return (
-    <Box flex="1" minH="0" overflowY="auto" p="6">
-      <VStack align="stretch" gap="5">
-        <Flex justify="space-between" align={{ base: 'stretch', lg: 'center' }} gap="4" direction={{ base: 'column', lg: 'row' }}>
-          <Box>
-            <Heading size="xl" color="gray.900">
-              Assigned resources
-            </Heading>
-            <Text color="gray.500" mt="1">
-              {units.length} {units.length === 1 ? 'unit' : 'units'} dispatched
+  <Box flex="1" minH="0" overflowY="auto" p="6">
+    <VStack align="stretch" gap="5">
+      <Flex
+        justify="space-between"
+        align={{ base: 'stretch', lg: 'center' }}
+        gap="4"
+        direction={{ base: 'column', lg: 'row' }}
+      >
+        <Box>
+          <Heading size="xl" color="gray.900">
+            Assigned resources
+          </Heading>
+
+          <Text color="gray.500" mt="1">
+            {units.length} {units.length === 1 ? 'unit' : 'units'} dispatched
+          </Text>
+        </Box>
+
+        <Button
+          bg="purple.600"
+          color="white"
+          alignSelf={{ base: 'flex-start', lg: 'center' }}
+          onClick={() => {
+            setAssignmentError(null)
+            setIsAssignPanelOpen((isOpen) => !isOpen)
+          }}
+          _hover={{ bg: 'purple.700' }}
+        >
+          <Icon as={Plus} />
+          Assign unit
+        </Button>
+      </Flex>
+
+      {isAssignPanelOpen && (
+        <Box bg="gray.50" borderColor="gray.200" borderWidth="1px" p="4">
+          <Flex
+            align={{ base: 'stretch', md: 'end' }}
+            direction={{ base: 'column', md: 'row' }}
+            gap="3"
+          >
+            <Box flex="1">
+              <Text color="gray.700" fontSize="sm" fontWeight="700" mb="2">
+                Organisation
+              </Text>
+
+              <Select
+                aria-label="Organisation to assign"
+                onChange={(event) =>
+                  setSelectedOrganisationId(event.currentTarget.value)
+                }
+                value={effectiveSelectedId}
+              >
+                {assignableOrganisations.length > 0 ? (
+                  assignableOrganisations.map((organisation) => (
+                    <option key={organisation.id} value={organisation.id}>
+                      {organisation.orgName}
+                    </option>
+                  ))
+                ) : (
+                  <option value="">No organisations available</option>
+                )}
+              </Select>
+            </Box>
+
+            <Button
+              bg="gray.900"
+              color="white"
+              disabled={!effectiveSelectedId || isAssigning}
+              onClick={assignOrganisation}
+              _hover={{ bg: 'gray.800' }}
+            >
+              {isAssigning ? 'Assigning...' : 'Assign'}
+            </Button>
+          </Flex>
+
+          {assignmentError && (
+            <Text color="red.600" fontSize="sm" fontWeight="700" mt="3">
+              {assignmentError}
             </Text>
+          )}
+        </Box>
+      )}
+
+      {resourceUpdateError && (
+        <Text color="red.600" fontSize="sm" fontWeight="700">
+          {resourceUpdateError}
+        </Text>
+      )}
+
+      <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
+        <Box
+          as="table"
+          width="100%"
+          borderCollapse="collapse"
+          tableLayout="fixed"
+          minW="1020px"
+        >
+          <Box as="colgroup">
+            <Box as="col" width="18%" />
+            <Box as="col" width="11%" />
+            <Box as="col" width="14%" />
+            <Box as="col" width="18%" />
+            <Box as="col" width="15%" />
+            <Box as="col" width="12%" />
+            <Box as="col" width="12%" />
           </Box>
 
-          <Button
-            bg="purple.600"
-            color="white"
-            alignSelf={{ base: 'flex-start', lg: 'center' }}
-            onClick={() => {
-              setAssignmentError(null)
-              setIsAssignPanelOpen((isOpen) => !isOpen)
-            }}
-            _hover={{ bg: 'purple.700' }}
-          >
-            <Icon as={Plus} />
-            Assign unit
-          </Button>
-        </Flex>
+          <Box as="thead" bg="gray.50">
+            <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
+              <HeaderCell>Unit</HeaderCell>
+              <HeaderCell>Agency</HeaderCell>
+              <HeaderCell>Type</HeaderCell>
+              <HeaderCell>Responding from</HeaderCell>
+              <HeaderCell>Status</HeaderCell>
+              <HeaderCell textAlign="right">ETA</HeaderCell>
+              <HeaderCell textAlign="right">Distance</HeaderCell>
+            </Box>
+          </Box>
 
-        {isAssignPanelOpen && (
-          <Box bg="gray.50" borderColor="gray.200" borderWidth="1px" p="4">
-            <Flex
-              align={{ base: 'stretch', md: 'end' }}
-              direction={{ base: 'column', md: 'row' }}
-              gap="3"
-            >
-              <Box flex="1">
-                <Text color="gray.700" fontSize="sm" fontWeight="700" mb="2">
-                  Organisation
-                </Text>
-                <Select
-                  aria-label="Organisation to assign"
-                  onChange={(event) => setSelectedOrganisationId(event.currentTarget.value)}
-                  value={effectiveSelectedId}
-                >
-                  {assignableOrganisations.length > 0 ? (
-                    assignableOrganisations.map((organisation) => (
-                      <option key={organisation.id} value={organisation.id}>
-                        {organisation.orgName}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">No organisations available</option>
-                  )}
-                </Select>
+          <Box as="tbody">
+            {units.length === 0 ? (
+              <Box as="tr">
+                <td colSpan={7}>
+                  <Box px="5" py="10" textAlign="center">
+                    <Text color="gray.500" fontWeight="600">
+                      {isLoadingUnits
+                        ? 'Loading dispatched units…'
+                        : unitsError ?? 'No units dispatched yet.'}
+                    </Text>
+                  </Box>
+                </td>
               </Box>
-
-              <Button
-                bg="gray.900"
-                color="white"
-                disabled={!effectiveSelectedId || isAssigning}
-                onClick={assignOrganisation}
-                _hover={{ bg: 'gray.800' }}
-              >
-                {isAssigning ? 'Assigning...' : 'Assign'}
-              </Button>
-            </Flex>
-
-            {assignmentError && (
-              <Text color="red.600" fontSize="sm" fontWeight="700" mt="3">
-                {assignmentError}
-              </Text>
+            ) : (
+              units.map((unit) => (
+                <UnitRow
+                  key={unit.id}
+                  unit={unit}
+                  nowMs={nowMs}
+                  isOpen={openNotesResourceId === unit.id}
+                  onToggle={() =>
+                    setOpenNotesResourceId((currentId) =>
+                      currentId === unit.id ? null : unit.id,
+                    )
+                  }
+                />
+              ))
             )}
           </Box>
-        )}
-
-        <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-          <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="1020px">
-            <Box as="colgroup">
-              <Box as="col" width="18%" />
-              <Box as="col" width="11%" />
-              <Box as="col" width="14%" />
-              <Box as="col" width="18%" />
-              <Box as="col" width="15%" />
-              <Box as="col" width="12%" />
-              <Box as="col" width="12%" />
-            </Box>
-
-            <Box as="thead" bg="gray.50">
-              <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
-                <HeaderCell>Unit</HeaderCell>
-                <HeaderCell>Agency</HeaderCell>
-                <HeaderCell>Type</HeaderCell>
-                <HeaderCell>Responding from</HeaderCell>
-                <HeaderCell>Status</HeaderCell>
-                <HeaderCell textAlign="right">ETA</HeaderCell>
-                <HeaderCell textAlign="right">Distance</HeaderCell>
-              </Box>
-            </Box>
-
-            <Box as="tbody">
-              {units.length === 0 ? (
-                <Box as="tr">
-                  <td colSpan={7}>
-                    <Box px="5" py="10" textAlign="center">
-                      <Text color="gray.500" fontWeight="600">
-                        {isLoadingUnits
-                          ? 'Loading dispatched units…'
-                          : unitsError ?? 'No units dispatched yet.'}
-                      </Text>
-                    </Box>
-                  </td>
-                </Box>
-              ) : (
-                units.map((unit) => (
-                  <UnitRow
-                    key={unit.id}
-                    unit={unit}
-                    nowMs={nowMs}
-                    isOpen={openNotesResourceId === unit.id}
-                    onToggle={() =>
-                      setOpenNotesResourceId((currentId) =>
-                        currentId === unit.id ? null : unit.id,
-                      )
-                    }
-                  />
-                ))
-              )}
-            </Box>
-          </Box>
         </Box>
-      </VStack>
-    </Box>
-  )
-}
+      </Box>
+    </VStack>
+  </Box>
+)
 
 function UnitRow({
   unit,
@@ -452,4 +521,7 @@ function BodyCell({
       {children}
     </Box>
   )
+}
+function updateResource(id: string, arg1: { status: IncidentResourceStatus }) {
+  throw new Error('Function not implemented.')
 }

@@ -12,12 +12,16 @@ model assigned_orgs {
   incident_id     String        @db.Uuid
   organisation_id String        @db.Uuid
   assigned_at     DateTime      @default(now()) @db.Timestamptz(6)
+  unit_name       String        @default("Response Unit") @db.VarChar(120)
+  status          String        @default("DISPATCHED") @db.VarChar(20)
+  notes           String        @default("")
   incidents       incidents     @relation(fields: [incident_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
   organisations   organisations @relation(fields: [organisation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
 
   @@id([incident_id, organisation_id])
   @@index([incident_id], map: "idx_assigned_orgs_incident_id")
   @@index([organisation_id], map: "idx_assigned_orgs_organisation_id")
+  @@index([status], map: "idx_assigned_orgs_status")
 }
 
 model discussions {
@@ -121,9 +125,12 @@ model messages {
 }
 
 model organisations {
-  id            String          @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  org_name      String          @unique @db.VarChar(50)
-  assigned_orgs assigned_orgs[]
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  org_name            String                @unique @db.VarChar(50)
+  assigned_orgs       assigned_orgs[]
+  broadcast_audiences broadcast_audiences[]
+  user_organisations  user_organisations[]
+  volunteer_sources   volunteer_sources[]
 }
 
 model resources {
@@ -135,19 +142,21 @@ model resources {
 
 /// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
 model users {
-  id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  username    String     @unique @db.VarChar(50)
-  email       String     @unique @db.VarChar(255)
-  first_name  String?    @db.VarChar(100)
-  last_name   String?    @db.VarChar(100)
-  phone       String?    @db.VarChar(20)
-  is_verified Boolean    @default(false)
-  role        String     @default("user") @db.VarChar(20)
-  created_at  DateTime   @default(now()) @db.Timestamptz(6)
-  updated_at  DateTime   @default(now()) @db.Timestamptz(6)
-  last_login  DateTime?  @db.Timestamptz(6)
-  accounts    accounts?
-  messages    messages[]
+  id                 String               @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  username           String               @unique @db.VarChar(50)
+  email              String               @unique @db.VarChar(255)
+  first_name         String?              @db.VarChar(100)
+  last_name          String?              @db.VarChar(100)
+  phone              String?              @db.VarChar(20)
+  is_verified        Boolean              @default(false)
+  role               String               @default("user") @db.VarChar(20)
+  created_at         DateTime             @default(now()) @db.Timestamptz(6)
+  updated_at         DateTime             @default(now()) @db.Timestamptz(6)
+  last_login         DateTime?            @db.Timestamptz(6)
+  accounts           accounts?
+  broadcasts         broadcasts[]
+  messages           messages[]
+  user_organisations user_organisations[]
 
   @@index([created_at], map: "idx_users_created_at")
   @@index([email], map: "idx_users_email")
@@ -209,4 +218,96 @@ model refresh_tokens {
   @@index([account_id], map: "idx_refresh_tokens_account_id")
   @@index([expires_at], map: "idx_refresh_tokens_expires_at")
   @@index([revoked_at], map: "idx_refresh_tokens_revoked_at")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model broadcast_audiences {
+  id              String         @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  broadcast_id    String         @db.Uuid
+  audience_type   String         @db.VarChar(20)
+  audience_role   String?        @db.VarChar(50)
+  organisation_id String?        @db.Uuid
+  region          String?        @db.VarChar(100)
+  broadcasts      broadcasts     @relation(fields: [broadcast_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  organisations   organisations? @relation(fields: [organisation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@index([broadcast_id], map: "idx_broadcast_audiences_broadcast_id")
+  @@index([audience_type, audience_role, organisation_id, region], map: "idx_broadcast_audiences_target")
+}
+
+/// This table contains check constraints and requires additional setup for migrations. Visit https://pris.ly/d/check-constraints for more info.
+model broadcasts {
+  id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title               String                @db.VarChar(120)
+  message             String
+  broadcast_type      String                @db.VarChar(50)
+  severity            String                @default("info") @db.VarChar(20)
+  broadcast_status    String                @default("draft") @db.VarChar(20)
+  created_by_user_id  String?               @db.Uuid
+  published_at        DateTime?             @db.Timestamptz(6)
+  archived_at         DateTime?             @db.Timestamptz(6)
+  created_at          DateTime              @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime              @default(now()) @db.Timestamptz(6)
+  broadcast_audiences broadcast_audiences[]
+  users               users?                @relation(fields: [created_by_user_id], references: [id], onUpdate: NoAction)
+
+  @@index([created_at], map: "idx_broadcasts_created_at")
+  @@index([severity], map: "idx_broadcasts_severity")
+  @@index([broadcast_status], map: "idx_broadcasts_status")
+  @@index([broadcast_type], map: "idx_broadcasts_type")
+}
+
+model user_organisations {
+  user_id         String        @db.Uuid
+  organisation_id String        @db.Uuid
+  created_at      DateTime      @default(now()) @db.Timestamptz(6)
+  organisations   organisations @relation(fields: [organisation_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+  users           users         @relation(fields: [user_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@id([user_id, organisation_id])
+  @@index([organisation_id], map: "idx_user_organisations_organisation_id")
+  @@index([user_id], map: "idx_user_organisations_user_id")
+}
+
+model volunteer_opportunities {
+  id                  String            @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_id           String            @db.Uuid
+  external_id         String
+  title               String            @db.VarChar(150)
+  description         String?
+  opportunity_type    String?           @db.VarChar(50)
+  location            String?
+  region              String?           @db.VarChar(100)
+  start_at            DateTime?         @db.Timestamptz(6)
+  end_at              DateTime?         @db.Timestamptz(6)
+  signup_url          String
+  source_url          String?
+  external_updated_at DateTime?         @db.Timestamptz(6)
+  opportunity_status  String            @default("open") @db.VarChar(30)
+  created_at          DateTime          @default(now()) @db.Timestamptz(6)
+  updated_at          DateTime          @default(now()) @db.Timestamptz(6)
+  volunteer_sources   volunteer_sources @relation(fields: [source_id], references: [id], onDelete: Cascade, onUpdate: NoAction)
+
+  @@unique([source_id, external_id])
+  @@index([region], map: "idx_volunteer_opportunities_region")
+  @@index([source_id], map: "idx_volunteer_opportunities_source_id")
+  @@index([start_at], map: "idx_volunteer_opportunities_start_at")
+  @@index([opportunity_status], map: "idx_volunteer_opportunities_status")
+  @@index([opportunity_type], map: "idx_volunteer_opportunities_type")
+}
+
+model volunteer_sources {
+  id                      String                    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  source_name             String                    @db.VarChar(100)
+  source_url              String                    @unique
+  organisation_id         String?                   @db.Uuid
+  is_active               Boolean                   @default(true)
+  last_synced_at          DateTime?                 @db.Timestamptz(6)
+  created_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  updated_at              DateTime                  @default(now()) @db.Timestamptz(6)
+  volunteer_opportunities volunteer_opportunities[]
+  organisations           organisations?            @relation(fields: [organisation_id], references: [id], onUpdate: NoAction)
+
+  @@index([is_active], map: "idx_volunteer_sources_active")
+  @@index([organisation_id], map: "idx_volunteer_sources_organisation_id")
 }

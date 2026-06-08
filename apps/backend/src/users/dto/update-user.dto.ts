@@ -14,8 +14,8 @@ export class UpdateUserDto {
   isVerified?: boolean;
 
   @ApiPropertyOptional({
-    example: 'moderator',
-    enum: ['user', 'moderator', 'admin'],
+    example: 'responder',
+    enum: ['user', 'responder', 'admin'],
   })
   role?: string;
 }

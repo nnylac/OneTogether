@@ -5,5 +5,6 @@ export class CreateAccountDto {
   last_name?: string;
   phone?: string;
   role?: string;
+  organisationIds?: string[];
   password!: string;
 }

@@ -1,5 +1,5 @@
 import { BadRequestException, NotFoundException } from '@nestjs/common';
-import type { users as UserModel } from '../../generated/prisma/client';
+import type { UserWithOrganisations } from './dto/user-response.dto';
 import { UsersRepository } from './users.repository';
 import { UsersService } from './users.service';
 
@@ -7,7 +7,7 @@ describe('UsersService', () => {
   let service: UsersService;
   let repository: jest.Mocked<UsersRepository>;
 
-  const userModel: UserModel = {
+  const userModel: UserWithOrganisations = {
     id: '50000000-0000-0000-0000-000000000001',
     username: 'citizen_amy',
     email: 'amy.tan@example.sg',
@@ -19,6 +19,7 @@ describe('UsersService', () => {
     created_at: new Date('2026-06-01T00:00:00.000Z'),
     updated_at: new Date('2026-06-01T00:00:00.000Z'),
     last_login: null,
+    user_organisations: [],
   };
 
   beforeEach(() => {
@@ -52,6 +53,7 @@ describe('UsersService', () => {
         phone: userModel.phone,
         isVerified: userModel.is_verified,
         role: userModel.role,
+        organisations: [],
         createdAt: userModel.created_at,
         updatedAt: userModel.updated_at,
         lastLogin: userModel.last_login,
@@ -61,6 +63,7 @@ describe('UsersService', () => {
       {
         role: 'user',
         isVerified: true,
+        organisationId: undefined,
         search: undefined,
         take: undefined,
         skip: undefined,
@@ -69,7 +72,7 @@ describe('UsersService', () => {
   });
 
   it('should throw when filtering by invalid role', async () => {
-    await expect(service.findAll({ role: 'responder' })).rejects.toBeInstanceOf(
+    await expect(service.findAll({ role: 'moderator' })).rejects.toBeInstanceOf(
       BadRequestException,
     );
   });
