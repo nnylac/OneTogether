@@ -14,6 +14,7 @@ export type AuthUser = {
   phone: string | null
   role: AuthRole
   isVerified: boolean
+  userOrganisationId: string | null
   organisations: AuthOrganisation[]
 }
 

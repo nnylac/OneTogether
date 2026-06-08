@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Patch, Post } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
 import { IncidentsService } from './incidents.service';
 import { AssignOrganisationDto } from './assign-organisation.dto';
 import { UpdateAssignedOrganisationDto } from './update-assigned-organisation.dto';
@@ -9,8 +9,8 @@ export class IncidentsController {
   constructor(private readonly incidentsService: IncidentsService) {}
 
   @Get()
-  findAll() {
-    return this.incidentsService.findAll();
+  findAll(@Query('organisationId') organisationId?: string) {
+    return this.incidentsService.findAll({ organisationId });
   }
 
   @Post(':id/organisations')

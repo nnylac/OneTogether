@@ -12,6 +12,7 @@ import {
 import { AssignOrganisationDto } from './assign-organisation.dto';
 import { UpdateAssignedOrganisationDto } from './update-assigned-organisation.dto';
 import { UpdateIncidentDto } from './update-incident.dto';
+import type { Prisma } from '../../generated/prisma/client';
 
 type IncidentWithRelations = Awaited<
   ReturnType<IncidentsService['findIncidentById']>
@@ -21,8 +22,20 @@ type IncidentWithRelations = Awaited<
 export class IncidentsService {
   constructor(private readonly prisma: PrismaService) {}
 
-  async findAll() {
+  async findAll(filters: { organisationId?: string } = {}) {
+    const where: Prisma.incidentsWhereInput = {};
+    const organisationId = filters.organisationId?.trim();
+
+    if (organisationId) {
+      where.assigned_orgs = {
+        some: {
+          organisation_id: organisationId,
+        },
+      };
+    }
+
     const incidents = await this.prisma.incidents.findMany({
+      where,
       orderBy: { created_at: 'desc' },
       include: {
         assigned_orgs: {
