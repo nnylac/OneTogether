@@ -1,6 +1,6 @@
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Plus } from 'lucide-react'
 import {
   Box,
   Button,
@@ -9,17 +9,27 @@ import {
   Icon,
   Select,
   Text,
-  Textarea,
   VStack,
 } from '../../../../components/chakra-ui'
 import {
   assignOrganisationToIncident,
   fetchOrganisations,
 } from '../api/incidentsApi'
+import { fetchIncidentMap } from '../api/incidentMapApi'
+import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
 import type { OrganisationApiDto } from '../api/incidentsDto'
-import type { IncidentResource, IncidentResourceStatus } from '../types'
+import type { IncidentResource } from '../types'
+import {
+  ARRIVED_STATUSES,
+  kindMeta,
+  liveEtaMinutes,
+  remainingKm,
+  statusColor,
+  statusLabel,
+} from '../utils/incidentMapResource'
 
-const resourceStatuses: IncidentResourceStatus[] = ['dispatched', 'on scene', 'engaged']
+const MAP_REFRESH_MS = 2500
+const CLOCK_TICK_MS = 1000
 
 type IncidentResourcesProps = {
   incidentId: string
@@ -38,6 +48,48 @@ export function IncidentResources({
   const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
   const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
   const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
+
+  const [snapshot, setSnapshot] = useState<IncidentMapDto | null>(null)
+  const [isLoadingUnits, setIsLoadingUnits] = useState(true)
+  const [unitsError, setUnitsError] = useState<string | null>(null)
+  const [nowMs, setNowMs] = useState(() => Date.now())
+
+  // Poll the operational map snapshot so the assigned-units view matches the Map tab.
+  useEffect(() => {
+    let isMounted = true
+
+    async function load(showLoading: boolean) {
+      if (showLoading) {
+        setIsLoadingUnits(true)
+        setSnapshot(null)
+      }
+      try {
+        const data = await fetchIncidentMap(incidentId)
+        if (!isMounted) return
+        setSnapshot(data)
+        setUnitsError(null)
+      } catch {
+        if (isMounted) setUnitsError('Unable to load dispatched units.')
+      } finally {
+        if (showLoading && isMounted) setIsLoadingUnits(false)
+      }
+    }
+
+    void load(true)
+    const refreshId = window.setInterval(() => void load(false), MAP_REFRESH_MS)
+    return () => {
+      isMounted = false
+      window.clearInterval(refreshId)
+    }
+  }, [incidentId])
+
+  // Tick a steady clock so ETA and distance count down live.
+  useEffect(() => {
+    const tickId = window.setInterval(() => setNowMs(Date.now()), CLOCK_TICK_MS)
+    return () => window.clearInterval(tickId)
+  }, [])
+
+  const units = useMemo(() => snapshot?.resources ?? [], [snapshot])
 
   useEffect(() => {
     if (!isAssignPanelOpen || organisations.length > 0) {
@@ -69,27 +121,16 @@ export function IncidentResources({
     (organisation) => !assignedAgencies.has(organisation.orgName),
   )
 
-  useEffect(() => {
-    if (
-      selectedOrganisationId &&
-      assignableOrganisations.some((organisation) => organisation.id === selectedOrganisationId)
-    ) {
-      return
-    }
-
-    setSelectedOrganisationId(assignableOrganisations[0]?.id ?? '')
-  }, [assignableOrganisations, selectedOrganisationId])
-
-  function updateResource(id: string, updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>) {
-    onResourcesChange(
-      resources.map((resource) =>
-        resource.id === id ? { ...resource, ...updates } : resource,
-      ),
-    )
-  }
+  // Derive the effective selection so it stays valid as the assignable list changes,
+  // without an effect that syncs state back into itself.
+  const effectiveSelectedId =
+    selectedOrganisationId &&
+    assignableOrganisations.some((organisation) => organisation.id === selectedOrganisationId)
+      ? selectedOrganisationId
+      : assignableOrganisations[0]?.id ?? ''
 
   async function assignOrganisation() {
-    if (!selectedOrganisationId) {
+    if (!effectiveSelectedId) {
       return
     }
 
@@ -99,7 +140,7 @@ export function IncidentResources({
     try {
       const updatedIncident = await assignOrganisationToIncident(
         incidentId,
-        selectedOrganisationId,
+        effectiveSelectedId,
       )
 
       onResourcesChange(updatedIncident.resources ?? [])
@@ -120,7 +161,7 @@ export function IncidentResources({
               Assigned resources
             </Heading>
             <Text color="gray.500" mt="1">
-              {resources.length} units deployed
+              {units.length} {units.length === 1 ? 'unit' : 'units'} dispatched
             </Text>
           </Box>
 
@@ -153,7 +194,7 @@ export function IncidentResources({
                 <Select
                   aria-label="Organisation to assign"
                   onChange={(event) => setSelectedOrganisationId(event.currentTarget.value)}
-                  value={selectedOrganisationId}
+                  value={effectiveSelectedId}
                 >
                   {assignableOrganisations.length > 0 ? (
                     assignableOrganisations.map((organisation) => (
@@ -170,7 +211,7 @@ export function IncidentResources({
               <Button
                 bg="gray.900"
                 color="white"
-                disabled={!selectedOrganisationId || isAssigning}
+                disabled={!effectiveSelectedId || isAssigning}
                 onClick={assignOrganisation}
                 _hover={{ bg: 'gray.800' }}
               >
@@ -187,14 +228,15 @@ export function IncidentResources({
         )}
 
         <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-          <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="920px">
+          <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="1020px">
             <Box as="colgroup">
-              <Box as="col" width="22%" />
-              <Box as="col" width="13%" />
-              <Box as="col" width="17%" />
-              <Box as="col" width="20%" />
-              <Box as="col" width="13%" />
+              <Box as="col" width="18%" />
+              <Box as="col" width="11%" />
+              <Box as="col" width="14%" />
+              <Box as="col" width="18%" />
               <Box as="col" width="15%" />
+              <Box as="col" width="12%" />
+              <Box as="col" width="12%" />
             </Box>
 
             <Box as="thead" bg="gray.50">
@@ -202,133 +244,175 @@ export function IncidentResources({
                 <HeaderCell>Unit</HeaderCell>
                 <HeaderCell>Agency</HeaderCell>
                 <HeaderCell>Type</HeaderCell>
-                <HeaderCell>Assigned</HeaderCell>
-                <HeaderCell textAlign="center">Status</HeaderCell>
-                <HeaderCell>Notes</HeaderCell>
+                <HeaderCell>Responding from</HeaderCell>
+                <HeaderCell>Status</HeaderCell>
+                <HeaderCell textAlign="right">ETA</HeaderCell>
+                <HeaderCell textAlign="right">Distance</HeaderCell>
               </Box>
             </Box>
 
             <Box as="tbody">
-              {resources.map((resource) => (
-                <Fragment key={resource.id}>
-                  <Box
-                    as="tr"
-                    borderBottomWidth="1px"
-                    borderColor="gray.100"
-                    _hover={{ bg: 'gray.50' }}
-                  >
-                    <BodyCell>
-                      <Text color="gray.900" fontWeight="700">
-                        {resource.unit}
+              {units.length === 0 ? (
+                <Box as="tr">
+                  <td colSpan={7}>
+                    <Box px="5" py="10" textAlign="center">
+                      <Text color="gray.500" fontWeight="600">
+                        {isLoadingUnits
+                          ? 'Loading dispatched units…'
+                          : unitsError ?? 'No units dispatched yet.'}
                       </Text>
-                    </BodyCell>
-
-                    <BodyCell>
-                      <Text color="gray.700" fontWeight="700">
-                        {resource.agency}
-                      </Text>
-                    </BodyCell>
-
-                    <BodyCell>
-                      <Text color="gray.600">{resource.type}</Text>
-                    </BodyCell>
-
-                    <BodyCell>
-                      <Text color="gray.600">{resource.assignedAt}</Text>
-                    </BodyCell>
-
-                    <BodyCell textAlign="center">
-                      <Select
-                        aria-label={`${resource.unit} status`}
-                        onChange={(event) =>
-                          updateResource(resource.id, {
-                            status: event.currentTarget.value as IncidentResourceStatus,
-                          })
-                        }
-                        value={resource.status}
-                      >
-                        {resourceStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </Select>
-                    </BodyCell>
-
-                    <BodyCell>
-                      <Button
-                        aria-expanded={openNotesResourceId === resource.id}
-                        color="gray.600"
-                        fontWeight="600"
-                        gap="2"
-                        justifyContent="space-between"
-                        maxW="100%"
-                        minW="0"
-                        onClick={() =>
-                          setOpenNotesResourceId((currentId) =>
-                            currentId === resource.id ? null : resource.id,
-                          )
-                        }
-                        px="0"
-                        variant="ghost"
-                        width="100%"
-                        _hover={{ bg: 'transparent', color: 'gray.900' }}
-                      >
-                        <Text overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                          {resource.notes || 'Add notes'}
-                        </Text>
-                        <Icon as={Pencil} color="gray.500" flexShrink="0" boxSize="4" />
-                      </Button>
-                    </BodyCell>
-                  </Box>
-
-                  {openNotesResourceId === resource.id && (
-                    <Box as="tr" borderBottomWidth="1px" borderColor="gray.100">
-                      <td colSpan={6}>
-                        <Box bg="gray.50" px="5" py="4">
-                          <Flex justify="space-between" align="center" gap="3" mb="3">
-                            <Box>
-                              <Text color="gray.900" fontWeight="700">
-                                Resource notes
-                              </Text>
-                              <Text color="gray.500" fontSize="sm">
-                                {resource.unit}
-                              </Text>
-                            </Box>
-                            <Button
-                              borderColor="gray.300"
-                              borderWidth="1px"
-                              onClick={() => setOpenNotesResourceId(null)}
-                              variant="ghost"
-                            >
-                              Done
-                            </Button>
-                          </Flex>
-
-                          <Textarea
-                            aria-label={`${resource.unit} full notes`}
-                            bg="white"
-                            borderColor="gray.300"
-                            minH="32"
-                            onChange={(event) =>
-                              updateResource(resource.id, { notes: event.currentTarget.value })
-                            }
-                            placeholder="Add notes for this resource"
-                            resize="vertical"
-                            value={resource.notes}
-                            _focus={{ borderColor: 'purple.500', outline: 'none' }}
-                          />
-                        </Box>
-                      </td>
                     </Box>
-                  )}
-                </Fragment>
-              ))}
+                  </td>
+                </Box>
+              ) : (
+                units.map((unit) => (
+                  <UnitRow
+                    key={unit.id}
+                    unit={unit}
+                    nowMs={nowMs}
+                    isOpen={openNotesResourceId === unit.id}
+                    onToggle={() =>
+                      setOpenNotesResourceId((currentId) =>
+                        currentId === unit.id ? null : unit.id,
+                      )
+                    }
+                  />
+                ))
+              )}
             </Box>
           </Box>
         </Box>
       </VStack>
     </Box>
+  )
+}
+
+function UnitRow({
+  unit,
+  nowMs,
+  isOpen,
+  onToggle,
+}: {
+  unit: IncidentMapResourceDto
+  nowMs: number
+  isOpen: boolean
+  onToggle: () => void
+}) {
+  const arrived = ARRIVED_STATUSES.has(unit.status)
+  const eta = liveEtaMinutes(unit, nowMs)
+  const remaining = remainingKm(unit, nowMs)
+
+  return (
+    <Fragment>
+      <Box
+        as="tr"
+        borderBottomWidth="1px"
+        borderColor="gray.100"
+        cursor="pointer"
+        onClick={onToggle}
+        _hover={{ bg: 'gray.50' }}
+      >
+        <BodyCell>
+          <Flex align="center" gap="2" minW="0">
+            <Icon as={kindMeta(unit.resourceKind).icon} color="gray.500" boxSize="4" flexShrink="0" />
+            <Text color="gray.900" fontWeight="700" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+              {unit.unitRef}
+            </Text>
+          </Flex>
+        </BodyCell>
+
+        <BodyCell>
+          <Text color="gray.700" fontWeight="700">
+            {unit.agency}
+          </Text>
+        </BodyCell>
+
+        <BodyCell>
+          <Text color="gray.600">{kindMeta(unit.resourceKind).label}</Text>
+        </BodyCell>
+
+        <BodyCell>
+          <Text color="gray.600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+            {unit.originStation ?? '—'}
+          </Text>
+        </BodyCell>
+
+        <BodyCell>
+          <Flex align="center" gap="2">
+            <Box width="8px" height="8px" borderRadius="full" bg={statusColor(unit.status)} flexShrink="0" />
+            <Text color="gray.700" fontWeight="600">
+              {statusLabel(unit.status)}
+            </Text>
+          </Flex>
+        </BodyCell>
+
+        <BodyCell textAlign="right">
+          {arrived ? (
+            <Text color="green.600" fontWeight="600">
+              On scene
+            </Text>
+          ) : eta != null ? (
+            <Text color="gray.700" fontWeight="600">
+              {eta} min
+            </Text>
+          ) : (
+            <Text color="gray.400">—</Text>
+          )}
+        </BodyCell>
+
+        <BodyCell textAlign="right">
+          {remaining != null ? (
+            <Text color="gray.700" fontWeight="600">
+              {remaining.toFixed(1)} km
+            </Text>
+          ) : (
+            <Text color="gray.400">—</Text>
+          )}
+        </BodyCell>
+      </Box>
+
+      {isOpen && (
+        <Box as="tr" borderBottomWidth="1px" borderColor="gray.100">
+          <td colSpan={7}>
+            <Box bg="gray.50" px="5" py="4">
+              <Flex gap="8" wrap="wrap">
+                <Box>
+                  <DetailLabel>Dispatched</DetailLabel>
+                  <Text color="gray.800" fontWeight="600">
+                    {formatDispatchedAt(unit.dispatchedAt)}
+                  </Text>
+                </Box>
+                <Box flex="1" minW="240px">
+                  <DetailLabel>Notes</DetailLabel>
+                  <Text color="gray.800">{unit.notes?.trim() || 'No notes recorded.'}</Text>
+                </Box>
+              </Flex>
+            </Box>
+          </td>
+        </Box>
+      )}
+    </Fragment>
+  )
+}
+
+function formatDispatchedAt(value: string): string {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    return value
+  }
+  return new Intl.DateTimeFormat('en-SG', {
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    month: 'short',
+  }).format(date)
+}
+
+function DetailLabel({ children }: { children: ReactNode }) {
+  return (
+    <Text color="gray.500" fontSize="xs" fontWeight="700" textTransform="uppercase" mb="1">
+      {children}
+    </Text>
   )
 }
 
