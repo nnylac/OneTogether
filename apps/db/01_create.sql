@@ -87,6 +87,7 @@ CREATE TABLE users (
     is_verified BOOLEAN      NOT NULL DEFAULT FALSE,
     role        VARCHAR(20)  NOT NULL DEFAULT 'user'
                     CHECK (role IN ('user', 'responder', 'admin')),
+    user_organisation_id UUID REFERENCES organisations (id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_login  TIMESTAMPTZ
@@ -94,10 +95,11 @@ CREATE TABLE users (
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE INDEX idx_users_email      ON users (email);
-CREATE INDEX idx_users_username   ON users (username);
-CREATE INDEX idx_users_role       ON users (role);
-CREATE INDEX idx_users_created_at ON users (created_at);
+CREATE INDEX idx_users_email                ON users (email);
+CREATE INDEX idx_users_username             ON users (username);
+CREATE INDEX idx_users_role                 ON users (role);
+CREATE INDEX idx_users_created_at           ON users (created_at);
+CREATE INDEX idx_users_user_organisation_id ON users (user_organisation_id);
 
 CREATE TABLE user_organisations (
     user_id         UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -283,7 +285,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
 
 
 
