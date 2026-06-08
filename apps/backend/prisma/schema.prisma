@@ -104,8 +104,8 @@ model organisations {
   assigned_orgs       assigned_orgs[]
   broadcast_audiences broadcast_audiences[]
   resource_outlets    resource_outlets[]
-  users               users[]
   user_organisations  user_organisations[]
+  users               users[]
   volunteer_sources   volunteer_sources[]
 }
 
@@ -183,8 +183,8 @@ model users {
   accounts             accounts?
   broadcasts           broadcasts[]
   messages             messages[]
-  organisations        organisations?       @relation(fields: [user_organisation_id], references: [id], onDelete: SetNull, onUpdate: NoAction)
   user_organisations   user_organisations[]
+  organisations        organisations?       @relation(fields: [user_organisation_id], references: [id], onUpdate: NoAction)
 
   @@index([created_at], map: "idx_users_created_at")
   @@index([email], map: "idx_users_email")
