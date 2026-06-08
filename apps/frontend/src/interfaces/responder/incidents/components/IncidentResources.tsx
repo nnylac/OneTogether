@@ -14,6 +14,7 @@ import {
 import {
   assignOrganisationToIncident,
   fetchOrganisations,
+  updateIncidentAssignedOrganisation,
 } from '../api/incidentsApi'
 import { fetchIncidentMap } from '../api/incidentMapApi'
 import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
@@ -30,6 +31,7 @@ import {
 
 const MAP_REFRESH_MS = 2500
 const CLOCK_TICK_MS = 1000
+const resourceStatuses: IncidentResourceStatus[] = ['DISPATCHED', 'ON SCENE', 'COMPLETED']
 
 type IncidentResourcesProps = {
   incidentId: string
@@ -47,6 +49,8 @@ export function IncidentResources({
   const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false)
   const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
   const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
+  const [resourceUpdateError, setResourceUpdateError] = useState<string | null>(null)
+  const [savingResourceId, setSavingResourceId] = useState<string | null>(null)
   const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
 
   const [snapshot, setSnapshot] = useState<IncidentMapDto | null>(null)
@@ -128,6 +132,52 @@ export function IncidentResources({
     assignableOrganisations.some((organisation) => organisation.id === selectedOrganisationId)
       ? selectedOrganisationId
       : assignableOrganisations[0]?.id ?? ''
+
+  function getResourceOrganisationId(resource: IncidentResource) {
+    return resource.organisationId ?? resource.id.split(':')[1] ?? ''
+  }
+
+  async function persistResourceUpdate(
+    resource: IncidentResource,
+    updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>,
+  ) {
+    const organisationId = getResourceOrganisationId(resource)
+
+    if (!organisationId) {
+      setResourceUpdateError('Unable to identify the assigned organisation.')
+      return
+    }
+
+    setResourceUpdateError(null)
+    setSavingResourceId(resource.id)
+
+    try {
+      const updatedIncident = await updateIncidentAssignedOrganisation(
+        incidentId,
+        organisationId,
+        updates,
+      )
+
+      onResourcesChange(updatedIncident.resources ?? [])
+    } catch (error) {
+      setResourceUpdateError(
+        error instanceof Error ? error.message : 'Unable to save resource updates.',
+      )
+      onResourcesChange(resources)
+    } finally {
+      setSavingResourceId(null)
+    }
+  }
+
+  async function updateResourceStatus(resource: IncidentResource, status: IncidentResourceStatus) {
+    updateResource(resource.id, { status })
+    await persistResourceUpdate(resource, { status })
+  }
+
+  async function closeResourceNotes(resource: IncidentResource) {
+    await persistResourceUpdate(resource, { notes: resource.notes })
+    setOpenNotesResourceId(null)
+  }
 
   async function assignOrganisation() {
     if (!effectiveSelectedId) {
@@ -227,6 +277,12 @@ export function IncidentResources({
           </Box>
         )}
 
+        {resourceUpdateError && (
+          <Text color="red.600" fontSize="sm" fontWeight="700">
+            {resourceUpdateError}
+          </Text>
+        )}
+
         <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
           <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="1020px">
             <Box as="colgroup">
@@ -261,6 +317,110 @@ export function IncidentResources({
                           ? 'Loading dispatched units…'
                           : unitsError ?? 'No units dispatched yet.'}
                       </Text>
+                    </BodyCell>
+
+                    <BodyCell>
+                      <Text color="gray.700" fontWeight="700">
+                        {resource.agency}
+                      </Text>
+                    </BodyCell>
+
+                    <BodyCell>
+                      <Text color="gray.600">{resource.type}</Text>
+                    </BodyCell>
+
+                    <BodyCell>
+                      <Text color="gray.600">{resource.assignedAt}</Text>
+                    </BodyCell>
+
+                    <BodyCell textAlign="center">
+                      <Select
+                        aria-label={`${resource.unit} status`}
+                        onChange={(event) => {
+                          void updateResourceStatus(
+                            resource,
+                            event.currentTarget.value as IncidentResourceStatus,
+                          )
+                        }}
+                        rootProps={{ disabled: savingResourceId === resource.id }}
+                        value={resource.status}
+                      >
+                        {resourceStatuses.map((status) => (
+                          <option key={status} value={status}>
+                            {status}
+                          </option>
+                        ))}
+                      </Select>
+                    </BodyCell>
+
+                    <BodyCell>
+                      <Button
+                        aria-expanded={openNotesResourceId === resource.id}
+                        color="gray.600"
+                        fontWeight="600"
+                        gap="2"
+                        justifyContent="space-between"
+                        maxW="100%"
+                        minW="0"
+                        onClick={() =>
+                          setOpenNotesResourceId((currentId) =>
+                            currentId === resource.id ? null : resource.id,
+                          )
+                        }
+                        px="0"
+                        variant="ghost"
+                        width="100%"
+                        _hover={{ bg: 'transparent', color: 'gray.900' }}
+                      >
+                        <Text overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                          {resource.notes || 'Add notes'}
+                        </Text>
+                        <Icon as={Pencil} color="gray.500" flexShrink="0" boxSize="4" />
+                      </Button>
+                    </BodyCell>
+                  </Box>
+
+                  {openNotesResourceId === resource.id && (
+                    <Box as="tr" borderBottomWidth="1px" borderColor="gray.100">
+                      <td colSpan={6}>
+                        <Box bg="gray.50" px="5" py="4">
+                          <Flex justify="space-between" align="center" gap="3" mb="3">
+                            <Box>
+                              <Text color="gray.900" fontWeight="700">
+                                Resource notes
+                              </Text>
+                              <Text color="gray.500" fontSize="sm">
+                                {resource.unit}
+                              </Text>
+                            </Box>
+                            <Button
+                              borderColor="gray.300"
+                              borderWidth="1px"
+                              disabled={savingResourceId === resource.id}
+                              onClick={() => {
+                                void closeResourceNotes(resource)
+                              }}
+                              variant="ghost"
+                            >
+                              {savingResourceId === resource.id ? 'Saving...' : 'Done'}
+                            </Button>
+                          </Flex>
+
+                          <Textarea
+                            aria-label={`${resource.unit} full notes`}
+                            bg="white"
+                            borderColor="gray.300"
+                            minH="32"
+                            onChange={(event) =>
+                              updateResource(resource.id, { notes: event.currentTarget.value })
+                            }
+                            placeholder="Add notes for this resource"
+                            resize="vertical"
+                            value={resource.notes}
+                            _focus={{ borderColor: 'purple.500', outline: 'none' }}
+                          />
+                        </Box>
+                      </td>
                     </Box>
                   </td>
                 </Box>

@@ -7,7 +7,7 @@ export const incidentResources: IncidentResource[] = [
     agency: 'SCDF',
     type: 'Ambulance',
     assignedAt: '20 May 2026, 01:43 pm',
-    status: 'on scene',
+    status: 'ON SCENE',
     notes: 'Primary medical response unit',
   },
   {
@@ -16,7 +16,7 @@ export const incidentResources: IncidentResource[] = [
     agency: 'MOH',
     type: 'Medical Team',
     assignedAt: '20 May 2026, 01:45 pm',
-    status: 'engaged',
+    status: 'COMPLETED',
     notes: 'Receiving team notified',
   },
   {
@@ -25,7 +25,7 @@ export const incidentResources: IncidentResource[] = [
     agency: 'SPF',
     type: 'Police Response',
     assignedAt: '20 May 2026, 01:46 pm',
-    status: 'dispatched',
+    status: 'DISPATCHED',
     notes: 'Crowd control and access lane support',
   },
 ]

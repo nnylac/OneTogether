@@ -1,4 +1,5 @@
 import { Injectable } from '@nestjs/common';
+import type { AssignedOrganisationStatus } from '../incidents/assigned-organisation-status';
 import { PrismaService } from '../prisma/prisma.service';
 import { IncidentNormalizerService } from './incident-normalizer.service';
 import { IncidentResourceExtractorService } from './incident-resource-extractor.service';
@@ -25,7 +26,10 @@ export class IncidentMiddlewareService {
       ? await this.prisma.incidents.update({
           where: { id: match.incident.id },
           data: {
-            inc_status: this.mapStatus(normalized.status),
+            inc_status: this.nextIncidentStatus(
+              match.incident.inc_status,
+              normalized.status,
+            ),
             severity: Math.max(match.incident.severity, normalized.severity),
             confidence_score: Math.max(
               match.incident.confidence_score ?? 0,
@@ -54,15 +58,11 @@ export class IncidentMiddlewareService {
 
     await this.upsertSource(incident.id, normalized.externalTicketId);
     await this.upsertSource(incident.id, normalized.externalIncidentId);
-    await this.assignOrganisation(incident.id, normalized.orgId);
-    await this.resourceExtractor.extract(
+    await this.assignOrganisation(
       incident.id,
-      normalized.agencyId,
+      normalized.orgId,
       normalized.status,
-      incident.lat != null && incident.lng != null
-        ? { lat: incident.lat, lng: incident.lng }
-        : null,
-      message,
+      normalized.title,
     );
     await this.createLog(
       incident.id,
@@ -102,7 +102,12 @@ export class IncidentMiddlewareService {
     });
   }
 
-  private async assignOrganisation(incidentId: string, orgName: string) {
+  private async assignOrganisation(
+    incidentId: string,
+    orgName: string,
+    status: string,
+    incidentTitle: string,
+  ) {
     const organisation = await this.prisma.organisations.upsert({
       where: {
         org_name: orgName,
@@ -123,11 +128,42 @@ export class IncidentMiddlewareService {
       create: {
         incident_id: incidentId,
         organisation_id: organisation.id,
+        unit_name: `${orgName} Response Unit`,
+        status: this.mapAssignmentStatus(status),
+        notes: `${orgName} assigned to ${incidentTitle}.`,
       },
       update: {
         assigned_at: new Date(),
+        status: this.mapAssignmentStatus(status),
       },
     });
+  }
+
+  private mapAssignmentStatus(status: string): AssignedOrganisationStatus {
+    const normalizedStatus = status
+      .trim()
+      .replace(/_/g, ' ')
+      .replace(/\s+/g, ' ')
+      .toUpperCase();
+
+    if (
+      normalizedStatus.includes('CLOSED') ||
+      normalizedStatus.includes('RESOLVED') ||
+      normalizedStatus.includes('COMPLETED')
+    ) {
+      return 'COMPLETED';
+    }
+
+    if (
+      normalizedStatus.includes('IN PROGRESS') ||
+      normalizedStatus.includes('REOPENED') ||
+      normalizedStatus.includes('ACTIVE') ||
+      normalizedStatus.includes('ON SCENE')
+    ) {
+      return 'ON SCENE';
+    }
+
+    return 'DISPATCHED';
   }
 
   private async createLog(
@@ -254,13 +290,41 @@ export class IncidentMiddlewareService {
   }
 
   private mapStatus(status: string) {
-    if (status === 'CLOSED') {
+    const normalizedStatus = this.normalizedStatus(status);
+
+    if (normalizedStatus === 'CLOSED') {
       return 'CLOSED';
     }
-    if (status === 'RESOLVED') {
+    if (normalizedStatus === 'RESOLVED') {
       return 'RESOLVED';
     }
     return 'ACTIVE';
+  }
+
+  private nextIncidentStatus(currentStatus: string, sourceStatus: string) {
+    const normalizedSourceStatus = this.normalizedStatus(sourceStatus);
+    const nextStatus = this.mapStatus(sourceStatus);
+
+    if (normalizedSourceStatus === 'REOPENED') {
+      return 'ACTIVE';
+    }
+
+    if (
+      (currentStatus === 'CLOSED' || currentStatus === 'RESOLVED') &&
+      nextStatus === 'ACTIVE'
+    ) {
+      return currentStatus;
+    }
+
+    if (currentStatus === 'CLOSED' && nextStatus === 'RESOLVED') {
+      return 'CLOSED';
+    }
+
+    return nextStatus;
+  }
+
+  private normalizedStatus(status: string) {
+    return status.trim().replace(/_/g, ' ').replace(/\s+/g, '_').toUpperCase();
   }
 
   private buildReport(message: RawAgencyMessage) {

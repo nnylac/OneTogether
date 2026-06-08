@@ -4,10 +4,12 @@ services:
       context: apps/db
       dockerfile: Dockerfile
     ports:
-      - "5433:5432"
+      - "5434:5432"
     volumes:
       - one_together_data:/var/lib/postgresql
 
+  # Default to the locally running backend. Override MIDDLEWARE_URL when the
+  # backend is also containerized or deployed elsewhere.
   scenario-engine:
     build:
       context: apps/external
@@ -20,7 +22,7 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
-      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-2}
+      INTERVAL_SECONDS: ${INTERVAL_SECONDS:-240}
       RANDOM_SEED: ${RANDOM_SEED:-}
       SPF_URL: http://spf:8000
       SCDF_URL: http://scdf:8000

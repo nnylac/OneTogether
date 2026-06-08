@@ -14,9 +14,9 @@ const validStatuses = new Set<IncidentStatus>([
 ])
 
 const validResourceStatuses = new Set<IncidentResourceStatus>([
-  'dispatched',
-  'on scene',
-  'engaged',
+  'DISPATCHED',
+  'ON SCENE',
+  'COMPLETED',
 ])
 
 export async function fetchIncidents() {
@@ -68,6 +68,53 @@ export async function assignOrganisationToIncident(incidentId: string, organisat
   return mapIncidentFromApi(incident)
 }
 
+export async function updateIncidentAssignedOrganisation(
+  incidentId: string,
+  organisationId: string,
+  updates: {
+    notes?: string
+    status?: IncidentResourceStatus
+    unitName?: string
+  },
+) {
+  const response = await fetch(`/api/incidents/${incidentId}/organisations/${encodeURIComponent(organisationId)}`, {
+    body: JSON.stringify(updates),
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    method: 'PATCH',
+  })
+
+  if (!response.ok) {
+    throw new Error(await getApiErrorMessage(response, 'Unable to update assigned organisation'))
+  }
+
+  const incident = (await response.json()) as IncidentApiDto
+  return mapIncidentFromApi(incident)
+}
+
+async function getApiErrorMessage(response: Response, fallbackMessage: string) {
+  const contentType = response.headers.get('content-type') ?? ''
+
+  if (contentType.includes('application/json')) {
+    const body = (await response.json().catch(() => null)) as
+      | { error?: string; message?: string | string[]; statusCode?: number }
+      | null
+    const message = Array.isArray(body?.message) ? body.message.join(' ') : body?.message
+
+    if (message) {
+      return message
+    }
+
+    if (body?.error) {
+      return body.error
+    }
+  }
+
+  const text = await response.text().catch(() => '')
+  return text || fallbackMessage
+}
+
 function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
   const severity = getIncidentSeverity(apiIncident.severity)
 
@@ -90,6 +137,7 @@ function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
       assignedAt: formatIncidentDate(resource.assignedAt),
       id: resource.id,
       notes: resource.notes,
+      organisationId: resource.organisationId,
       status: getIncidentResourceStatus(resource.status),
       type: resource.type,
       unit: resource.unit,
@@ -125,9 +173,11 @@ function getIncidentStatus(status: string): IncidentStatus {
 }
 
 function getIncidentResourceStatus(status: string): IncidentResourceStatus {
-  return validResourceStatuses.has(status as IncidentResourceStatus)
-    ? (status as IncidentResourceStatus)
-    : 'engaged'
+  const normalizedStatus = status.trim().replace(/_/g, ' ').replace(/\s+/g, ' ').toUpperCase()
+
+  return validResourceStatuses.has(normalizedStatus as IncidentResourceStatus)
+    ? (normalizedStatus as IncidentResourceStatus)
+    : 'DISPATCHED'
 }
 
 function getIncidentLogCategory(content: string): IncidentLogCategory {

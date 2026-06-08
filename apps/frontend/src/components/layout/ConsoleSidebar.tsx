@@ -1,6 +1,9 @@
 import type { ElementType } from 'react'
-import { NavLink } from 'react-router-dom'
+import { LogOut } from 'lucide-react'
+import { NavLink, useNavigate } from 'react-router-dom'
 import {
+  Avatar,
+  Badge,
   Box,
   Button,
   Flex,
@@ -10,6 +13,7 @@ import {
   Text,
   VStack,
 } from '../chakra-ui'
+import { useAuth } from '../../interfaces/auth/useAuth'
 
 export type ConsoleNavItem = {
   label: string
@@ -77,6 +81,19 @@ export function ConsoleSidebar({
   navItems,
   theme,
 }: ConsoleSidebarProps) {
+  const navigate = useNavigate()
+  const { logout, user } = useAuth()
+  const organisationLabel =
+    user?.organisations.map((organisation) => organisation.orgName).join(', ') ||
+    (user?.role === 'admin' ? 'Government' : 'No organisation')
+  const username = user?.username ?? 'User'
+  const initial = username.charAt(0).toUpperCase()
+
+  const handleLogout = () => {
+    logout()
+    navigate('/', { replace: true })
+  }
+
   return (
     <Box position="fixed" insetY="0" left="0" w="260px" zIndex="20">
       <Flex h="100%" direction="column" bg="white" borderRightWidth="1px" borderColor="gray.200">
@@ -104,6 +121,46 @@ export function ConsoleSidebar({
             <ConsoleSidebarNavLink key={item.href} item={item} theme={theme} />
           ))}
         </VStack>
+
+        <Box mt="auto" px="5" py="5" borderTopWidth="1px" borderColor="gray.200">
+          <HStack align="flex-start" gap="3">
+            <Avatar.Root size="md" bg="blue.50" color="blue.950" flexShrink="0">
+              <Avatar.Fallback name={username}>{initial}</Avatar.Fallback>
+            </Avatar.Root>
+
+            <Box minW="0">
+              <Text fontSize="sm" fontWeight="600" color="gray.800" truncate>
+                {username}
+              </Text>
+              <Badge
+                mt="1"
+                bg="green.500"
+                color="white"
+                px="2"
+                py="0.5"
+                maxW="140px"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+              >
+                {organisationLabel}
+              </Badge>
+            </Box>
+          </HStack>
+
+          <Button
+            mt="4"
+            w="100%"
+            variant="ghost"
+            justifyContent="flex-start"
+            color="gray.500"
+            _hover={{ bg: theme.hoverBg, color: theme.hoverColor }}
+            onClick={handleLogout}
+          >
+            <Icon as={LogOut} />
+            Logout
+          </Button>
+        </Box>
       </Flex>
     </Box>
   )

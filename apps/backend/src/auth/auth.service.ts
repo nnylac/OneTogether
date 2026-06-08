@@ -12,6 +12,7 @@ import {
   timingSafeEqual,
 } from 'node:crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import type { Prisma } from '../../generated/prisma/client';
 import { CreateAccountDto } from './dto/create-account.dto';
 import { LoginAccountDto } from './dto/login-account.dto';
 import { LogoutAccountDto } from './dto/logout-account.dto';
@@ -19,6 +20,7 @@ import { RefreshTokenDto } from './dto/refresh-token.dto';
 
 @Injectable()
 export class AuthService {
+  private readonly allowedRoles = new Set(['user', 'responder', 'admin']);
   private readonly accessTokenTtl = process.env.JWT_ACCESS_EXPIRES_IN ?? '15m';
   private readonly refreshTokenTtl = process.env.JWT_REFRESH_EXPIRES_IN ?? '7d';
 
@@ -26,6 +28,9 @@ export class AuthService {
 
   async createAccount(createAccountDto: CreateAccountDto) {
     this.assertCreateAccountDto(createAccountDto);
+    const role = createAccountDto.role ?? 'user';
+    this.validateRole(role);
+    this.validateOrganisationRequirement(role, createAccountDto);
 
     const passwordHash = this.hashPassword(createAccountDto.password);
 
@@ -38,8 +43,16 @@ export class AuthService {
             first_name: createAccountDto.first_name,
             last_name: createAccountDto.last_name,
             phone: createAccountDto.phone,
-            role: createAccountDto.role ?? 'user',
+            role,
+            user_organisations: {
+              create: (createAccountDto.organisationIds ?? []).map(
+                (organisationId) => ({
+                  organisations: { connect: { id: organisationId } },
+                }),
+              ),
+            },
           },
+          include: this.userOrganisationInclude,
         });
 
         const account = await tx.accounts.create({
@@ -90,7 +103,14 @@ export class AuthService {
           { username: loginAccountDto.identifier },
         ],
       },
-      include: { accounts: true },
+      include: {
+        accounts: true,
+        user_organisations: {
+          include: {
+            organisations: true,
+          },
+        },
+      },
     });
 
     if (!user?.accounts) {
@@ -362,6 +382,27 @@ export class AuthService {
     }
   }
 
+  private validateRole(role: string) {
+    if (!this.allowedRoles.has(role)) {
+      throw new BadRequestException('Invalid user role');
+    }
+  }
+
+  private validateOrganisationRequirement(
+    role: string,
+    createAccountDto: CreateAccountDto,
+  ) {
+    if (
+      role === 'responder' &&
+      (!createAccountDto.organisationIds ||
+        createAccountDto.organisationIds.length === 0)
+    ) {
+      throw new BadRequestException(
+        'organisationIds is required for responder accounts',
+      );
+    }
+  }
+
   private toSafeUser(user: {
     id: string;
     username: string;
@@ -371,6 +412,12 @@ export class AuthService {
     phone: string | null;
     role: string;
     is_verified: boolean;
+    user_organisations?: Array<{
+      organisations: {
+        id: string;
+        org_name: string;
+      };
+    }>;
   }) {
     return {
       id: user.id,
@@ -381,6 +428,12 @@ export class AuthService {
       phone: user.phone,
       role: user.role,
       is_verified: user.is_verified,
+      organisations: (user.user_organisations ?? []).map(
+        (userOrganisation) => ({
+          id: userOrganisation.organisations.id,
+          orgName: userOrganisation.organisations.org_name,
+        }),
+      ),
     };
   }
 
@@ -399,5 +452,15 @@ export class AuthService {
 
   private get refreshTokenSecret() {
     return process.env.JWT_REFRESH_SECRET ?? 'dev-refresh-secret';
+  }
+
+  private get userOrganisationInclude() {
+    return {
+      user_organisations: {
+        include: {
+          organisations: true,
+        },
+      },
+    } satisfies Prisma.usersInclude;
   }
 }

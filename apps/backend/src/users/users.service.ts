@@ -11,7 +11,7 @@ import { FindUsersFilters, UsersRepository } from './users.repository';
 
 @Injectable()
 export class UsersService {
-  private readonly allowedRoles = new Set(['user', 'moderator', 'admin']);
+  private readonly allowedRoles = new Set(['user', 'responder', 'admin']);
 
   constructor(private readonly usersRepository: UsersRepository) {}
 
@@ -60,6 +60,7 @@ export class UsersService {
     return {
       role: query.role,
       isVerified: this.parseBoolean(query.isVerified, 'isVerified'),
+      organisationId: query.organisationId,
       search: query.search,
       take: this.parseNumber(query.take, 'take'),
       skip: this.parseNumber(query.skip, 'skip'),

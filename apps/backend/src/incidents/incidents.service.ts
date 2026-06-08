@@ -5,7 +5,12 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import {
+  AssignedOrganisationStatus,
+  toAssignedOrganisationStatus,
+} from './assigned-organisation-status';
 import { AssignOrganisationDto } from './assign-organisation.dto';
+import { UpdateAssignedOrganisationDto } from './update-assigned-organisation.dto';
 import { UpdateIncidentDto } from './update-incident.dto';
 
 type IncidentWithRelations = Awaited<
@@ -95,8 +100,8 @@ export class IncidentsService {
   }
 
   async assignOrganisation(id: string, dto: AssignOrganisationDto) {
-    await this.ensureIncidentExists(id);
-    await this.ensureOrganisationExists(dto.organisationId);
+    const incident = await this.ensureIncidentExists(id);
+    const organisation = await this.ensureOrganisationExists(dto.organisationId);
 
     const existingAssignment = await this.prisma.assigned_orgs.findUnique({
       where: {
@@ -115,7 +120,60 @@ export class IncidentsService {
       data: {
         incident_id: id,
         organisation_id: dto.organisationId,
+        unit_name: this.resolveUnitName(dto.unitName, organisation.org_name),
+        status: this.resolveAssignmentStatus(dto.status) ?? 'DISPATCHED',
+        notes:
+          dto.notes ??
+          this.defaultAssignmentNotes(organisation.org_name, incident.title),
       },
+    });
+
+    const updatedIncident = await this.findIncidentById(id);
+
+    if (!updatedIncident) {
+      throw new NotFoundException('Incident not found');
+    }
+
+    return this.toIncidentDto(updatedIncident);
+  }
+
+  async updateAssignedOrganisation(
+    id: string,
+    organisationId: string,
+    dto: UpdateAssignedOrganisationDto,
+  ) {
+    await this.ensureIncidentExists(id);
+
+    const existingAssignment = await this.prisma.assigned_orgs.findUnique({
+      where: {
+        incident_id_organisation_id: {
+          incident_id: id,
+          organisation_id: organisationId,
+        },
+      },
+    });
+
+    if (!existingAssignment) {
+      throw new NotFoundException('Assigned organisation not found');
+    }
+
+    const data = {
+      unit_name:
+        dto.unitName === undefined
+          ? undefined
+          : this.resolveUnitName(dto.unitName),
+      status: this.resolveAssignmentStatus(dto.status),
+      notes: dto.notes,
+    };
+
+    await this.prisma.assigned_orgs.update({
+      where: {
+        incident_id_organisation_id: {
+          incident_id: id,
+          organisation_id: organisationId,
+        },
+      },
+      data,
     });
 
     const incident = await this.findIncidentById(id);
@@ -174,12 +232,14 @@ export class IncidentsService {
   private async ensureIncidentExists(id: string) {
     const incident = await this.prisma.incidents.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, title: true },
     });
 
     if (!incident) {
       throw new NotFoundException('Incident not found');
     }
+
+    return incident;
   }
 
   private async ensureOrganisationExists(id: string) {
@@ -189,12 +249,14 @@ export class IncidentsService {
 
     const organisation = await this.prisma.organisations.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, org_name: true },
     });
 
     if (!organisation) {
       throw new NotFoundException('Organisation not found');
     }
+
+    return organisation;
   }
 
   private toIncidentDto(incident: NonNullable<IncidentWithRelations>) {
@@ -221,15 +283,16 @@ export class IncidentsService {
       })),
       assignedResources: incident.assigned_orgs.map((assignedOrg) => ({
         id: `${incident.id}:${assignedOrg.organisation_id}`,
-        unit: `${assignedOrg.organisations.org_name} Response Unit`,
+        organisationId: assignedOrg.organisation_id,
+        unit: assignedOrg.unit_name,
         agency: assignedOrg.organisations.org_name,
         type: this.getResourceType(
           assignedOrg.organisations.org_name,
           incident.incident_type,
         ),
         assignedAt: assignedOrg.assigned_at,
-        status: this.getResourceStatus(incident.inc_status),
-        notes: `${assignedOrg.organisations.org_name} assigned to ${incident.title}.`,
+        status: assignedOrg.status,
+        notes: assignedOrg.notes,
       })),
       logs: incident.logs?.map((log) => ({
         id: log.id,
@@ -243,16 +306,6 @@ export class IncidentsService {
         updatedAt: discussion.updated_at,
       })),
     };
-  }
-
-  private getResourceStatus(status: string) {
-    const incidentStatus = this.normaliseIncidentStatus(status);
-
-    if (incidentStatus === 'active') {
-      return 'on scene';
-    }
-
-    return 'engaged';
   }
 
   private normaliseIncidentStatus(status: string) {
@@ -283,5 +336,43 @@ export class IncidentsService {
     };
 
     return resourceTypes[organisationName] ?? 'Response Unit';
+  }
+
+  private resolveUnitName(unitName?: string, organisationName?: string) {
+    const resolvedUnitName =
+      unitName?.trim() ??
+      (organisationName ? `${organisationName} Response Unit` : '');
+
+    if (!resolvedUnitName) {
+      throw new BadRequestException('unitName cannot be empty');
+    }
+
+    if (resolvedUnitName.length > 120) {
+      throw new BadRequestException('unitName cannot exceed 120 characters');
+    }
+
+    return resolvedUnitName;
+  }
+
+  private resolveAssignmentStatus(
+    status?: string,
+  ): AssignedOrganisationStatus | undefined {
+    if (status === undefined) {
+      return undefined;
+    }
+
+    const resolvedStatus = toAssignedOrganisationStatus(status);
+
+    if (!resolvedStatus) {
+      throw new BadRequestException(
+        'status must be one of: DISPATCHED, ON SCENE, COMPLETED',
+      );
+    }
+
+    return resolvedStatus;
+  }
+
+  private defaultAssignmentNotes(organisationName: string, incidentTitle: string) {
+    return `${organisationName} assigned to ${incidentTitle}.`;
   }
 }

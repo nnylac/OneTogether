@@ -16,6 +16,7 @@ export type IncidentResourceApiDto = {
   assignedAt: string
   id: string
   notes: string
+  organisationId?: string
   status: string
   type: string
   unit: string
