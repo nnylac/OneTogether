@@ -7,6 +7,7 @@ import {
   Settings,
   Shield,
   Siren,
+  AlarmClock
 } from 'lucide-react'
 import { ConsoleLayout } from '../../../components/layout/ConsoleLayout'
 import type { ConsoleNavItem, ConsoleSidebarTheme } from '../../../components/layout/ConsoleSidebar'
@@ -18,6 +19,7 @@ const navItems: ConsoleNavItem[] = [
   { label: 'Broadcasts', href: '/government/broadcasts', icon: RadioTower },
   { label: 'Organisations', href: '/government/organisations', icon: Building2 },
   { label: 'Analytics', href: '/government/analytics', icon: BarChart3 },
+  { label: 'Alerts', href: '/government/alerts', icon: AlarmClock},
   { label: 'Settings', href: '/government/settings', icon: Settings },
 ]
 
