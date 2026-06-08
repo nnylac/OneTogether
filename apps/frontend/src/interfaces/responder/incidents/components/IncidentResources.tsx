@@ -20,13 +20,9 @@ import {
 import type { OrganisationApiDto } from '../api/incidentsDto'
 import type { IncidentResource, IncidentResourceStatus } from '../types'
 
-<<<<<<< HEAD
 const MAP_REFRESH_MS = 2500
 const CLOCK_TICK_MS = 1000
-const resourceStatuses: IncidentResourceStatus[] = ['DISPATCHED', 'ON SCENE', 'COMPLETED']
-=======
 const resourceStatuses: IncidentResourceStatus[] = ['dispatched', 'on scene', 'engaged']
->>>>>>> parent of 38be38e (feat(maps): improved maps feat)
 
 type IncidentResourcesProps = {
   incidentId: string
@@ -301,21 +297,11 @@ export function IncidentResources({
                     <BodyCell textAlign="center">
                       <Select
                         aria-label={`${resource.unit} status`}
-<<<<<<< HEAD
-                        onChange={(event) => {
-                          void updateResourceStatus(
-                            resource,
-                            event.currentTarget.value as IncidentResourceStatus,
-                          )
-                        }}
-                        rootProps={{ disabled: savingResourceId === resource.id }}
-=======
                         onChange={(event) =>
                           updateResource(resource.id, {
                             status: event.currentTarget.value as IncidentResourceStatus,
                           })
                         }
->>>>>>> parent of 38be38e (feat(maps): improved maps feat)
                         value={resource.status}
                       >
                         {resourceStatuses.map((status) => (
@@ -369,20 +355,11 @@ export function IncidentResources({
                             <Button
                               borderColor="gray.300"
                               borderWidth="1px"
-<<<<<<< HEAD
                               disabled={savingResourceId === resource.id}
-                              onClick={() => {
-                                void closeResourceNotes(resource)
-                              }}
-                              variant="ghost"
-                            >
-                              {savingResourceId === resource.id ? 'Saving...' : 'Done'}
-=======
                               onClick={() => setOpenNotesResourceId(null)}
                               variant="ghost"
                             >
                               Done
->>>>>>> parent of 38be38e (feat(maps): improved maps feat)
                             </Button>
                           </Flex>
 

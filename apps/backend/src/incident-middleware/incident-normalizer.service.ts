@@ -24,7 +24,6 @@ export class IncidentNormalizerService {
     const location = this.locationFor(agencyId, data, message);
     const incidentType = this.incidentTypeFor(agencyId, data, message);
     const severity = this.severityFor(agencyId, data, message);
-    const { lat, lng } = this.coordinatesFor(data, message);
 
     return {
       agencyId,
@@ -39,34 +38,9 @@ export class IncidentNormalizerService {
       severity,
       priority: this.priorityFor(severity, data),
       location,
-      lat,
-      lng,
       confidenceScore: this.confidenceFor(message),
       rawMessage: message,
     };
-  }
-
-  private coordinatesFor(
-    data: Record<string, unknown>,
-    message: RawAgencyMessage,
-  ): { lat: number | null; lng: number | null } {
-    const fromIncident = message.incident?.location;
-    if (
-      typeof fromIncident?.lat === 'number' &&
-      typeof fromIncident?.lng === 'number'
-    ) {
-      return { lat: fromIncident.lat, lng: fromIncident.lng };
-    }
-
-    const ticketLocation = this.objectValue(data.location);
-    if (
-      typeof ticketLocation?.lat === 'number' &&
-      typeof ticketLocation?.lng === 'number'
-    ) {
-      return { lat: ticketLocation.lat, lng: ticketLocation.lng };
-    }
-
-    return { lat: null, lng: null };
   }
 
   private descriptionFor(
@@ -197,11 +171,7 @@ export class IncidentNormalizerService {
     return 'P3';
   }
 
-  private titleFor(
-    agencyId: string,
-    incidentType: string,
-    location: string | null,
-  ) {
+  private titleFor(agencyId: string, incidentType: string, location: string | null) {
     return [agencyId, incidentType, location].filter(Boolean).join(' - ');
   }
 
