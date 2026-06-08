@@ -40,6 +40,62 @@ class SPFSimulator(BaseAgencySimulator):
     SYSTEM_ID    = "POLARIS"
     SERVICE_NAME = "spf-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        return [
+            {
+                "externalOutletId": "SPF-CENTRAL-DIV",
+                "name": "Central Police Division",
+                "type": "police_station",
+                "region": "Central",
+                "address": "391 New Bridge Road",
+                "location": {"lat": 1.2799, "lng": 103.8391},
+                "resources": [
+                    self._resource("patrol_car", "Patrol Cars", "vehicle", 32, 22, 8, 1, 1),
+                    self._resource("police_officer", "Police Officers", "personnel", 220, 156, 48, 10, 6),
+                    self._resource("traffic_unit", "Traffic Units", "specialist_unit", 12, 7, 4, 1, 0),
+                ],
+            },
+            {
+                "externalOutletId": "SPF-ANG-MO-KIO-DIV",
+                "name": "Ang Mo Kio Police Division",
+                "type": "police_station",
+                "region": "North-East",
+                "address": "51 Ang Mo Kio Avenue 9",
+                "location": {"lat": 1.3823, "lng": 103.8449},
+                "resources": [
+                    self._resource("patrol_car", "Patrol Cars", "vehicle", 28, 19, 7, 1, 1),
+                    self._resource("police_officer", "Police Officers", "personnel", 190, 132, 43, 9, 6),
+                    self._resource("investigation_team", "Investigation Teams", "crew", 16, 10, 4, 2, 0),
+                ],
+            },
+            {
+                "externalOutletId": "SPF-BEDOK-DIV",
+                "name": "Bedok Police Division",
+                "type": "police_station",
+                "region": "East",
+                "address": "30 Bedok North Road",
+                "location": {"lat": 1.3261, "lng": 103.9322},
+                "resources": [
+                    self._resource("patrol_car", "Patrol Cars", "vehicle", 30, 21, 6, 2, 1),
+                    self._resource("police_officer", "Police Officers", "personnel", 205, 149, 41, 9, 6),
+                    self._resource("public_order_team", "Public Order Teams", "crew", 10, 6, 3, 1, 0),
+                ],
+            },
+        ]
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         cat, penal = INCIDENT_CLASSIFICATIONS.get(trigger.incident_type.value, ("SUPPORT", None))
         blk = random.randint(1, 999)

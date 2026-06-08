@@ -30,6 +30,63 @@ class NUHSSimulator(BaseAgencySimulator):
     SYSTEM_ID = "NUCLEUS"
     SERVICE_NAME = "nuhs-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        return [
+            self._hospital_outlet("NUH", "National University Hospital", "West", "5 Lower Kent Ridge Road", 1.2937, 103.7831, 68, 41, 19, 4, 4, 13, 7, 4, 1, 1, 156, 108, 34, 9, 5),
+            self._hospital_outlet("NTFGH", "Ng Teng Fong General Hospital", "West", "1 Jurong East Street 21", 1.3333, 103.7458, 55, 34, 15, 3, 3, 8, 5, 2, 0, 1, 128, 91, 27, 6, 4),
+        ]
+
+    def _hospital_outlet(
+        self,
+        code: str,
+        name: str,
+        region: str,
+        address: str,
+        lat: float,
+        lng: float,
+        beds_total: int,
+        beds_available: int,
+        beds_deployed: int,
+        beds_reserved: int,
+        beds_maintenance: int,
+        icu_total: int,
+        icu_available: int,
+        icu_deployed: int,
+        icu_reserved: int,
+        icu_maintenance: int,
+        nurses_total: int,
+        nurses_available: int,
+        nurses_deployed: int,
+        nurses_reserved: int,
+        nurses_maintenance: int,
+    ) -> dict:
+        return {
+            "externalOutletId": f"NUHS-{code}",
+            "name": name,
+            "type": "hospital",
+            "region": region,
+            "address": address,
+            "location": {"lat": lat, "lng": lng},
+            "resources": [
+                self._resource("ed_bed", "Emergency Beds", "bed", beds_total, beds_available, beds_deployed, beds_reserved, beds_maintenance),
+                self._resource("icu_bed", "ICU Beds", "bed", icu_total, icu_available, icu_deployed, icu_reserved, icu_maintenance),
+                self._resource("nurse_on_duty", "Nurses On Duty", "personnel", nurses_total, nurses_available, nurses_deployed, nurses_reserved, nurses_maintenance),
+            ],
+        }
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
     def create_app(self):
         app = super().create_app()
 

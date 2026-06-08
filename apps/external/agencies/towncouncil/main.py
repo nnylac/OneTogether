@@ -46,6 +46,62 @@ class TownCouncilSimulator(BaseAgencySimulator):
     SYSTEM_ID    = "TCOMS"
     SERVICE_NAME = "towncouncil-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        return [
+            {
+                "externalOutletId": "TC-AMK-OPS",
+                "name": "Ang Mo Kio Town Council Operations Centre",
+                "type": "municipal_operations_centre",
+                "region": "North-East",
+                "address": "Ang Mo Kio Avenue 3",
+                "location": {"lat": 1.3691, "lng": 103.8454},
+                "resources": [
+                    self._resource("maintenance_crew", "Maintenance Crews", "crew", 18, 12, 4, 1, 1),
+                    self._resource("portable_pump", "Portable Pumps", "equipment", 10, 7, 2, 0, 1),
+                    self._resource("temporary_barrier", "Temporary Barriers", "equipment", 260, 190, 45, 15, 10),
+                ],
+            },
+            {
+                "externalOutletId": "TC-TPE-OPS",
+                "name": "Tampines Town Council Operations Centre",
+                "type": "municipal_operations_centre",
+                "region": "East",
+                "address": "Tampines Street 11",
+                "location": {"lat": 1.3450, "lng": 103.9440},
+                "resources": [
+                    self._resource("maintenance_crew", "Maintenance Crews", "crew", 16, 10, 4, 1, 1),
+                    self._resource("contractor_team", "Contractor Teams", "crew", 12, 8, 3, 1, 0),
+                    self._resource("temporary_barrier", "Temporary Barriers", "equipment", 240, 172, 48, 12, 8),
+                ],
+            },
+            {
+                "externalOutletId": "TC-JRG-OPS",
+                "name": "Jurong Town Council Operations Centre",
+                "type": "municipal_operations_centre",
+                "region": "West",
+                "address": "Jurong East Street 21",
+                "location": {"lat": 1.3331, "lng": 103.7421},
+                "resources": [
+                    self._resource("maintenance_crew", "Maintenance Crews", "crew", 17, 11, 4, 1, 1),
+                    self._resource("portable_pump", "Portable Pumps", "equipment", 9, 6, 2, 0, 1),
+                    self._resource("contractor_team", "Contractor Teams", "crew", 13, 9, 3, 1, 0),
+                ],
+            },
+        ]
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         tc_code, tc_name = random.choice(TOWN_COUNCILS)
         category         = CATEGORIES.get(trigger.incident_type.value, "GENERAL")

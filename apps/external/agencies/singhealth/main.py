@@ -35,6 +35,65 @@ class SingHealthSimulator(BaseAgencySimulator):
     SYSTEM_ID = "SHERMS"
     SERVICE_NAME = "singhealth-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        return [
+            self._hospital_outlet("SGH", "Singapore General Hospital", "Central", "Outram Road", 1.2797, 103.8344, 76, 48, 18, 4, 6, 14, 8, 4, 1, 1, 182, 131, 35, 10, 6),
+            self._hospital_outlet("CGH", "Changi General Hospital", "East", "2 Simei Street 3", 1.3404, 103.9499, 58, 37, 15, 3, 3, 8, 5, 2, 0, 1, 136, 94, 30, 8, 4),
+            self._hospital_outlet("SKH", "Sengkang General Hospital", "North-East", "110 Sengkang East Way", 1.3950, 103.8938, 52, 32, 14, 3, 3, 7, 4, 2, 0, 1, 124, 87, 27, 6, 4),
+            self._hospital_outlet("KKH", "KK Women's and Children's Hospital", "Central", "100 Bukit Timah Road", 1.3106, 103.8465, 42, 24, 12, 3, 3, 6, 3, 2, 0, 1, 118, 82, 25, 7, 4),
+        ]
+
+    def _hospital_outlet(
+        self,
+        code: str,
+        name: str,
+        region: str,
+        address: str,
+        lat: float,
+        lng: float,
+        beds_total: int,
+        beds_available: int,
+        beds_deployed: int,
+        beds_reserved: int,
+        beds_maintenance: int,
+        icu_total: int,
+        icu_available: int,
+        icu_deployed: int,
+        icu_reserved: int,
+        icu_maintenance: int,
+        nurses_total: int,
+        nurses_available: int,
+        nurses_deployed: int,
+        nurses_reserved: int,
+        nurses_maintenance: int,
+    ) -> dict:
+        return {
+            "externalOutletId": f"SINGHEALTH-{code}",
+            "name": name,
+            "type": "hospital",
+            "region": region,
+            "address": address,
+            "location": {"lat": lat, "lng": lng},
+            "resources": [
+                self._resource("ed_bed", "Emergency Beds", "bed", beds_total, beds_available, beds_deployed, beds_reserved, beds_maintenance),
+                self._resource("icu_bed", "ICU Beds", "bed", icu_total, icu_available, icu_deployed, icu_reserved, icu_maintenance),
+                self._resource("nurse_on_duty", "Nurses On Duty", "personnel", nurses_total, nurses_available, nurses_deployed, nurses_reserved, nurses_maintenance),
+            ],
+        }
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
     def create_app(self):
         app = super().create_app()
 

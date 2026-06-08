@@ -137,12 +137,24 @@ class BaseAgencySimulator(ABC):
                 ]
             }
 
+        @app.get("/resources")
+        async def get_resources():
+            return {
+                "agencyId": self.AGENCY_ID.value,
+                "systemId": self.SYSTEM_ID,
+                "generatedAt": utcnow().isoformat(),
+                "outlets": self.resource_outlets(),
+            }
+
         @app.post("/incident", status_code=202)
         async def receive_incident(trigger: IncidentTrigger):
             asyncio.create_task(self._handle_incident(trigger))
             return {"accepted": True, "incident_id": trigger.incident_id}
 
         return app
+
+    def resource_outlets(self) -> list[dict[str, Any]]:
+        return []
 
     # ─── Core incident handling ──────────────────────────────────────────────
 
