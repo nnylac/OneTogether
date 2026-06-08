@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
-import { Building2, Landmark, Lock, Mail, Shield, Smartphone } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { Lock, Mail, Shield } from 'lucide-react'
 import {
   Box,
   Button,

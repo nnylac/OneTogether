@@ -19,8 +19,15 @@ const validResourceStatuses = new Set<IncidentResourceStatus>([
   'COMPLETED',
 ])
 
-export async function fetchIncidents() {
-  const response = await fetch('/api/incidents')
+export async function fetchIncidents(filters: { organisationId?: string } = {}) {
+  const searchParams = new URLSearchParams()
+
+  if (filters.organisationId) {
+    searchParams.set('organisationId', filters.organisationId)
+  }
+
+  const queryString = searchParams.toString()
+  const response = await fetch(`/api/incidents${queryString ? `?${queryString}` : ''}`)
 
   if (!response.ok) {
     throw new Error('Unable to load incidents')

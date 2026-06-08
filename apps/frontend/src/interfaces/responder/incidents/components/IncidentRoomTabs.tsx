@@ -39,7 +39,9 @@ const roomTabs: Array<{ id: RoomTab; label: string; icon: ElementType }> = [
 ]
 
 type IncidentRoomTabsProps = {
+  currentUserId?: string
   discussionDraft: string
+  discussionError?: string | null
   incident: Incident
   messages: ChatMessage[]
   onDiscussionDraftChange: (draft: string) => void
@@ -49,7 +51,9 @@ type IncidentRoomTabsProps = {
 }
 
 export function IncidentRoomTabs({
+  currentUserId,
   discussionDraft,
+  discussionError,
   incident,
   messages,
   onDiscussionDraftChange,
@@ -97,7 +101,9 @@ export function IncidentRoomTabs({
       <IncidentRoomContent>
         {activeTab === 'discussion' && (
           <IncidentDiscussion
+            currentUserId={currentUserId}
             draft={discussionDraft}
+            error={discussionError}
             messages={messages}
             onDraftChange={onDiscussionDraftChange}
             onSendMessage={onSendMessage}

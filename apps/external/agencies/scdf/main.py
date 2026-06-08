@@ -61,6 +61,122 @@ class SCDFSimulator(BaseAgencySimulator):
     SYSTEM_ID    = "FIREWATCH"
     SERVICE_NAME = "scdf-simulator"
 
+    def resource_outlets(self) -> list[dict]:
+        if hasattr(self, "_resource_outlets"):
+            return self._resource_outlets
+
+        self._resource_outlets = [
+            {
+                "externalOutletId": "SCDF-CENTRAL",
+                "name": "Central Fire Station",
+                "type": "fire_station",
+                "region": "Central",
+                "address": "62 Hill Street",
+                "location": {"lat": 1.2926, "lng": 103.8487},
+                "resources": [
+                    self._resource("fire_engine", "Fire Engines", "vehicle", 8, 5, 2, 0, 1),
+                    self._resource("ambulance", "Ambulances", "vehicle", 12, 8, 3, 0, 1),
+                    self._resource("rescue_team", "Rescue Teams", "crew", 10, 6, 3, 1, 0),
+                ],
+            },
+            {
+                "externalOutletId": "SCDF-TOA",
+                "name": "Toa Payoh Fire Station",
+                "type": "fire_station",
+                "region": "Central",
+                "address": "25 Kim Keat Road",
+                "location": {"lat": 1.3296, "lng": 103.8562},
+                "resources": [
+                    self._resource("fire_engine", "Fire Engines", "vehicle", 6, 4, 1, 0, 1),
+                    self._resource("ambulance", "Ambulances", "vehicle", 9, 6, 2, 0, 1),
+                    self._resource("hazmat_unit", "Hazmat Units", "specialist_unit", 3, 2, 1, 0, 0),
+                ],
+            },
+            {
+                "externalOutletId": "SCDF-JRG",
+                "name": "Jurong Fire Station",
+                "type": "fire_station",
+                "region": "West",
+                "address": "22 Jurong West Street 26",
+                "location": {"lat": 1.3448, "lng": 103.7076},
+                "resources": [
+                    self._resource("fire_engine", "Fire Engines", "vehicle", 7, 4, 2, 0, 1),
+                    self._resource("ambulance", "Ambulances", "vehicle", 10, 7, 2, 0, 1),
+                    self._resource("water_rescue_team", "Water Rescue Teams", "crew", 4, 3, 1, 0, 0),
+                ],
+            },
+            {
+                "externalOutletId": "SCDF-BDK",
+                "name": "Bedok Fire Station",
+                "type": "fire_station",
+                "region": "East",
+                "address": "850 Bedok North Road",
+                "location": {"lat": 1.3315, "lng": 103.9264},
+                "resources": [
+                    self._resource("fire_engine", "Fire Engines", "vehicle", 6, 5, 1, 0, 0),
+                    self._resource("ambulance", "Ambulances", "vehicle", 11, 8, 2, 0, 1),
+                    self._resource("rescue_team", "Rescue Teams", "crew", 8, 5, 2, 1, 0),
+                ],
+            },
+        ]
+        return self._resource_outlets
+
+    def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
+        return {
+            "externalResourceId": resource_id,
+            "name": name,
+            "category": category,
+            "unit": "count",
+            "total": total,
+            "available": available,
+            "deployed": deployed,
+            "reserved": reserved,
+            "maintenance": maintenance,
+        }
+
+    def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
+        payload = ticket["payload"]
+        outlet_id = self._outlet_for_station(payload.get("call_sign", ""))
+        resources = payload.get("resources_dispatched", {})
+        fire_engines = len(resources.get("fire_engines", []))
+        ambulances = len(resources.get("ambulances", []))
+        rescue_teams = len(resources.get("rescue_teams", []))
+
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "fire_engine", fire_engines)
+        self.allocate_resource(ticket["ticket_id"], outlet_id, "ambulance", ambulances)
+
+        specialist_resource = self._specialist_resource(payload.get("incident_type", ""))
+        allocated_specialist = self.allocate_resource(
+            ticket["ticket_id"],
+            outlet_id,
+            specialist_resource,
+            rescue_teams,
+        )
+
+        if allocated_specialist < rescue_teams and specialist_resource != "rescue_team":
+            self.allocate_resource(
+                ticket["ticket_id"],
+                outlet_id,
+                "rescue_team",
+                rescue_teams - allocated_specialist,
+            )
+
+    def _outlet_for_station(self, call_sign: str) -> str:
+        station_code = call_sign.split("-")[1] if "-" in call_sign else ""
+        return {
+            "CDS": "SCDF-CENTRAL",
+            "TOA": "SCDF-TOA",
+            "JRG": "SCDF-JRG",
+            "BDK": "SCDF-BDK",
+        }.get(station_code, "SCDF-CENTRAL")
+
+    def _specialist_resource(self, incident_type: str) -> str:
+        if incident_type == "HAZMAT":
+            return "hazmat_unit"
+        if incident_type == "RESCUE":
+            return "water_rescue_team"
+        return "rescue_team"
+
     async def _handle_incident(self, trigger: IncidentTrigger):
         await super()._handle_incident(trigger)
         if self._should_handoff_to_hospital(trigger):

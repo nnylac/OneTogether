@@ -14,8 +14,10 @@ import {
   VStack,
 } from '../../../../components/chakra-ui'
 import { BackToDashboardLink } from '../../components/BackToDashboardLink'
-import { fetchIncidents } from '../api/incidentsApi'
+import { useAuth } from '../../../auth/useAuth'
+import { fetchIncidents, fetchOrganisations } from '../api/incidentsApi'
 import { IncidentStatusBadge } from '../components/IncidentStatusBadge'
+import type { AuthUser } from '../../../auth/types'
 import type { Incident } from '../types'
 
 type IncidentFilter = 'all' | 'active' | 'critical'
@@ -41,12 +43,36 @@ function getFilteredIncidents(filter: IncidentFilter, incidents: Incident[]) {
   return incidents
 }
 
+function getFallbackOrganisationName(user: AuthUser | null) {
+  const source = `${user?.username ?? ''} ${user?.email ?? ''}`.toLowerCase()
+
+  if (source.includes('scdf') || user?.username === 'responder') {
+    return 'SCDF'
+  }
+  if (source.includes('spf')) {
+    return 'SPF'
+  }
+  if (source.includes('moh')) {
+    return 'MOH'
+  }
+  if (source.includes('pub')) {
+    return 'PUB'
+  }
+  if (source.includes('lta')) {
+    return 'LTA'
+  }
+
+  return null
+}
+
 export function IncidentsPage() {
+  const { user } = useAuth()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [error, setError] = useState<string | null>(null)
   const [filter, setFilter] = useState<IncidentFilter>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [page, setPage] = useState(1)
+  const assignedOrganisationId = user?.userOrganisationId ?? user?.organisations[0]?.id
 
   useEffect(() => {
     let isMounted = true
@@ -59,7 +85,26 @@ export function IncidentsPage() {
           setIsLoading(true)
         }
 
-        const nextIncidents = await fetchIncidents()
+        let organisationId = assignedOrganisationId
+
+        if (!organisationId) {
+          const fallbackOrganisationName = getFallbackOrganisationName(user)
+          const organisations = fallbackOrganisationName ? await fetchOrganisations() : []
+          organisationId = organisations.find(
+            (organisation) => organisation.orgName === fallbackOrganisationName,
+          )?.id
+        }
+
+        if (!organisationId) {
+          if (isMounted) {
+            setIncidents([])
+          }
+          return
+        }
+
+        const nextIncidents = await fetchIncidents({
+          organisationId,
+        })
 
         if (isMounted) {
           setIncidents(nextIncidents)
@@ -84,7 +129,7 @@ export function IncidentsPage() {
       isMounted = false
       window.clearInterval(pollingId)
     }
-  }, [])
+  }, [assignedOrganisationId, user])
 
   const filteredIncidents = useMemo(
     () => getFilteredIncidents(filter, incidents),

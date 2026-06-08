@@ -23,6 +23,59 @@ CREATE TABLE resources (
     available        INTEGER      NOT NULL
 );
 
+CREATE TABLE resource_outlets (
+    id                 UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    organisation_id    UUID         REFERENCES organisations (id) ON DELETE SET NULL,
+    agency_id          VARCHAR(50)  NOT NULL,
+    external_outlet_id VARCHAR(120) NOT NULL,
+    name               VARCHAR(150) NOT NULL,
+    outlet_type        VARCHAR(80)  NOT NULL,
+    region             VARCHAR(100),
+    address            TEXT,
+    latitude           NUMERIC(10,7),
+    longitude          NUMERIC(10,7),
+    source_system_id   VARCHAR(80)  NOT NULL,
+    last_synced_at     TIMESTAMPTZ  NOT NULL,
+    created_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at         TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    UNIQUE (agency_id, external_outlet_id)
+);
+CREATE TRIGGER trg_resource_outlets_updated_at
+BEFORE UPDATE ON resource_outlets
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_resource_outlets_agency_id        ON resource_outlets (agency_id);
+CREATE INDEX idx_resource_outlets_organisation_id  ON resource_outlets (organisation_id);
+CREATE INDEX idx_resource_outlets_type             ON resource_outlets (outlet_type);
+CREATE INDEX idx_resource_outlets_region           ON resource_outlets (region);
+CREATE INDEX idx_resource_outlets_last_synced_at   ON resource_outlets (last_synced_at);
+
+CREATE TABLE resource_inventory (
+    id                   UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    outlet_id            UUID         NOT NULL REFERENCES resource_outlets (id) ON DELETE CASCADE,
+    external_resource_id VARCHAR(120) NOT NULL,
+    resource_name        VARCHAR(150) NOT NULL,
+    resource_category    VARCHAR(80)  NOT NULL,
+    unit                 VARCHAR(30)  NOT NULL DEFAULT 'count',
+    total                INTEGER      NOT NULL CHECK (total >= 0),
+    available            INTEGER      NOT NULL CHECK (available >= 0),
+    deployed             INTEGER      NOT NULL DEFAULT 0 CHECK (deployed >= 0),
+    reserved             INTEGER      NOT NULL DEFAULT 0 CHECK (reserved >= 0),
+    maintenance          INTEGER      NOT NULL DEFAULT 0 CHECK (maintenance >= 0),
+    last_synced_at       TIMESTAMPTZ  NOT NULL,
+    created_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at           TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    UNIQUE (outlet_id, external_resource_id)
+);
+CREATE TRIGGER trg_resource_inventory_updated_at
+BEFORE UPDATE ON resource_inventory
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_resource_inventory_outlet_id            ON resource_inventory (outlet_id);
+CREATE INDEX idx_resource_inventory_category             ON resource_inventory (resource_category);
+CREATE INDEX idx_resource_inventory_external_resource_id ON resource_inventory (external_resource_id);
+CREATE INDEX idx_resource_inventory_last_synced_at       ON resource_inventory (last_synced_at);
+
 CREATE TABLE incidents (
     id               UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     code             VARCHAR(10)  NOT NULL UNIQUE,
@@ -87,6 +140,7 @@ CREATE TABLE users (
     is_verified BOOLEAN      NOT NULL DEFAULT FALSE,
     role        VARCHAR(20)  NOT NULL DEFAULT 'user'
                     CHECK (role IN ('user', 'responder', 'admin')),
+    user_organisation_id UUID REFERENCES organisations (id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     last_login  TIMESTAMPTZ 
@@ -94,10 +148,11 @@ CREATE TABLE users (
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
-CREATE INDEX idx_users_email      ON users (email);
-CREATE INDEX idx_users_username   ON users (username);
-CREATE INDEX idx_users_role       ON users (role);
-CREATE INDEX idx_users_created_at ON users (created_at);
+CREATE INDEX idx_users_email                ON users (email);
+CREATE INDEX idx_users_username             ON users (username);
+CREATE INDEX idx_users_role                 ON users (role);
+CREATE INDEX idx_users_created_at           ON users (created_at);
+CREATE INDEX idx_users_user_organisation_id ON users (user_organisation_id);
 
 CREATE TABLE user_organisations (
     user_id         UUID        NOT NULL REFERENCES users (id) ON DELETE CASCADE,
@@ -263,12 +318,29 @@ CREATE TABLE discussions (
     incident_id UUID         NOT NULL REFERENCES incidents (id) ON DELETE CASCADE,
     title     VARCHAR(255) NOT NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    UNIQUE (incident_id)
 );
 CREATE TRIGGER trg_discussions_updated_at
 BEFORE UPDATE ON discussions
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE INDEX idx_discussions_created_at ON discussions (created_at);
+
+CREATE OR REPLACE FUNCTION create_incident_discussion()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO discussions (incident_id, title)
+    VALUES (NEW.id, 'Incident Discussion')
+    ON CONFLICT (incident_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_incidents_create_discussion
+AFTER INSERT ON incidents
+FOR EACH ROW EXECUTE FUNCTION create_incident_discussion();
 
 
 CREATE TABLE messages (
@@ -283,8 +355,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
-
 
 
 

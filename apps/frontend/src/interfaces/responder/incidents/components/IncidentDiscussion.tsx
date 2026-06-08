@@ -14,6 +14,7 @@ import { IncidentRoomScrollArea } from './IncidentRoomShell'
 
 export type ChatMessage = {
   id: string
+  senderId: string
   author: string
   role: string
   time: string
@@ -21,14 +22,18 @@ export type ChatMessage = {
 }
 
 type IncidentDiscussionProps = {
+  currentUserId?: string
   draft: string
+  error?: string | null
   messages: ChatMessage[]
   onDraftChange: (draft: string) => void
   onSendMessage: (event: FormEvent<HTMLFormElement>) => void
 }
 
 export function IncidentDiscussion({
+  currentUserId,
   draft,
+  error,
   messages,
   onDraftChange,
   onSendMessage,
@@ -38,9 +43,18 @@ export function IncidentDiscussion({
       <IncidentRoomScrollArea>
         {messages.length > 0 && (
           <VStack align="stretch" gap="4">
-            {messages.map((message) => (
-              <Flex key={message.id} justify="flex-end">
-                <Box bg="purple.50" borderWidth="1px" borderColor="purple.100" maxW="70%" p="4">
+            {messages.map((message) => {
+              const isCurrentUser = message.senderId === currentUserId
+
+              return (
+                <Flex key={message.id} justify={isCurrentUser ? 'flex-end' : 'flex-start'}>
+                  <Box
+                    bg={isCurrentUser ? 'purple.50' : 'white'}
+                    borderWidth="1px"
+                    borderColor={isCurrentUser ? 'purple.100' : 'gray.200'}
+                    maxW="70%"
+                    p="4"
+                  >
                   <Flex justify="space-between" align="start" gap="4">
                     <Box>
                       <HStack gap="2">
@@ -60,14 +74,20 @@ export function IncidentDiscussion({
                   <Text color="gray.800" mt="3" whiteSpace="pre-wrap">
                     {message.body}
                   </Text>
-                </Box>
-              </Flex>
-            ))}
+                  </Box>
+                </Flex>
+              )
+            })}
           </VStack>
         )}
       </IncidentRoomScrollArea>
 
       <Box borderTopWidth="1px" borderColor="gray.200" bg="white" p="4">
+        {error && (
+          <Text color="red.600" fontSize="sm" fontWeight="700" mb="3">
+            {error}
+          </Text>
+        )}
         <form onSubmit={onSendMessage}>
           <HStack align="end" gap="3">
             <Textarea
