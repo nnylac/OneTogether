@@ -79,12 +79,24 @@ CREATE INDEX idx_resource_inventory_last_synced_at       ON resource_inventory (
 CREATE TABLE incidents (
     id               UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     code             VARCHAR(10)  NOT NULL UNIQUE,
+    external_incident_id TEXT UNIQUE,
     title            TEXT NOT NULL,
     incident_type    VARCHAR(50)  NOT NULL,
     severity         INTEGER      NOT NULL,
     inc_status       VARCHAR(50)  NOT NULL,
     inc_description  TEXT,
     inc_location     TEXT,
+    latitude         NUMERIC(10,7),
+    longitude        NUMERIC(10,7),
+    category         TEXT,
+    urgency          TEXT,
+    severity_estimate INTEGER,
+    confidence       NUMERIC(5,4),
+    analysis_status  VARCHAR(20) NOT NULL DEFAULT 'NOT_STARTED',
+    executive_summary TEXT,
+    response_plan    TEXT,
+    entities         TEXT,
+    analysis_finalized_at TIMESTAMPTZ,
     report           TEXT,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
@@ -102,6 +114,7 @@ CREATE INDEX idx_incidents_status ON incidents (inc_status);
 CREATE TABLE logs (
     id               UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     incident_id      UUID         NOT NULL REFERENCES incidents (id) ON DELETE CASCADE,
+    agency_id        VARCHAR(50)  NOT NULL DEFAULT 'SYSTEM',
     content          TEXT         NOT NULL,
     created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW()
 );
@@ -126,7 +139,8 @@ CREATE TABLE incident_sources (
     external_ticket_id TEXT             NOT NULL,
     last_synced_at     TIMESTAMPTZ      NOT NULL DEFAULT NOW(),
 
-    PRIMARY KEY (incident_id, external_ticket_id)
+    PRIMARY KEY (incident_id, external_ticket_id),
+    UNIQUE (external_ticket_id)
 );
 CREATE INDEX idx_incident_sources_incident_id ON incident_sources (incident_id);
 
@@ -143,7 +157,7 @@ CREATE TABLE users (
     user_organisation_id UUID REFERENCES organisations (id) ON DELETE SET NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_login  TIMESTAMPTZ
+    last_login  TIMESTAMPTZ 
 );
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users

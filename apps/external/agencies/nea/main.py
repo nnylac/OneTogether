@@ -19,7 +19,10 @@ INSPECTION_TYPES = {
     "FLOODING": "POST_FLOOD_SANITATION_RISK",
     "GAS_LEAK": "ENVIRONMENTAL_SAFETY_SUPPORT",
     "BUILDING_COLLAPSE": "DEBRIS_AND_SANITATION_RISK",
+    "HAZE": "AIR_QUALITY_RESPONSE",
+    "CIVIL_DISTURBANCE": "ENVIRONMENTAL_HEALTH_SUPPORT",
 }
+FIELD_OMIT_CHANCE = 0.25
 
 
 class NEASimulator(BaseAgencySimulator):
@@ -123,12 +126,17 @@ class NEASimulator(BaseAgencySimulator):
             },
             "risk_assessment": {
                 "public_health_risk": "HIGH" if trigger.severity >= 4 else "MEDIUM" if trigger.severity >= 2 else "LOW",
-                "mosquito_breeding_risk": random.choice(["LOW", "MEDIUM", "HIGH"]),
+                "mosquito_breeding_risk": (
+                    random.choice(["LOW", "MEDIUM", "HIGH"])
+                    if random.random() >= 0.25 else None
+                ),
                 "food_or_sanitation_risk": random.choice(["LOW", "MEDIUM", "HIGH", None]),
             },
             "field_action": {
                 "team": random.choice(VECTOR_TEAMS),
-                "inspection_eta_mins": random.randint(20, 90),
+                "inspection_eta_mins": (
+                    random.randint(20, 90) if random.random() >= 0.2 else None
+                ),
                 "fogging_or_larviciding_required": trigger.incident_type.value == "DISEASE_OUTBREAK" and random.random() > 0.35,
                 "town_council_follow_up_required": random.random() > 0.25,
             },

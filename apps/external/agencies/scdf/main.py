@@ -34,6 +34,8 @@ INCIDENT_TYPE_MAP = {
     "BUILDING_COLLAPSE": "RESCUE",
     "MISSING_PERSON":    "RESCUE",
     "DISEASE_OUTBREAK":  "MEDICAL",
+    "HAZE":              "MEDICAL",
+    "CIVIL_DISTURBANCE": "RESCUE",
 }
 STATIONS = ["CDS", "TOA", "JRG", "BDK", "WDL", "ANG", "CLM", "SGK"]
 SPECIALISATIONS = ["Urban Search & Rescue", "Hazmat", "Water Rescue", "Height Rescue", "General"]
@@ -54,6 +56,7 @@ HOSPITAL_HANDOFF_TYPES = {
     IncidentType.GAS_LEAK,
     IncidentType.BUILDING_COLLAPSE,
 }
+FIELD_OMIT_CHANCE = 0.25
 
 
 class SCDFSimulator(BaseAgencySimulator):
@@ -191,14 +194,26 @@ class SCDFSimulator(BaseAgencySimulator):
 
         n_engines    = random.randint(1, 3) if "FIRE" in trigger.incident_type.value else 0
         n_ambulances = random.randint(1, 4) if trigger.severity >= 2 else 0
+        if trigger.severity == 3 and random.random() < FIELD_OMIT_CHANCE:
+            n_ambulances = 0
         n_teams      = random.randint(1, 2)
+        casualties = {
+            "injured": random.randint(0, trigger.severity * 3),
+            "deceased": 0,
+            "evacuated": random.randint(0, trigger.severity * 10),
+        }
+        if random.random() < 0.15:
+            casualties = {"injured": 0, "deceased": 0, "evacuated": 0}
 
         return {
             # SCDF uses call_sign as primary ref
             "call_sign": f"SCDF-{station}-F{unit_num:02d}",
             "firewatch_ref": ticket_id,
             "incident_type": INCIDENT_TYPE_MAP.get(trigger.incident_type.value, "GENERAL"),
-            "hazard_level": min(trigger.severity + random.randint(-1, 1), 5),
+            "hazard_level": (
+                max(1, min(trigger.severity + random.randint(-1, 1), 5))
+                if random.random() >= 0.15 else None
+            ),
             "location": {
                 # deliberate building-name noise
                 "building_name": bname_tpl.format(n=blk, area=trigger.location.area),
@@ -221,11 +236,7 @@ class SCDFSimulator(BaseAgencySimulator):
                     for _ in range(n_ambulances)
                 ],
             },
-            "casualties": {
-                "injured": random.randint(0, trigger.severity * 3),
-                "deceased": 0,
-                "evacuated": random.randint(0, trigger.severity * 10),
-            },
+            "casualties": casualties,
             "patient_conveyance": {
                 "handoff_required": self._should_handoff_to_hospital(trigger),
                 "ambulance_case_refs": [],

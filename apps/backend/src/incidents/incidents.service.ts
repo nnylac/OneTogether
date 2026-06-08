@@ -77,17 +77,25 @@ export class IncidentsService {
         title: dto.title,
         incident_type: dto.incidentType,
         severity: dto.severity,
-        inc_status: dto.status,
+        inc_status:
+          dto.status === undefined ? undefined : dto.status.toUpperCase(),
         inc_description: dto.description,
         inc_location: dto.location,
         report: dto.report,
+        executive_summary: dto.executiveSummary,
+        response_plan: dto.responsePlan,
+        entities: dto.entities,
         created_at: dto.createdAt ? new Date(dto.createdAt) : undefined,
         resolved_at:
-          dto.resolvedAt === null
-            ? null
-            : dto.resolvedAt
-              ? new Date(dto.resolvedAt)
-              : undefined,
+          dto.status === 'closed'
+            ? new Date()
+            : dto.status === 'active'
+              ? null
+              : dto.resolvedAt === null
+                ? null
+                : dto.resolvedAt
+                  ? new Date(dto.resolvedAt)
+                  : undefined,
         confidence_score: dto.confidenceScore,
         updated_at: new Date(),
       },
@@ -114,7 +122,9 @@ export class IncidentsService {
 
   async assignOrganisation(id: string, dto: AssignOrganisationDto) {
     const incident = await this.ensureIncidentExists(id);
-    const organisation = await this.ensureOrganisationExists(dto.organisationId);
+    const organisation = await this.ensureOrganisationExists(
+      dto.organisationId,
+    );
 
     const existingAssignment = await this.prisma.assigned_orgs.findUnique({
       where: {
@@ -237,6 +247,7 @@ export class IncidentsService {
 
     return logs.map((log) => ({
       id: log.id,
+      agencyId: log.agency_id,
       content: log.content,
       createdAt: log.created_at,
     }));
@@ -287,6 +298,20 @@ export class IncidentsService {
       updatedAt: incident.updated_at,
       resolvedAt: incident.resolved_at,
       confidenceScore: incident.confidence_score,
+      aiAnalysis: {
+        category: incident.category,
+        urgency: incident.urgency,
+        severityEstimate: incident.severity_estimate,
+        confidence:
+          incident.confidence === null ? null : Number(incident.confidence),
+        finalAnalysis: {
+          status: incident.analysis_status,
+          executiveSummary: incident.executive_summary,
+          responsePlan: incident.response_plan,
+          entities: incident.entities,
+          finalizedAt: incident.analysis_finalized_at,
+        },
+      },
       assignedOrgs: incident.assigned_orgs.map(
         (assignedOrg) => assignedOrg.organisations.org_name,
       ),
@@ -309,6 +334,7 @@ export class IncidentsService {
       })),
       logs: incident.logs?.map((log) => ({
         id: log.id,
+        agencyId: log.agency_id,
         content: log.content,
         createdAt: log.created_at,
       })),
@@ -326,10 +352,6 @@ export class IncidentsService {
 
     if (normalizedStatus === 'closed') {
       return 'closed';
-    }
-
-    if (normalizedStatus === 'resolved') {
-      return 'resolved';
     }
 
     return 'active';
@@ -385,7 +407,10 @@ export class IncidentsService {
     return resolvedStatus;
   }
 
-  private defaultAssignmentNotes(organisationName: string, incidentTitle: string) {
+  private defaultAssignmentNotes(
+    organisationName: string,
+    incidentTitle: string,
+  ) {
     return `${organisationName} assigned to ${incidentTitle}.`;
   }
 }

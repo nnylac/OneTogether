@@ -26,4 +26,9 @@ docker compose down
 # Modifying the schema
 `01_create.sql` is the script that creates all the tables in the db and any changes to the schema should be made on that script.
 
+Incremental initialization scripts such as `09_incident_aggregation.sql` keep
+existing development databases compatible. Docker entrypoint scripts only run
+when the Postgres data volume is first created, so reset the volume to apply
+them to an already-initialized local database.
+
 Run the Fresh Installation commands after you have changed the schema

@@ -27,6 +27,8 @@ CATEGORIES = {
     "MEDICAL_EMERGENCY": "GENERAL",
     "MISSING_PERSON":    "GENERAL",
     "DISEASE_OUTBREAK":  "GENERAL",
+    "HAZE":              "GENERAL",
+    "CIVIL_DISTURBANCE": "GENERAL",
 }
 # Street name abbreviations (alt-name noise)
 STREET_ABBREVS = ["Ave", "Rd", "St", "Dr", "Cres", "Pl", "Walk", "Ctrl"]
@@ -39,6 +41,7 @@ CHECKLIST_ITEMS = [
     "Structural assessment commissioned",
     "Post-incident report filed",
 ]
+FIELD_OMIT_CHANCE = 0.25
 
 
 class TownCouncilSimulator(BaseAgencySimulator):
@@ -154,6 +157,8 @@ class TownCouncilSimulator(BaseAgencySimulator):
             {"item": item, "completed": random.random() > 0.6}
             for item in random.sample(CHECKLIST_ITEMS, n_items)
         ]
+        if random.random() < 0.15:
+            checklist = []
 
         include_advisory = random.random() > 0.4
         payload = {

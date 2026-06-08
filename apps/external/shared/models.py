@@ -41,6 +41,8 @@ class IncidentType(str, Enum):
     BUILDING_COLLAPSE = "BUILDING_COLLAPSE"
     MISSING_PERSON    = "MISSING_PERSON"
     DISEASE_OUTBREAK  = "DISEASE_OUTBREAK"
+    HAZE              = "HAZE"
+    CIVIL_DISTURBANCE = "CIVIL_DISTURBANCE"
 
 
 class EventType(str, Enum):
@@ -85,6 +87,7 @@ class Location(BaseModel):
     lat: float
     lng: float
     postal_code: Optional[str] = None
+    reported_accuracy: Optional[str] = None
 
 
 class IncidentTrigger(BaseModel):

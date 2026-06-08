@@ -1,4 +1,4 @@
-import type { ElementType, ReactNode } from 'react'
+import type { ElementType, ReactNode } from "react";
 import {
   Activity,
   CalendarClock,
@@ -7,7 +7,7 @@ import {
   HeartPulse,
   MapPin,
   Tag,
-} from 'lucide-react'
+} from "lucide-react";
 import {
   Box,
   Heading,
@@ -15,34 +15,35 @@ import {
   Icon,
   Text,
   VStack,
-} from '../../../../components/chakra-ui'
-import { LabelBox } from '../../../../components/ui/LabelBox'
-import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
-import type { Incident, IncidentResource, IncidentSeverity } from '../types'
-import { IncidentStatusBadge } from './IncidentStatusBadge'
+} from "../../../../components/chakra-ui";
+import { LabelBox } from "../../../../components/ui/LabelBox";
+import type { LabelBoxTone } from "../../../../components/ui/LabelBox";
+import type { Incident, IncidentResource, IncidentSeverity } from "../types";
+import { IncidentStatusBadge } from "./IncidentStatusBadge";
 
 const severityTones: Record<IncidentSeverity, LabelBoxTone> = {
-  Low: 'green',
-  Medium: 'yellow',
-  High: 'orange',
-  Critical: 'red',
-}
+  Low: "green",
+  Medium: "yellow",
+  High: "orange",
+  Critical: "red",
+};
 
 export function IncidentInformation({
   incident,
   resources,
 }: {
-  incident: Incident
-  resources: IncidentResource[]
+  incident: Incident;
+  resources: IncidentResource[];
 }) {
-  const confidenceScore = incident.confidenceScore ?? 0
+  const confidenceScore = incident.confidenceScore ?? 0;
+  const analysis = incident.analysis;
   const assignedOrganisations = Array.from(
     new Set(
       resources.length > 0
         ? resources.map((resource) => resource.agency)
-        : incident.assignedOrgs ?? [],
+        : (incident.assignedOrgs ?? []),
     ),
-  )
+  );
 
   return (
     <Box flex="1" minH="0" overflowY="auto" p="6">
@@ -59,7 +60,7 @@ export function IncidentInformation({
         <Box bg="white" borderWidth="1px" borderColor="gray.200">
           <DetailRow icon={HeartPulse} label="Type">
             <Text color="gray.900" fontWeight="700">
-              {incident.incidentType ?? 'Unassigned'}
+              {incident.incidentType ?? "Unassigned"}
             </Text>
           </DetailRow>
 
@@ -91,9 +92,35 @@ export function IncidentInformation({
             </HStack>
           </DetailRow>
 
+          <DetailRow icon={Tag} label="Classification">
+            <Text color="gray.900" fontWeight="700">
+              {analysis?.category ?? "Pending"} ·{" "}
+              {analysis?.urgency ?? "Pending"} urgency
+            </Text>
+          </DetailRow>
+
+          <DetailRow icon={Activity} label="Model assessment">
+            <Text color="gray.900" fontWeight="700">
+              Severity {analysis?.severityEstimate ?? "Pending"} ·{" "}
+              {analysis?.confidence === null ||
+              analysis?.confidence === undefined
+                ? "confidence pending"
+                : `${Math.round(analysis.confidence * 100)}% confidence`}
+            </Text>
+          </DetailRow>
+
+          <DetailRow icon={Activity} label="Analysis status">
+            <Text color="gray.900" fontWeight="700">
+              {analysis?.finalAnalysis.status ?? "NOT_STARTED"}
+            </Text>
+          </DetailRow>
+
           <DetailRow icon={Tag} label="Assigned organisations">
             <HStack gap="2" wrap="wrap">
-              {(assignedOrganisations.length > 0 ? assignedOrganisations : ['None']).map((org) => (
+              {(assignedOrganisations.length > 0
+                ? assignedOrganisations
+                : ["None"]
+              ).map((org) => (
                 <LabelBox key={org} tone="gray">
                   {org}
                 </LabelBox>
@@ -132,7 +159,7 @@ export function IncidentInformation({
         </Box>
       </VStack>
     </Box>
-  )
+  );
 }
 
 function DetailRow({
@@ -141,32 +168,38 @@ function DetailRow({
   isLast = false,
   label,
 }: {
-  children: ReactNode
-  icon: ElementType
-  isLast?: boolean
-  label: string
+  children: ReactNode;
+  icon: ElementType;
+  isLast?: boolean;
+  label: string;
 }) {
   return (
     <Box
       alignItems="center"
-      borderBottomWidth={isLast ? '0' : '1px'}
+      borderBottomWidth={isLast ? "0" : "1px"}
       borderColor="gray.100"
       columnGap="4"
       display="grid"
-      gridTemplateColumns={{ base: 'minmax(0, 1fr)', md: '260px minmax(0, 1fr)' }}
+      gridTemplateColumns={{
+        base: "minmax(0, 1fr)",
+        md: "260px minmax(0, 1fr)",
+      }}
       px="5"
       py="4"
       rowGap="2"
     >
       <HStack gap="3">
         <Icon as={icon} color="gray.400" boxSize="5" />
-        <Text color="gray.500" fontSize="xs" fontWeight="700" textTransform="uppercase">
+        <Text
+          color="gray.500"
+          fontSize="xs"
+          fontWeight="700"
+          textTransform="uppercase"
+        >
           {label}
         </Text>
       </HStack>
-      <Box minW="0">
-        {children}
-      </Box>
+      <Box minW="0">{children}</Box>
     </Box>
-  )
+  );
 }

@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import type { ElementType, FormEvent } from 'react'
+import { useEffect, useState } from "react";
+import type { ElementType, FormEvent } from "react";
 import {
   ClipboardList,
   FileText,
@@ -7,48 +7,50 @@ import {
   Info,
   Map,
   MessageSquare,
-  Sparkles,
-} from 'lucide-react'
-import { Box, Button, HStack, Icon } from '../../../../components/chakra-ui'
-import type { Incident, IncidentReportDraft } from '../types'
-import { IncidentDiscussion } from './IncidentDiscussion'
-import type { ChatMessage } from './IncidentDiscussion'
-import { IncidentInformation } from './IncidentInformation'
-import { IncidentLog } from './IncidentLog'
-import { IncidentReport } from './IncidentReport'
-import { IncidentResources } from './IncidentResources'
-import { IncidentRoomCard, IncidentRoomContent } from './IncidentRoomShell'
+} from "lucide-react";
+import { Box, Button, HStack, Icon } from "../../../../components/chakra-ui";
+import type { Incident, IncidentReportDraft } from "../types";
+import { IncidentDiscussion } from "./IncidentDiscussion";
+import type { ChatMessage } from "./IncidentDiscussion";
+import { IncidentInformation } from "./IncidentInformation";
+import { IncidentLog } from "./IncidentLog";
+import { IncidentReport } from "./IncidentReport";
+import { IncidentResources } from "./IncidentResources";
+import { IncidentRoomCard, IncidentRoomContent } from "./IncidentRoomShell";
 
 type RoomTab =
-  | 'discussion'
-  | 'incident-log'
-  | 'report'
-  | 'resources'
-  | 'map'
-  | 'information'
-  | 'ai-advisory'
+  | "discussion"
+  | "incident-log"
+  | "report"
+  | "resources"
+  | "map"
+  | "information";
 
 const roomTabs: Array<{ id: RoomTab; label: string; icon: ElementType }> = [
-  { id: 'discussion', label: 'Discussion', icon: MessageSquare },
-  { id: 'incident-log', label: 'Incident Log', icon: ClipboardList },
-  { id: 'report', label: 'Report', icon: FileText },
-  { id: 'resources', label: 'Resources', icon: FolderOpen },
-  { id: 'map', label: 'Map', icon: Map },
-  { id: 'information', label: 'Information', icon: Info },
-  { id: 'ai-advisory', label: 'AI Advisory', icon: Sparkles },
-]
+  { id: "discussion", label: "Discussion", icon: MessageSquare },
+  { id: "incident-log", label: "Incident Log", icon: ClipboardList },
+  { id: "report", label: "Report", icon: FileText },
+  { id: "resources", label: "Resources", icon: FolderOpen },
+  { id: "map", label: "Map", icon: Map },
+  { id: "information", label: "Information", icon: Info },
+];
 
 type IncidentRoomTabsProps = {
-  currentUserId?: string
-  discussionDraft: string
-  discussionError?: string | null
-  incident: Incident
-  messages: ChatMessage[]
-  onDiscussionDraftChange: (draft: string) => void
-  onReportDraftChange: (draft: IncidentReportDraft) => void
-  onSendMessage: (event: FormEvent<HTMLFormElement>) => void
-  reportDraft: IncidentReportDraft
-}
+  currentUserId?: string;
+  discussionDraft: string;
+  discussionError?: string | null;
+  incident: Incident;
+  messages: ChatMessage[];
+  reportError?: string | null;
+  reportIsGenerating: boolean;
+  reportIsSaving: boolean;
+  onDiscussionDraftChange: (draft: string) => void;
+  onGenerateReport: () => void;
+  onReportDraftChange: (draft: IncidentReportDraft) => void;
+  onSaveReport: () => void;
+  onSendMessage: (event: FormEvent<HTMLFormElement>) => void;
+  reportDraft: IncidentReportDraft;
+};
 
 export function IncidentRoomTabs({
   currentUserId,
@@ -56,18 +58,23 @@ export function IncidentRoomTabs({
   discussionError,
   incident,
   messages,
+  reportError,
+  reportIsGenerating,
+  reportIsSaving,
   onDiscussionDraftChange,
+  onGenerateReport,
   onReportDraftChange,
+  onSaveReport,
   onSendMessage,
   reportDraft,
 }: IncidentRoomTabsProps) {
-  const [activeTab, setActiveTab] = useState<RoomTab>('discussion')
-  const [resources, setResources] = useState(incident.resources ?? [])
-  const logEntries = incident.logs ?? []
+  const [activeTab, setActiveTab] = useState<RoomTab>("discussion");
+  const [resources, setResources] = useState(incident.resources ?? []);
+  const logEntries = incident.logs ?? [];
 
   useEffect(() => {
-    setResources(incident.resources ?? [])
-  }, [incident.id, incident.resources])
+    setResources(incident.resources ?? []);
+  }, [incident.id, incident.resources]);
 
   return (
     <IncidentRoomCard>
@@ -84,13 +91,18 @@ export function IncidentRoomTabs({
             key={tab.label}
             variant="ghost"
             borderBottomWidth="2px"
-            borderBottomColor={activeTab === tab.id ? 'purple.500' : 'transparent'}
+            borderBottomColor={
+              activeTab === tab.id ? "purple.500" : "transparent"
+            }
             borderRadius="0"
-            color={activeTab === tab.id ? 'purple.700' : 'gray.600'}
+            color={activeTab === tab.id ? "purple.700" : "gray.600"}
             h="12"
             onClick={() => setActiveTab(tab.id)}
             px="4"
-            _hover={{ bg: 'white', color: activeTab === tab.id ? 'purple.700' : 'gray.900' }}
+            _hover={{
+              bg: "white",
+              color: activeTab === tab.id ? "purple.700" : "gray.900",
+            }}
           >
             <Icon as={tab.icon} />
             {tab.label}
@@ -99,7 +111,7 @@ export function IncidentRoomTabs({
       </HStack>
 
       <IncidentRoomContent>
-        {activeTab === 'discussion' && (
+        {activeTab === "discussion" && (
           <IncidentDiscussion
             currentUserId={currentUserId}
             draft={discussionDraft}
@@ -110,13 +122,22 @@ export function IncidentRoomTabs({
           />
         )}
 
-        {activeTab === 'incident-log' && <IncidentLog entries={logEntries} />}
+        {activeTab === "incident-log" && <IncidentLog entries={logEntries} />}
 
-        {activeTab === 'report' && (
-          <IncidentReport draft={reportDraft} onDraftChange={onReportDraftChange} />
+        {activeTab === "report" && (
+          <IncidentReport
+            draft={reportDraft}
+            error={reportError}
+            isGenerating={reportIsGenerating}
+            isSaving={reportIsSaving}
+            onGenerate={onGenerateReport}
+            onDraftChange={onReportDraftChange}
+            onSave={onSaveReport}
+            status={incident.status}
+          />
         )}
 
-        {activeTab === 'resources' && (
+        {activeTab === "resources" && (
           <IncidentResources
             incidentId={incident.id}
             resources={resources}
@@ -124,16 +145,16 @@ export function IncidentRoomTabs({
           />
         )}
 
-        {activeTab === 'information' && (
+        {activeTab === "information" && (
           <IncidentInformation incident={incident} resources={resources} />
         )}
 
-        {activeTab !== 'discussion' &&
-          activeTab !== 'incident-log' &&
-          activeTab !== 'report' &&
-          activeTab !== 'resources' &&
-          activeTab !== 'information' && <Box flex="1" />}
+        {activeTab !== "discussion" &&
+          activeTab !== "incident-log" &&
+          activeTab !== "report" &&
+          activeTab !== "resources" &&
+          activeTab !== "information" && <Box flex="1" />}
       </IncidentRoomContent>
     </IncidentRoomCard>
-  )
+  );
 }

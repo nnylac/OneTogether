@@ -1,22 +1,38 @@
-import type { ReactNode } from 'react'
+import type { ReactNode } from "react";
 import {
   Box,
+  Button,
   Heading,
   Input,
   Text,
   Textarea,
   VStack,
-} from '../../../../components/chakra-ui'
-import type { IncidentReportDraft } from '../types'
+} from "../../../../components/chakra-ui";
+import type { IncidentReportDraft } from "../types";
 
 type IncidentReportProps = {
-  draft: IncidentReportDraft
-  onDraftChange: (draft: IncidentReportDraft) => void
-}
+  draft: IncidentReportDraft;
+  error?: string | null;
+  isGenerating: boolean;
+  isSaving: boolean;
+  onGenerate: () => void;
+  onDraftChange: (draft: IncidentReportDraft) => void;
+  onSave: () => void;
+  status: "active" | "closed";
+};
 
-export function IncidentReport({ draft, onDraftChange }: IncidentReportProps) {
+export function IncidentReport({
+  draft,
+  error,
+  isGenerating,
+  isSaving,
+  onGenerate,
+  onDraftChange,
+  onSave,
+  status,
+}: IncidentReportProps) {
   function updateDraft(field: keyof IncidentReportDraft, value: string) {
-    onDraftChange({ ...draft, [field]: value })
+    onDraftChange({ ...draft, [field]: value });
   }
 
   return (
@@ -31,18 +47,30 @@ export function IncidentReport({ draft, onDraftChange }: IncidentReportProps) {
           </Text>
         </Box>
 
-        <VStack as="form" align="stretch" gap="5">
+        <VStack
+          as="form"
+          align="stretch"
+          gap="5"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onSave();
+          }}
+        >
           <FormField label="Name of incident">
             <Input
               value={draft.incidentName}
-              onChange={(event) => updateDraft('incidentName', event.currentTarget.value)}
+              onChange={(event) =>
+                updateDraft("incidentName", event.currentTarget.value)
+              }
             />
           </FormField>
 
           <FormField label="Date of incident">
             <Input
               value={draft.incidentDate}
-              onChange={(event) => updateDraft('incidentDate', event.currentTarget.value)}
+              onChange={(event) =>
+                updateDraft("incidentDate", event.currentTarget.value)
+              }
             />
           </FormField>
 
@@ -50,8 +78,22 @@ export function IncidentReport({ draft, onDraftChange }: IncidentReportProps) {
             <Textarea
               value={draft.incidentDescription}
               minH="32"
-              onChange={(event) => updateDraft('incidentDescription', event.currentTarget.value)}
+              onChange={(event) =>
+                updateDraft("incidentDescription", event.currentTarget.value)
+              }
               placeholder="Summarise what happened, who was affected, and the current situation."
+              resize="vertical"
+            />
+          </FormField>
+
+          <FormField label="Executive summary">
+            <Textarea
+              value={draft.executiveSummary}
+              minH="36"
+              onChange={(event) =>
+                updateDraft("executiveSummary", event.currentTarget.value)
+              }
+              placeholder="A concise paragraph explaining what happened and how the incident concluded."
               resize="vertical"
             />
           </FormField>
@@ -60,28 +102,55 @@ export function IncidentReport({ draft, onDraftChange }: IncidentReportProps) {
             <Textarea
               value={draft.responsePlan}
               minH="40"
-              onChange={(event) => updateDraft('responsePlan', event.currentTarget.value)}
+              onChange={(event) =>
+                updateDraft("responsePlan", event.currentTarget.value)
+              }
               placeholder="Describe what responders did to address the incident, including deployment, coordination, treatment, evacuation, containment, or handover steps."
               resize="vertical"
             />
           </FormField>
 
-          <FormField label="Other notes about incident">
+          <FormField label="Extracted entities">
             <Textarea
-              value={draft.otherNotes}
+              value={draft.entities}
               minH="32"
-              onChange={(event) => updateDraft('otherNotes', event.currentTarget.value)}
-              placeholder="Add any additional observations, constraints, follow-ups, or handover notes."
+              onChange={(event) =>
+                updateDraft("entities", event.currentTarget.value)
+              }
+              placeholder="A readable paragraph covering organisations, location, casualties, resources, hospitals, and hazards."
               resize="vertical"
             />
           </FormField>
+
+          {error && <Text color="red.600">{error}</Text>}
+
+          <Box display="flex" gap="3">
+            <Button type="submit" colorPalette="purple" loading={isSaving}>
+              Save report
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              disabled={status !== "closed"}
+              loading={isGenerating}
+              onClick={onGenerate}
+            >
+              Regenerate analysis
+            </Button>
+          </Box>
         </VStack>
       </VStack>
     </Box>
-  )
+  );
 }
 
-function FormField({ label, children }: { label: string; children: ReactNode }) {
+function FormField({
+  label,
+  children,
+}: {
+  label: string;
+  children: ReactNode;
+}) {
   return (
     <VStack align="stretch" gap="2">
       <Text color="gray.700" fontSize="sm" fontWeight="700">
@@ -89,5 +158,5 @@ function FormField({ label, children }: { label: string; children: ReactNode }) 
       </Text>
       {children}
     </VStack>
-  )
+  );
 }

@@ -1,12 +1,24 @@
-import { Body, Controller, Get, Param, Patch, Post, Query } from '@nestjs/common';
+import {
+  Body,
+  Controller,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Query,
+} from '@nestjs/common';
 import { IncidentsService } from './incidents.service';
 import { AssignOrganisationDto } from './assign-organisation.dto';
 import { UpdateAssignedOrganisationDto } from './update-assigned-organisation.dto';
 import { UpdateIncidentDto } from './update-incident.dto';
+import { IncidentAnalysisService } from '../analysis/incident-analysis.service';
 
 @Controller('incidents')
 export class IncidentsController {
-  constructor(private readonly incidentsService: IncidentsService) {}
+  constructor(
+    private readonly incidentsService: IncidentsService,
+    private readonly analysisService: IncidentAnalysisService,
+  ) {}
 
   @Get()
   findAll(@Query('organisationId') organisationId?: string) {
@@ -37,6 +49,16 @@ export class IncidentsController {
   @Get(':id/logs')
   findLogs(@Param('id') id: string) {
     return this.incidentsService.findLogs(id);
+  }
+
+  @Get(':id/final-analysis')
+  getFinalAnalysis(@Param('id') id: string) {
+    return this.analysisService.getFinalAnalysis(id);
+  }
+
+  @Post(':id/final-analysis')
+  generateFinalAnalysis(@Param('id') id: string) {
+    return this.analysisService.generateFinalAnalysis(id, true);
   }
 
   @Get(':id')
