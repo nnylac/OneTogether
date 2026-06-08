@@ -3,7 +3,9 @@ import { ChevronRightLink } from '../../../../components/ui/ChevronRightLink'
 import type { ResourceSnapshot as ResourceSnapshotData } from '../types'
 
 type ResourceSnapshotProps = {
-  snapshot: ResourceSnapshotData
+  errorMessage?: string
+  isLoading?: boolean
+  snapshot: ResourceSnapshotData | null
 }
 
 const progressColors = {
@@ -11,7 +13,11 @@ const progressColors = {
   orange: 'orange.400',
 }
 
-export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
+export function ResourceSnapshot({
+  errorMessage,
+  isLoading = false,
+  snapshot,
+}: ResourceSnapshotProps) {
   return (
     <Card.Root bg="white" borderColor="gray.200" borderWidth="1px" borderRadius="sm">
       <Card.Header>
@@ -27,16 +33,16 @@ export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
 
           <HStack gap="2">
             <Box
-              bg="gray.50"
-              borderColor="gray.200"
+              bg={snapshot ? 'green.50' : 'red.50'}
+              borderColor={snapshot ? 'green.200' : 'red.200'}
               borderWidth="1px"
-              color="gray.700"
+              color={snapshot ? 'green.700' : 'red.700'}
               fontSize="xs"
               fontWeight="800"
               px="3"
               py="1"
             >
-              LIVE
+              {snapshot ? 'LIVE' : 'NO DATA'}
             </Box>
             <ChevronRightLink to="/responder/resources" label="View all resources" />
           </HStack>
@@ -44,10 +50,27 @@ export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
       </Card.Header>
 
       <Card.Body>
+        {!snapshot && (
+          <Box bg="red.50" borderColor="red.200" borderWidth="1px" color="red.700" p="4">
+            <Text fontWeight="800">
+              {isLoading
+                ? 'Loading resource data from the backend.'
+                : errorMessage ?? 'No resource data was pulled from the database.'}
+            </Text>
+            <Text color="red.600" fontSize="sm" mt="1">
+              Run a resource sync and confirm the external agency resource feeds are reachable.
+            </Text>
+          </Box>
+        )}
+
+        {snapshot && (
         <Flex gap="6" direction={{ base: 'column', xl: 'row' }}>
           <Stack gap="4" flex="1">
             {snapshot.progress.map((progress) => {
-              const percent = Math.round((progress.value / progress.total) * 100)
+              const percent =
+                progress.total > 0
+                  ? Math.round((progress.value / progress.total) * 100)
+                  : 0
 
               return (
                 <Stack key={progress.label} gap="2">
@@ -81,6 +104,7 @@ export function ResourceSnapshot({ snapshot }: ResourceSnapshotProps) {
             ))}
           </HStack>
         </Flex>
+        )}
       </Card.Body>
     </Card.Root>
   )
