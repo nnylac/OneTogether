@@ -318,12 +318,29 @@ CREATE TABLE discussions (
     incident_id UUID         NOT NULL REFERENCES incidents (id) ON DELETE CASCADE,
     title     VARCHAR(255) NOT NULL,
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW()
+    updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    UNIQUE (incident_id)
 );
 CREATE TRIGGER trg_discussions_updated_at
 BEFORE UPDATE ON discussions
 FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE INDEX idx_discussions_created_at ON discussions (created_at);
+
+CREATE OR REPLACE FUNCTION create_incident_discussion()
+RETURNS TRIGGER AS $$
+BEGIN
+    INSERT INTO discussions (incident_id, title)
+    VALUES (NEW.id, 'Incident Discussion')
+    ON CONFLICT (incident_id) DO NOTHING;
+
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_incidents_create_discussion
+AFTER INSERT ON incidents
+FOR EACH ROW EXECUTE FUNCTION create_incident_discussion();
 
 
 CREATE TABLE messages (
@@ -338,7 +355,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
 
 
 
