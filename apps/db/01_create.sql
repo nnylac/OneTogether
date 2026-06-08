@@ -89,7 +89,7 @@ CREATE TABLE users (
                     CHECK (role IN ('user', 'responder', 'admin')),
     created_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at  TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
-    last_login  TIMESTAMPTZ
+    last_login  TIMESTAMPTZ 
 );
 CREATE TRIGGER trg_users_updated_at
 BEFORE UPDATE ON users
