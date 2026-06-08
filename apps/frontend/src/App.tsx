@@ -10,6 +10,7 @@ import { ReportPage } from './interfaces/public/report/pages/ReportPage'
 import { VolunteerPage } from './interfaces/public/volunteer/pages/VolunteerPage'
 import { GovernmentLayout } from './interfaces/government/layout/GovernmentLayout'
 import { GovernmentAnalyticsPage } from './interfaces/government/analytics/pages/GovernmentAnalyticsPage'
+import { GovernmentAlertsPage} from './interfaces/government/alerts/pages/GovernmentAlertsPage'
 import { GovernmentBroadcastsPage } from './interfaces/government/broadcasts/pages/GovernmentBroadcastsPage'
 import { GovernmentDashboardPage } from './interfaces/government/dashboard/pages/GovernmentDashboardPage'
 import { GovernmentIncidentsPage } from './interfaces/government/incidents/pages/GovernmentIncidentsPage'
@@ -60,6 +61,7 @@ export default function App() {
                 element={<GovernmentOrganisationsPage />}
               />
               <Route path="analytics" element={<GovernmentAnalyticsPage />} />
+              <Route path="alerts" element={<GovernmentAlertsPage />} />
               <Route path="settings" element={<GovernmentSettingsPage />} />
             </Route>
           </Route>
