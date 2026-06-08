@@ -12,6 +12,7 @@ type LoginResponse = {
     phone: string | null
     role: string
     is_verified: boolean
+    userOrganisationId?: string | null
     organisations?: Array<{
       id: string
       orgName: string
@@ -73,6 +74,7 @@ function mapAuthUser(user: LoginResponse['user']): AuthUser {
     phone: user.phone,
     role: normalizeRole(user.role),
     isVerified: user.is_verified,
+    userOrganisationId: user.userOrganisationId ?? null,
     organisations: user.organisations ?? [],
   }
 }

@@ -44,6 +44,7 @@ export class AuthService {
             last_name: createAccountDto.last_name,
             phone: createAccountDto.phone,
             role,
+            user_organisation_id: createAccountDto.organisationIds?.[0],
             user_organisations: {
               create: (createAccountDto.organisationIds ?? []).map(
                 (organisationId) => ({
@@ -110,6 +111,7 @@ export class AuthService {
             organisations: true,
           },
         },
+        organisations: true,
       },
     });
 
@@ -412,6 +414,11 @@ export class AuthService {
     phone: string | null;
     role: string;
     is_verified: boolean;
+    user_organisation_id: string | null;
+    organisations?: {
+      id: string;
+      org_name: string;
+    } | null;
     user_organisations?: Array<{
       organisations: {
         id: string;
@@ -428,13 +435,40 @@ export class AuthService {
       phone: user.phone,
       role: user.role,
       is_verified: user.is_verified,
-      organisations: (user.user_organisations ?? []).map(
-        (userOrganisation) => ({
-          id: userOrganisation.organisations.id,
-          orgName: userOrganisation.organisations.org_name,
-        }),
-      ),
+      userOrganisationId: user.user_organisation_id,
+      organisations: this.toSafeUserOrganisations(user),
     };
+  }
+
+  private toSafeUserOrganisations(user: {
+    organisations?: {
+      id: string;
+      org_name: string;
+    } | null;
+    user_organisations?: Array<{
+      organisations: {
+        id: string;
+        org_name: string;
+      };
+    }>;
+  }) {
+    const organisations = new Map<string, { id: string; orgName: string }>();
+
+    if (user.organisations) {
+      organisations.set(user.organisations.id, {
+        id: user.organisations.id,
+        orgName: user.organisations.org_name,
+      });
+    }
+
+    for (const userOrganisation of user.user_organisations ?? []) {
+      organisations.set(userOrganisation.organisations.id, {
+        id: userOrganisation.organisations.id,
+        orgName: userOrganisation.organisations.org_name,
+      });
+    }
+
+    return Array.from(organisations.values());
   }
 
   private isUniqueConstraintError(error: unknown) {
@@ -461,6 +495,7 @@ export class AuthService {
           organisations: true,
         },
       },
+      organisations: true,
     } satisfies Prisma.usersInclude;
   }
 }
