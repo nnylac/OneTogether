@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Activity, AlertTriangle } from 'lucide-react'
+import { Activity, AlertTriangle, ChevronRight } from 'lucide-react'
 import { Box, Flex, HStack, Heading, Icon, Text, VStack } from '../../../../components/chakra-ui'
 import { fetchIncidentMap } from '../api/incidentMapApi'
 import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
@@ -12,7 +12,11 @@ import {
   movementStateLabel,
   progressOf,
   remainingMeters,
+  resourceCapability,
+  resourceKindLabel,
 } from '../api/incidentMapUtils'
+
+const COLUMN_COUNT = 7
 
 const REFRESH_MS = 2500
 const CLOCK_TICK_MS = 1000
@@ -31,6 +35,16 @@ export function IncidentResources({ incidentId }: IncidentResourcesProps) {
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [nowMs, setNowMs] = useState(() => Date.now())
+  const [expanded, setExpanded] = useState<Set<string>>(() => new Set())
+
+  // Click-to-expand per unit: notes live here, out of the scannable table grid.
+  const toggleExpanded = (id: string) =>
+    setExpanded((prev) => {
+      const next = new Set(prev)
+      if (next.has(id)) next.delete(id)
+      else next.add(id)
+      return next
+    })
 
   // Poll the snapshot; first load shows the loading state, refreshes are silent.
   useEffect(() => {
@@ -127,30 +141,36 @@ export function IncidentResources({ incidentId }: IncidentResourcesProps) {
           <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
             <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="860px">
               <Box as="colgroup">
-                <Box as="col" width="22%" />
-                <Box as="col" width="13%" />
+                <Box as="col" width="24%" />
                 <Box as="col" width="12%" />
-                <Box as="col" width="11%" />
-                <Box as="col" width="13%" />
-                <Box as="col" width="14%" />
                 <Box as="col" width="15%" />
+                <Box as="col" width="15%" />
+                <Box as="col" width="11%" />
+                <Box as="col" width="14%" />
+                <Box as="col" width="9%" />
               </Box>
 
               <Box as="thead" bg="gray.50">
                 <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
-                  <HeaderCell>Organisation</HeaderCell>
-                  <HeaderCell>State</HeaderCell>
+                  <HeaderCell>Unit</HeaderCell>
+                  <HeaderCell>Agency</HeaderCell>
+                  <HeaderCell>Role</HeaderCell>
+                  <HeaderCell>Status</HeaderCell>
                   <HeaderCell>Departed</HeaderCell>
                   <HeaderCell>ETA</HeaderCell>
-                  <HeaderCell>Est. arrival</HeaderCell>
-                  <HeaderCell>Dist. remaining</HeaderCell>
-                  <HeaderCell>Notes</HeaderCell>
+                  <HeaderCell>Distance</HeaderCell>
                 </Box>
               </Box>
 
               <Box as="tbody">
                 {resources.map((resource) => (
-                  <ResourceRow key={resource.id} resource={resource} nowMs={nowMs} />
+                  <ResourceRow
+                    key={resource.id}
+                    resource={resource}
+                    nowMs={nowMs}
+                    isExpanded={expanded.has(resource.id)}
+                    onToggle={() => toggleExpanded(resource.id)}
+                  />
                 ))}
               </Box>
             </Box>
@@ -161,69 +181,124 @@ export function IncidentResources({ incidentId }: IncidentResourcesProps) {
   )
 }
 
-function ResourceRow({ resource, nowMs }: { resource: IncidentMapResourceDto; nowMs: number }) {
+function ResourceRow({
+  resource,
+  nowMs,
+  isExpanded,
+  onToggle,
+}: {
+  resource: IncidentMapResourceDto
+  nowMs: number
+  isExpanded: boolean
+  onToggle: () => void
+}) {
   const progress = progressOf(resource, nowMs)
   const state = movementState(resource.status, progress)
   const arrived = state === 'arrived'
   const stateColor = movementStateColor(state)
 
-  const eta =
-    !arrived && resource.etaMinutes != null ? `${resource.etaMinutes} min` : '—'
-  const estArrival = !arrived ? formatClock(resource.etaAt) || '—' : '—'
+  // Single unified arrival estimate: minutes + clock, e.g. "8 min · 14:32".
+  const eta = arrived ? 'On scene' : formatEta(resource.etaMinutes, resource.etaAt)
   const remaining = remainingMeters(resource, nowMs)
   const distance = !arrived && remaining != null ? formatDistance(remaining) : '—'
 
   return (
-    <Box as="tr" borderBottomWidth="1px" borderColor="gray.100" _hover={{ bg: 'gray.50' }}>
-      <BodyCell>
-        <Text color="gray.900" fontWeight="700" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-          {resource.agency}
-        </Text>
-        {resource.originStation && (
-          <Text color="gray.500" fontSize="xs" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-            {resource.originStation}
-          </Text>
-        )}
-      </BodyCell>
+    <>
+      <Box
+        as="tr"
+        borderBottomWidth={isExpanded ? '0' : '1px'}
+        borderColor="gray.100"
+        cursor="pointer"
+        _hover={{ bg: 'gray.50' }}
+        onClick={onToggle}
+      >
+        <BodyCell>
+          <HStack gap="2" minW="0">
+            <Icon
+              as={ChevronRight}
+              boxSize="4"
+              color="gray.400"
+              flexShrink="0"
+              transform={isExpanded ? 'rotate(90deg)' : 'none'}
+              transition="transform 0.15s"
+            />
+            <Box minW="0">
+              <Text
+                color="gray.900"
+                fontWeight="700"
+                overflow="hidden"
+                textOverflow="ellipsis"
+                whiteSpace="nowrap"
+              >
+                {resourceKindLabel(resource.resourceKind)}
+              </Text>
+              <Text color="gray.500" fontSize="xs" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                {resource.unitRef}
+              </Text>
+            </Box>
+          </HStack>
+        </BodyCell>
 
-      <BodyCell>
-        <HStack gap="2" minW="0">
-          <Box width="8px" height="8px" borderRadius="full" bg={stateColor} flexShrink="0" />
+        <BodyCell>
           <Text color="gray.700" fontWeight="600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-            {movementStateLabel(state)}
+            {resource.agency}
           </Text>
-        </HStack>
-      </BodyCell>
+        </BodyCell>
 
-      <BodyCell>
-        <Text color="gray.600">{formatClock(resource.dispatchedAt) || '—'}</Text>
-      </BodyCell>
+        <BodyCell>
+          <Text color="gray.600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+            {resourceCapability(resource.resourceKind)}
+          </Text>
+        </BodyCell>
 
-      <BodyCell>
-        <Text color="gray.600">{eta}</Text>
-      </BodyCell>
+        <BodyCell>
+          <HStack gap="2" minW="0">
+            <Box width="8px" height="8px" borderRadius="full" bg={stateColor} flexShrink="0" />
+            <Text color="gray.700" fontWeight="600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+              {movementStateLabel(state)}
+            </Text>
+          </HStack>
+        </BodyCell>
 
-      <BodyCell>
-        <Text color="gray.600">{estArrival}</Text>
-      </BodyCell>
+        <BodyCell>
+          <Text color="gray.600">{formatClock(resource.dispatchedAt) || '—'}</Text>
+        </BodyCell>
 
-      <BodyCell>
-        <Text color="gray.600">{distance}</Text>
-      </BodyCell>
+        <BodyCell>
+          <Text color="gray.600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+            {eta}
+          </Text>
+        </BodyCell>
 
-      <BodyCell>
-        <Text
-          color={resource.notes ? 'gray.700' : 'gray.400'}
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
-          title={resource.notes ?? undefined}
-        >
-          {resource.notes || '—'}
-        </Text>
-      </BodyCell>
-    </Box>
+        <BodyCell>
+          <Text color="gray.600">{distance}</Text>
+        </BodyCell>
+      </Box>
+
+      {isExpanded && (
+        <Box as="tr" borderBottomWidth="1px" borderColor="gray.100" bg="gray.50">
+          <td colSpan={COLUMN_COUNT}>
+            <Box px="4" py="3">
+              <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" mb="1">
+                Unit notes
+              </Text>
+              <Text color={resource.notes ? 'gray.700' : 'gray.400'} fontSize="sm">
+                {resource.notes || 'No notes for this unit.'}
+              </Text>
+            </Box>
+          </td>
+        </Box>
+      )}
+    </>
   )
+}
+
+/** "8 min · 14:32" / "8 min" / "14:32" / "—" depending on which estimates are present. */
+function formatEta(etaMinutes: number | null, etaAt: string | null): string {
+  const minutes = etaMinutes != null ? `${etaMinutes} min` : ''
+  const clock = formatClock(etaAt)
+  if (minutes && clock) return `${minutes} · ${clock}`
+  return minutes || clock || '—'
 }
 
 function CountChip({ label, value, color }: { label: string; value: number; color: string }) {

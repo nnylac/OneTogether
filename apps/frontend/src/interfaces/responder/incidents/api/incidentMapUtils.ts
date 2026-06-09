@@ -23,6 +23,30 @@ export function statusLabel(status: string): string {
   return STATUS_META[status]?.label ?? status
 }
 
+/** Human-readable unit type for a resource kind (text-only counterpart to the map's icon meta). */
+const KIND_LABEL: Record<string, string> = {
+  fire_engine: 'Fire Engine',
+  rescue_team: 'Rescue Team',
+  ambulance: 'Ambulance',
+  police: 'Police',
+}
+
+export function resourceKindLabel(kind: string): string {
+  return KIND_LABEL[kind] ?? 'Unit'
+}
+
+/** Operational role a resource kind fulfils, for fast scanning ("what do they do"). */
+const KIND_CAPABILITY: Record<string, string> = {
+  fire_engine: 'Fire suppression',
+  rescue_team: 'Rescue',
+  ambulance: 'Medical',
+  police: 'Command',
+}
+
+export function resourceCapability(kind: string): string {
+  return KIND_CAPABILITY[kind] ?? 'Support'
+}
+
 /**
  * Simplified movement state for situational-awareness displays.
  * Collapses the backend statuses into the four states operators reason about.
