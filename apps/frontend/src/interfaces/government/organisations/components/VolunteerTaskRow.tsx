@@ -1,4 +1,4 @@
-import { Box, Flex, Stack, Text } from '../../../../components/chakra-ui'
+import { Box, Stack, Text } from '../../../../components/chakra-ui'
 import { CapacityBar } from './CapacityBar'
 import { UrgencyLabel } from './UrgencyLabel'
 import type { VolunteerTask } from '../types/organisation'

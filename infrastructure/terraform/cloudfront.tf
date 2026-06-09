@@ -89,6 +89,54 @@ resource "aws_cloudfront_distribution" "frontend" {
     origin_access_control_id = aws_cloudfront_origin_access_control.frontend.id
   }
 
+  # Backend API origin (the k8s-managed ALB). Only added when backend_alb_domain
+  # is set. CloudFront talks to the ALB over plain HTTP; viewers still use HTTPS.
+  dynamic "origin" {
+    for_each = var.backend_alb_domain != "" ? [1] : []
+    content {
+      domain_name = var.backend_alb_domain
+      origin_id   = "ALB-backend"
+      custom_origin_config {
+        http_port              = 80
+        https_port             = 443
+        origin_protocol_policy = "http-only"
+        origin_ssl_protocols   = ["TLSv1.2"]
+      }
+    }
+  }
+
+  # Proxy /api/* to the backend — no caching, forward everything (auth headers,
+  # cookies, query string) so login and dynamic requests work.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.backend_alb_domain != "" ? [1] : []
+    content {
+      path_pattern           = "/api/*"
+      target_origin_id       = "ALB-backend"
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = true
+      # Managed-CachingDisabled + Managed-AllViewer (forwards all headers/cookies/qs)
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    }
+  }
+
+  # Proxy WebSocket traffic for the incident room gateway.
+  dynamic "ordered_cache_behavior" {
+    for_each = var.backend_alb_domain != "" ? [1] : []
+    content {
+      path_pattern           = "/socket.io/*"
+      target_origin_id       = "ALB-backend"
+      viewer_protocol_policy = "redirect-to-https"
+      allowed_methods        = ["GET", "HEAD", "OPTIONS", "PUT", "POST", "PATCH", "DELETE"]
+      cached_methods         = ["GET", "HEAD"]
+      compress               = false
+      cache_policy_id          = "4135ea2d-6df8-44a3-9df3-4b5a84be39ad"
+      origin_request_policy_id = "216adef6-5c7f-47e4-b989-5492eafa07d3"
+    }
+  }
+
   default_cache_behavior {
     allowed_methods        = ["GET", "HEAD", "OPTIONS"]
     cached_methods         = ["GET", "HEAD"]

@@ -18,6 +18,14 @@ metadata:
 
     # Enable access logging to S3 for audit trail
     alb.ingress.kubernetes.io/load-balancer-attributes: "access_logs.s3.enabled=true,access_logs.s3.bucket=onetogether-production-data-lake-${ACCOUNT_ID}"
+
+    # Socket.IO long-polling requires every request carrying a given session id
+    # (sid) to return to the same pod. With replicas > 1 and no stickiness the
+    # Engine.IO handshake lands on pod A but the follow-up poll is balanced to
+    # pod B, which rejects the unknown sid with HTTP 400. Duration-based ALB
+    # cookie stickiness keeps a client pinned to one target. Cross-pod broadcast
+    # is handled separately by the Socket.IO Redis adapter.
+    alb.ingress.kubernetes.io/target-group-attributes: "stickiness.enabled=true,stickiness.type=lb_cookie,stickiness.lb_cookie.duration_seconds=86400"
 spec:
   rules:
     - host: api.${DOMAIN_NAME}

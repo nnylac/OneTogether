@@ -1,0 +1,28 @@
+# HTTP-only ALB ingress for prototype use (no custom domain / ACM cert).
+# Creates an internet-facing ALB whose DNS name you feed to CloudFront as the
+# backend origin (var.backend_alb_domain). Use this INSTEAD of ingress.yaml when
+# you have not configured a domain. CloudFront terminates HTTPS for viewers and
+# talks to this ALB over HTTP, so the ALB itself needs no certificate.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: backend
+  namespace: onetogether
+  annotations:
+    kubernetes.io/ingress.class: alb
+    alb.ingress.kubernetes.io/scheme: internet-facing
+    alb.ingress.kubernetes.io/target-type: ip
+    alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
+    # Route the ALB health check at the app's health endpoint
+    alb.ingress.kubernetes.io/healthcheck-path: /api/health
+spec:
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 80

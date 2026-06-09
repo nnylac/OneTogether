@@ -34,6 +34,12 @@ variable "domain_configured" {
   default     = false
 }
 
+variable "backend_alb_domain" {
+  description = "Public DNS name of the backend ALB created by the k8s ingress (e.g. k8s-onetogeth-backend-xxxx.ap-southeast-1.elb.amazonaws.com). When set, CloudFront proxies /api/* and /socket.io/* to it so the SPA can reach the API same-origin. Get it with: kubectl get ingress backend -n onetogether. Leave empty to disable API proxying."
+  type        = string
+  default     = ""
+}
+
 # ---------------------------------------------------------------------------
 # EKS
 # ---------------------------------------------------------------------------
