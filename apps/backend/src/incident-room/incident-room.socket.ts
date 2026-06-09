@@ -1,4 +1,6 @@
 import { Server } from 'socket.io';
+import { createAdapter } from '@socket.io/redis-adapter';
+import { createClient } from 'redis';
 import { Logger } from '@nestjs/common';
 import { IncidentRoomService } from './incident-room.service';
 
@@ -22,6 +24,14 @@ export function registerIncidentRoomSocket(
       origin: '*',
     },
   });
+
+  // The API runs with multiple replicas behind a load balancer. A bare Socket.IO
+  // server only broadcasts to clients connected to the same pod, so two responders
+  // in the same incident room on different pods never see each other's messages.
+  // The Redis adapter relays room broadcasts across every pod via pub/sub. This is
+  // attached asynchronously and degrades to the in-memory adapter on failure — a
+  // Redis outage must not take the socket server (or the pod) down.
+  void attachRedisAdapter(io, logger);
 
   io.on('connection', (socket) => {
     socket.on('incident-room.join', (payload: { incidentId?: string }) => {
@@ -61,6 +71,41 @@ export function registerIncidentRoomSocket(
   });
 
   return io;
+}
+
+async function attachRedisAdapter(io: Server, logger: Logger) {
+  const redisUrl = process.env.REDIS_URL;
+  if (!redisUrl) {
+    logger.log(
+      'REDIS_URL not set; using in-memory socket adapter (single pod only)',
+    );
+    return;
+  }
+
+  try {
+    const pubClient = createClient({ url: redisUrl });
+    const subClient = pubClient.duplicate();
+
+    // Don't let a transient Redis error escalate to an unhandled rejection.
+    pubClient.on('error', (error) =>
+      logger.warn(`Redis pub client error: ${asMessage(error)}`),
+    );
+    subClient.on('error', (error) =>
+      logger.warn(`Redis sub client error: ${asMessage(error)}`),
+    );
+
+    await Promise.all([pubClient.connect(), subClient.connect()]);
+    io.adapter(createAdapter(pubClient, subClient));
+    logger.log('Socket.IO Redis adapter attached; cross-pod broadcast enabled');
+  } catch (error) {
+    logger.warn(
+      `Failed to attach Redis adapter (${asMessage(error)}); falling back to in-memory adapter`,
+    );
+  }
+}
+
+function asMessage(error: unknown) {
+  return error instanceof Error ? error.message : 'unknown error';
 }
 
 function roomName(incidentId: string) {
