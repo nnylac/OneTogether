@@ -63,6 +63,14 @@ class EventType(str, Enum):
 
 
 class TicketStatus(str, Enum):
+    RECEIVED     = "RECEIVED"
+    TRIAGE       = "TRIAGE"
+    DISPATCHED   = "DISPATCHED"
+    EN_ROUTE     = "EN_ROUTE"
+    ON_SCENE     = "ON_SCENE"
+    TREATING     = "TREATING"
+    HANDOFF      = "HANDOFF"
+    MONITORING   = "MONITORING"
     OPEN         = "OPEN"
     IN_PROGRESS  = "IN_PROGRESS"
     PENDING_INFO = "PENDING_INFO"

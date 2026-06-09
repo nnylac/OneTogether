@@ -651,8 +651,8 @@ async def _emit_phase_event(
     raw_message = {
         "message_kind": "scenario_phase",
         "sender": {
-            "agency_id": agency.value,
-            "org_id": agency.value,
+            "agency_id": AgencyID.SCENARIO_ENGINE.value,
+            "org_id": AgencyID.SCENARIO_ENGINE.value,
             "system_id": "SCENARIO_ENGINE",
             "service_instance": "scenario-engine",
         },
@@ -664,10 +664,11 @@ async def _emit_phase_event(
             "status": "CLOSED" if is_close else "IN_PROGRESS",
             "data": {
                 "scenario_phase": phase_name,
+                "agency_context": agency.value,
                 "narrative": note,
             },
         },
-        "logs": [{"ts": trigger.triggered_at.isoformat(), "note": note}],
+        "logs": [{"ts": utcnow().isoformat(), "note": note}],
         "quality": {},
     }
     try:

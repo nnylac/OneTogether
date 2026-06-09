@@ -164,6 +164,9 @@ class SCDFSimulator(BaseAgencySimulator):
                 rescue_teams - allocated_specialist,
             )
 
+    def should_deploy_resources_on_receipt(self, trigger: IncidentTrigger) -> bool:
+        return trigger.incident_type != IncidentType.MEDICAL_EMERGENCY
+
     def _outlet_for_station(self, call_sign: str) -> str:
         station_code = call_sign.split("-")[1] if "-" in call_sign else ""
         return {
@@ -182,9 +185,49 @@ class SCDFSimulator(BaseAgencySimulator):
 
     async def _handle_incident(self, trigger: IncidentTrigger):
         await super()._handle_incident(trigger)
-        if self._should_handoff_to_hospital(trigger):
+        if (
+            trigger.incident_type != IncidentType.MEDICAL_EMERGENCY
+            and self._should_handoff_to_hospital(trigger)
+        ):
             ticket_id = f"{self.AGENCY_ID.value}-{trigger.incident_id[:8].upper()}"
             await self._handoff_to_hospital(trigger, ticket_id)
+
+    async def _run_lifecycle(self, ticket: dict, trigger: IncidentTrigger):
+        if trigger.incident_type != IncidentType.MEDICAL_EMERGENCY:
+            await super()._run_lifecycle(ticket, trigger)
+            return
+
+        phases = [
+            (TicketStatus.RECEIVED, "Emergency call received and incident details recorded."),
+            (TicketStatus.TRIAGE, "Call-taker triage completed. Patient acuity and response priority assessed."),
+            (TicketStatus.DISPATCHED, "Ambulance crew assigned and dispatched from the nearest available station."),
+            (TicketStatus.EN_ROUTE, "Ambulance en route. Crew reviewing caller updates and access details."),
+            (TicketStatus.ON_SCENE, "Ambulance arrived on scene. Paramedics commencing primary assessment."),
+            (TicketStatus.TREATING, "Patient treatment and stabilisation in progress."),
+            (TicketStatus.HANDOFF, "Patient conveyed and clinical handoff initiated with the receiving hospital."),
+            (TicketStatus.RESOLVED, "Hospital handoff accepted. SCDF response objectives completed."),
+            (TicketStatus.CLOSED, "Ambulance cleared and operational report closed."),
+        ]
+
+        for status, note in phases:
+            await asyncio.sleep(self.next_update_delay())
+
+            if status == TicketStatus.DISPATCHED:
+                self.apply_resource_deployment(ticket, trigger)
+
+            await self._apply_status_update(
+                ticket=ticket,
+                next_status=status,
+                note=note,
+            )
+
+            if status == TicketStatus.HANDOFF and self._should_handoff_to_hospital(trigger):
+                await self._handoff_to_hospital(
+                    trigger,
+                    ticket["ticket_id"],
+                )
+
+        self.active_incidents.pop(trigger.incident_id, None)
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         station   = random.choice(STATIONS)
@@ -245,7 +288,7 @@ class SCDFSimulator(BaseAgencySimulator):
             "weather_conditions": random.choice(["Clear", "Light rain", "Heavy rain", None]),
             # station_log grows with updates
             "station_log": [
-                {"ts": utcnow().isoformat(), "entry": f"Dispatch confirmed. {trigger.description}"}
+                {"ts": utcnow().isoformat(), "entry": f"Emergency call received. {trigger.description}"}
             ],
         }
 
@@ -253,7 +296,7 @@ class SCDFSimulator(BaseAgencySimulator):
         p = ticket["payload"].copy()
         p.setdefault("station_log", []).append({"ts": utcnow().isoformat(), "entry": note})
         # Casualties can evolve
-        if status == TicketStatus.IN_PROGRESS:
+        if status in (TicketStatus.IN_PROGRESS, TicketStatus.TREATING):
             p["casualties"]["injured"] = max(0, p["casualties"]["injured"] + random.randint(-1, 3))
         return p
 

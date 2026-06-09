@@ -48,6 +48,11 @@ export type IncidentApiDto = {
     };
   };
   assignedOrgs: string[];
+  agencyProgress?: Array<{
+    agency: string;
+    stage: string;
+    updatedAt: string;
+  }>;
   assignedResources?: IncidentResourceApiDto[];
   confidenceScore: number | null;
   createdAt: string;

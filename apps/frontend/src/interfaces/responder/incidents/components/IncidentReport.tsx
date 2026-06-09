@@ -8,7 +8,7 @@ import {
   Textarea,
   VStack,
 } from "../../../../components/chakra-ui";
-import type { IncidentReportDraft } from "../types";
+import type { IncidentReportDraft, IncidentStatus } from "../types";
 
 type IncidentReportProps = {
   draft: IncidentReportDraft;
@@ -18,7 +18,7 @@ type IncidentReportProps = {
   onGenerate: () => void;
   onDraftChange: (draft: IncidentReportDraft) => void;
   onSave: () => void;
-  status: "active" | "closed";
+  status: IncidentStatus;
 };
 
 export function IncidentReport({

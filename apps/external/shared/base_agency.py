@@ -91,6 +91,14 @@ class BaseAgencySimulator(ABC):
 
     def __init__(self):
         self.middleware_url: str = os.getenv("MIDDLEWARE_URL", "")
+        self.update_delay_min_seconds = max(
+            0.0,
+            float(os.getenv("AGENCY_UPDATE_MIN_SECONDS", "60")),
+        )
+        self.update_delay_max_seconds = max(
+            self.update_delay_min_seconds,
+            float(os.getenv("AGENCY_UPDATE_MAX_SECONDS", "120")),
+        )
         self.tickets: dict[str, dict] = {}          # ticket_id → full ticket record
         self.active_incidents: dict[str, str] = {}  # incident_id → ticket_id
         self.resource_allocations: dict[str, list[dict[str, Any]]] = {}
@@ -158,6 +166,9 @@ class BaseAgencySimulator(ABC):
 
     def apply_resource_deployment(self, ticket: dict, trigger: IncidentTrigger):
         return None
+
+    def should_deploy_resources_on_receipt(self, trigger: IncidentTrigger) -> bool:
+        return True
 
     def apply_resource_status_update(
         self,
@@ -280,7 +291,8 @@ class BaseAgencySimulator(ABC):
         }
         self.tickets[ticket_id] = ticket
         self.active_incidents[trigger.incident_id] = ticket_id
-        self.apply_resource_deployment(ticket, trigger)
+        if self.should_deploy_resources_on_receipt(trigger):
+            self.apply_resource_deployment(ticket, trigger)
 
         # Emit TICKET.CREATED
         await self._emit(
@@ -298,12 +310,7 @@ class BaseAgencySimulator(ABC):
         current_status = TicketStatus.OPEN
 
         for i in range(n_updates):
-            # Wait a realistic interval between updates
-            wait = random.uniform(
-                max(4, 20 - trigger.severity * 3),
-                max(10, 45 - trigger.severity * 4),
-            )
-            await asyncio.sleep(wait)
+            await asyncio.sleep(self.next_update_delay())
 
             nexts = STATUS_PROGRESSIONS.get(current_status, [])
             if not nexts:
@@ -399,7 +406,7 @@ class BaseAgencySimulator(ABC):
                 break
 
         if current_status != TicketStatus.CLOSED:
-            await asyncio.sleep(random.uniform(4, 10))
+            await asyncio.sleep(self.next_update_delay())
             await self._apply_status_update(
                 ticket=ticket,
                 next_status=TicketStatus.CLOSED,
@@ -424,13 +431,14 @@ class BaseAgencySimulator(ABC):
     ):
         update_payload = self.build_update_payload(ticket, next_status, note)
         quality = quality or QualityFlags()
+        event_timestamp = utcnow().isoformat()
 
         old_status = ticket["status"]
         ticket["status"]     = next_status.value
-        ticket["updated_at"] = utcnow().isoformat()
+        ticket["updated_at"] = event_timestamp
         ticket["payload"]    = update_payload
         ticket["audit_log"].append({
-            "ts": utcnow().isoformat(),
+            "ts": event_timestamp,
             "from": old_status,
             "to": next_status.value,
             "note": note,
@@ -459,6 +467,12 @@ class BaseAgencySimulator(ABC):
             quality=quality,
         )
 
+    def next_update_delay(self) -> float:
+        return random.uniform(
+            self.update_delay_min_seconds,
+            self.update_delay_max_seconds,
+        )
+
     # ─── Event emission ──────────────────────────────────────────────────────
 
     async def _emit(
@@ -482,6 +496,7 @@ class BaseAgencySimulator(ABC):
             "external_incident_id": ticket["incident_id"],
             "trace_id": ticket["trace_id"],
             "parent_span_id": ticket.get("parent_span_id"),
+            "emitted_at": ticket.get("updated_at"),
             "incident": ticket.get("incident"),
             "ticket": {
                 "ticket_id": ticket["ticket_id"],

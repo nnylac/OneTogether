@@ -128,6 +128,22 @@ export function IncidentInformation({
             </HStack>
           </DetailRow>
 
+          <DetailRow icon={Activity} label="Agency progress">
+            <HStack gap="2" wrap="wrap">
+              {(incident.agencyProgress?.length
+                ? incident.agencyProgress
+                : [{ agency: "None", stage: "NO_UPDATE", updatedAt: "" }]
+              ).map((progress) => (
+                <LabelBox
+                  key={`${progress.agency}:${progress.stage}`}
+                  tone="gray"
+                >
+                  {progress.agency}: {progress.stage.replace(/_/g, " ")}
+                </LabelBox>
+              ))}
+            </HStack>
+          </DetailRow>
+
           <DetailRow icon={CalendarClock} label="Reported">
             <Text color="gray.900" fontWeight="700">
               {incident.createdAt ?? incident.date}

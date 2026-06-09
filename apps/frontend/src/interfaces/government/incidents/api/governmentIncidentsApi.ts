@@ -19,6 +19,7 @@ function mapGovernmentIncidentFromApi(
   return {
     assignedOrgs: apiIncident.assignedOrgs,
     assignedResources: apiIncident.assignedResources ?? [],
+    agencyProgress: apiIncident.agencyProgress ?? [],
     createdAt: formatIncidentDate(apiIncident.createdAt),
     description: apiIncident.description,
     id: apiIncident.id,
@@ -32,7 +33,25 @@ function mapGovernmentIncidentFromApi(
 }
 
 function getGovernmentIncidentStatus(status: string): GovernmentIncidentStatus {
-  return status.trim().toLowerCase() === 'closed' ? 'closed' : 'active'
+  const normalized = status.trim().toLowerCase()
+  const knownStatuses = new Set<GovernmentIncidentStatus>([
+    'reported',
+    'triage',
+    'responding',
+    'on_scene',
+    'stabilising',
+    'monitoring',
+    'resolved',
+    'closed',
+  ])
+
+  if (normalized === 'active') {
+    return 'responding'
+  }
+
+  return knownStatuses.has(normalized as GovernmentIncidentStatus)
+    ? (normalized as GovernmentIncidentStatus)
+    : 'reported'
 }
 
 function formatIncidentDate(date: string) {
