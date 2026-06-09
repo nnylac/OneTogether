@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>OneTogether Scenario Control</title>
+    <link rel="stylesheet" href="/static/styles.css">
+  </head>
+  <body>
+    <main class="shell">
+      <header>
+        <p class="eyebrow">OneTogether Simulation</p>
+        <h1>Scenario Control</h1>
+        <p class="intro">
+          Generate a selected incident or control the background random generator.
+        </p>
+      </header>
+
+      <section class="panel automation-panel">
+        <div>
+          <p class="label">Automatic generation</p>
+          <div class="status-line">
+            <span id="automation-dot" class="status-dot"></span>
+            <strong id="automation-status">Loading...</strong>
+          </div>
+          <p id="automation-detail" class="muted"></p>
+        </div>
+        <div class="button-row">
+          <button id="pause-button" class="secondary" type="button">
+            Stop automatic generation
+          </button>
+          <button id="resume-button" class="secondary" type="button">
+            Resume automatic generation
+          </button>
+        </div>
+      </section>
+
+      <section class="panel">
+        <form id="incident-form">
+          <div class="field-grid">
+            <label>
+              Incident type
+              <select id="incident-type" required></select>
+            </label>
+
+            <label>
+              Location
+              <select id="location" required></select>
+            </label>
+
+            <label class="wide">
+              Description
+              <select id="description" required></select>
+            </label>
+
+            <label>
+              Severity
+              <select id="severity" required></select>
+            </label>
+          </div>
+
+          <fieldset>
+            <legend>Receiving agencies</legend>
+            <p class="muted">Required agencies are selected by default. You may adjust the response.</p>
+            <div id="agencies" class="agency-grid"></div>
+          </fieldset>
+
+          <button id="generate-button" class="primary" type="submit">
+            Generate incident
+          </button>
+        </form>
+      </section>
+
+      <section class="panel result-panel" aria-live="polite">
+        <p class="label">Latest result</p>
+        <div id="result" class="muted">No manual incident generated yet.</div>
+      </section>
+    </main>
+
+    <script src="/static/app.js" defer></script>
+  </body>
+</html>

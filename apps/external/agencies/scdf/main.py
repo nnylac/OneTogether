@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, "/app/shared")
 from base_agency import BaseAgencySimulator
-from hospital_routing import route_hospital
+from hospital_routing import infer_patient_profile, route_hospital
 from models import (
     AgencyID,
     EventType,
@@ -148,7 +148,7 @@ class SCDFSimulator(BaseAgencySimulator):
         self.allocate_resource(ticket["ticket_id"], outlet_id, "fire_engine", fire_engines)
         self.allocate_resource(ticket["ticket_id"], outlet_id, "ambulance", ambulances)
 
-        specialist_resource = self._specialist_resource(payload.get("incident_type", ""))
+        specialist_resource = self._specialist_resource(trigger.incident_type)
         allocated_specialist = self.allocate_resource(
             ticket["ticket_id"],
             outlet_id,
@@ -173,10 +173,10 @@ class SCDFSimulator(BaseAgencySimulator):
             "BDK": "SCDF-BDK",
         }.get(station_code, "SCDF-CENTRAL")
 
-    def _specialist_resource(self, incident_type: str) -> str:
-        if incident_type == "HAZMAT":
+    def _specialist_resource(self, incident_type: IncidentType) -> str:
+        if incident_type == IncidentType.GAS_LEAK:
             return "hazmat_unit"
-        if incident_type == "RESCUE":
+        if incident_type == IncidentType.FLOODING:
             return "water_rescue_team"
         return "rescue_team"
 
@@ -386,12 +386,7 @@ class SCDFSimulator(BaseAgencySimulator):
             await asyncio.sleep(0.05)
 
     def _patient_profile(self, trigger: IncidentTrigger) -> str:
-        text = f"{trigger.description} {trigger.location.name}".lower()
-        if "child" in text or "childcare" in text or "school" in text:
-            return "child"
-        if "pregnant" in text or "labour" in text or "maternity" in text:
-            return "maternity"
-        return random.choices(["adult", "elderly", "child"], weights=[0.72, 0.2, 0.08], k=1)[0]
+        return infer_patient_profile(trigger)
 
     def _patient_count(self, trigger: IncidentTrigger) -> int:
         if trigger.incident_type == IncidentType.BUILDING_COLLAPSE:

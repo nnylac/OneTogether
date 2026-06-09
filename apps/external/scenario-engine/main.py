@@ -7,9 +7,13 @@ import os
 import random
 import sys
 from contextlib import asynccontextmanager
+from pathlib import Path
 
 import httpx
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
 
 sys.path.insert(0, "/app/shared")
 from models import (
@@ -32,6 +36,7 @@ DEFAULT_INTERVAL_SECONDS = 60
 INTERVAL = float(os.getenv("INTERVAL_SECONDS", str(DEFAULT_INTERVAL_SECONDS)))
 PHASE_TIME_SCALE = float(os.getenv("PHASE_TIME_SCALE", "0.1"))
 MIDDLEWARE_URL = os.getenv("MIDDLEWARE_URL", "")
+STATIC_DIR = Path(__file__).parent / "static"
 SEED = os.getenv("RANDOM_SEED")
 if SEED:
     random.seed(int(SEED))
@@ -94,6 +99,12 @@ INCIDENT_CATALOGUE = [
             "Lorry overturned at junction, debris on road",
             "Bus collided with car, passengers injured",
             "Hit-and-run incident, victim on road",
+            "Motorcycle collision with rider trapped beneath vehicle",
+            "Pedestrian struck at traffic crossing",
+            "Taxi collision causing heavy congestion",
+            "Vehicle crashed into roadside barrier",
+            "Chain collision inside expressway tunnel",
+            "Delivery van overturned with cargo obstructing traffic",
         ],
         "required": [AgencyID.SPF],
         "optional": [AgencyID.SCDF],
@@ -109,6 +120,12 @@ INCIDENT_CATALOGUE = [
             "Kitchen fire spreading to adjacent units",
             "Commercial shophouse fire, occupants evacuating",
             "Electrical fire in carpark, vehicles involved",
+            "Bedroom fire with resident possibly trapped",
+            "Warehouse fire producing dense black smoke",
+            "Rubbish chute fire spreading between floors",
+            "Office fire triggered by electrical equipment",
+            "School laboratory fire, students evacuating",
+            "Restaurant fire involving cooking equipment",
         ],
         "required": [AgencyID.SCDF],
         "optional": [AgencyID.SPF, AgencyID.TOWN_COUNCIL],
@@ -124,6 +141,12 @@ INCIDENT_CATALOGUE = [
             "Drain overflow affecting {count} units",
             "Low-lying carpark flooded, pump required",
             "Pathway flooded, elderly residents trapped",
+            "Heavy rainfall causing water to enter shops",
+            "Canal overflow threatening nearby residences",
+            "Flooded road blocking emergency vehicle access",
+            "Basement flooded following drainage failure",
+            "Rising water reported near transport interchange",
+            "Construction site flooded with workers isolated",
         ],
         "required": [AgencyID.PUB],
         "optional": [AgencyID.TOWN_COUNCIL, AgencyID.SPF, AgencyID.SCDF, AgencyID.NEA],
@@ -138,6 +161,12 @@ INCIDENT_CATALOGUE = [
             "Cardiac arrest at MRT station",
             "Mass food poisoning, {count} persons affected",
             "Pregnant woman in labour, ambulance requested",
+            "Person experiencing severe breathing difficulty",
+            "Worker unconscious following suspected heat injury",
+            "Child suffering a serious allergic reaction",
+            "Multiple persons injured after a crowd surge",
+            "Resident reporting symptoms of a possible stroke",
+            "Patient experiencing seizures in a public area",
         ],
         "required": [AgencyID.SCDF],
         "optional": [AgencyID.SPF],
@@ -152,6 +181,13 @@ INCIDENT_CATALOGUE = [
             "Gas smell reported in {floor} residential units",
             "Pipeline rupture at construction site",
             "Commercial kitchen gas leak, evacuation ongoing",
+            "Gas cylinder leaking inside food centre stall",
+            "Underground gas pipe damaged during roadworks",
+            "Suspected gas accumulation inside utility room",
+            "Industrial gas leak reported inside warehouse",
+            "Residents feeling unwell after detecting a gas odour",
+            "Damaged gas appliance leaking inside an apartment",
+            "Gas detector alarm activated inside shopping centre",
         ],
         "required": [AgencyID.SCDF, AgencyID.SPF],
         "optional": [AgencyID.NEA, AgencyID.TOWN_COUNCIL],
@@ -166,6 +202,13 @@ INCIDENT_CATALOGUE = [
             "Partial structural collapse at construction site",
             "Old shophouse wall collapsed onto footpath",
             "Retaining wall failure, {count} workers trapped",
+            "Ceiling collapse reported inside shopping centre",
+            "Scaffolding collapsed onto a public walkway",
+            "Carpark structure damaged with vehicles trapped",
+            "Balcony collapsed from an older residential building",
+            "Construction trench collapsed around workers",
+            "Building facade fell onto the adjacent roadway",
+            "Structural failure reported after renovation work",
         ],
         "required": [AgencyID.SCDF, AgencyID.SPF],
         "optional": [AgencyID.TOWN_COUNCIL, AgencyID.NEA],
@@ -174,12 +217,19 @@ INCIDENT_CATALOGUE = [
     },
     {
         "type": IncidentType.MISSING_PERSON,
-        "weight": 11,
+        "weight": 7,
         "severity_range": (1, 3),
         "descriptions": [
             "Elderly dementia patient missing since morning",
             "Child reported missing at shopping mall",
             "Missing teenager, last seen near MRT",
+            "Vulnerable adult missing from a care facility",
+            "Hiker overdue after entering a nature trail",
+            "Young child separated from family at an event",
+            "Hospital patient left before completing treatment",
+            "Student missing after leaving school",
+            "Tourist separated from group near an attraction",
+            "Elderly resident last seen boarding a public bus",
         ],
         "required": [AgencyID.SPF],
         "optional": [],
@@ -193,6 +243,13 @@ INCIDENT_CATALOGUE = [
             "Suspected gastroenteritis cluster at childcare centre",
             "Multiple cases of dengue fever reported in cluster",
             "Unidentified respiratory illness affecting {count} residents",
+            "Foodborne illness reported among restaurant customers",
+            "Hand, foot and mouth disease cluster reported at preschool",
+            "Several residents experiencing similar fever symptoms",
+            "Infectious illness suspected inside a worker dormitory",
+            "Multiple patients reporting symptoms after attending an event",
+            "Mosquito-borne illness suspected around a housing estate",
+            "Vomiting and diarrhoea cluster reported at a nursing home",
         ],
         "required": [AgencyID.NEA, AgencyID.SINGHEALTH, AgencyID.NUHS],
         "optional": [AgencyID.SPF, AgencyID.TOWN_COUNCIL],
@@ -205,6 +262,14 @@ INCIDENT_CATALOGUE = [
         "descriptions": [
             "Elevated PSI readings reported across {count} monitoring points",
             "Dense haze affecting visibility near schools and transport hubs",
+            "Burning smell reported across several residential estates",
+            "Reduced expressway visibility caused by worsening haze",
+            "Outdoor workers reporting respiratory discomfort",
+            "Schools suspending outdoor activities due to poor air quality",
+            "Heavy haze affecting aircraft and maritime visibility",
+            "Residents seeking assistance for haze-related symptoms",
+            "Air quality deteriorating rapidly across the western region",
+            "Persistent haze entering homes and public buildings",
         ],
         "required": [AgencyID.NEA],
         "optional": [AgencyID.SINGHEALTH, AgencyID.NUHS, AgencyID.TOWN_COUNCIL],
@@ -212,11 +277,19 @@ INCIDENT_CATALOGUE = [
     },
     {
         "type": IncidentType.CIVIL_DISTURBANCE,
-        "weight": 3,
+        "weight": 10,
         "severity_range": (1, 4),
         "descriptions": [
             "Large crowd blocking access road, public order support requested",
             "Unplanned gathering of {count} persons near transport interchange",
+            "Public argument escalating into a group confrontation",
+            "Disorderly crowd disrupting businesses at shopping district",
+            "Protest gathering obstructing pedestrian and vehicle movement",
+            "Multiple fights reported outside an entertainment venue",
+            "Aggressive crowd refusing instructions to disperse",
+            "Rival groups confronting each other near a public event",
+            "Crowd surge causing injuries and property damage",
+            "Public disturbance reported aboard a stationary train",
         ],
         "required": [AgencyID.SPF],
         "optional": [AgencyID.SCDF],
@@ -227,6 +300,16 @@ INCIDENT_CATALOGUE = [
 
 active_incidents: dict[str, dict] = {}
 phase_tasks: set[asyncio.Task] = set()
+automation_enabled = True
+automation_state_changed = asyncio.Event()
+
+
+class ManualIncidentRequest(BaseModel):
+    incident_type: IncidentType
+    location_name: str
+    description: str
+    severity: int = Field(ge=1, le=5)
+    agencies: list[AgencyID] = Field(min_length=1)
 
 
 SCENARIO_PHASES: dict[str, list[dict]] = {
@@ -320,6 +403,92 @@ def fill_phase_note(template: str, trigger: IncidentTrigger) -> str:
     )
 
 
+def find_catalogue_entry(incident_type: IncidentType) -> dict:
+    for entry in INCIDENT_CATALOGUE:
+        if entry["type"] == incident_type:
+            return entry
+    raise ValueError(f"Unknown incident type: {incident_type.value}")
+
+
+def find_location(location_name: str) -> Location:
+    for location in LOCATIONS:
+        if location.name == location_name:
+            return location
+    raise ValueError(f"Unknown location: {location_name}")
+
+
+def build_trigger(
+    catalogue_entry: dict,
+    location: Location,
+    severity: int,
+    description: str,
+    agencies: list[AgencyID],
+    generation_source: str,
+) -> IncidentTrigger:
+    return IncidentTrigger(
+        incident_type=catalogue_entry["type"],
+        severity=severity,
+        location=location,
+        description=description,
+        participating_agencies=list(dict.fromkeys(agencies)),
+        trace_id=new_id(),
+        span_id=new_id(),
+        metadata={
+            "generation": {
+                "source": generation_source,
+                "selection_weight": catalogue_entry["weight"],
+                "medical_handoff_by": (
+                    catalogue_entry["medical_handoff_by"].value
+                    if catalogue_entry.get("medical_handoff_by")
+                    else None
+                ),
+            }
+        },
+    )
+
+
+async def dispatch_incident(
+    client: httpx.AsyncClient,
+    trigger: IncidentTrigger,
+    selection_weight: int,
+) -> list[dict]:
+    log.info(
+        "[INC] %s | %s | %s | sev=%s | agencies=%s",
+        trigger.incident_id[:8],
+        trigger.incident_type.value,
+        trigger.location.name,
+        trigger.severity,
+        [agency.value for agency in trigger.participating_agencies],
+    )
+
+    active_incidents[trigger.incident_id] = {
+        "incident_id": trigger.incident_id,
+        "type": trigger.incident_type.value,
+        "description": trigger.description,
+        "location": trigger.location.name,
+        "severity": trigger.severity,
+        "agencies": [
+            agency.value for agency in trigger.participating_agencies
+        ],
+        "generation_source": trigger.metadata["generation"]["source"],
+        "selection_weight": selection_weight,
+        "triggered_at": trigger.triggered_at.isoformat(),
+        "current_phase": "dispatching",
+        "phases_completed": [],
+        "status": "active",
+    }
+
+    deliveries = await notify_agencies(
+        client,
+        trigger.participating_agencies,
+        trigger,
+    )
+    task = asyncio.create_task(run_scenario_phases(client, trigger))
+    phase_tasks.add(task)
+    task.add_done_callback(phase_tasks.discard)
+    return deliveries
+
+
 async def generate_incident(client: httpx.AsyncClient):
     catalogue_entry = random.choices(
         INCIDENT_CATALOGUE,
@@ -331,52 +500,15 @@ async def generate_incident(client: httpx.AsyncClient):
     description = fill_template(random.choice(catalogue_entry["descriptions"]))
     agencies = resolve_agencies(catalogue_entry, severity)
 
-    trigger = IncidentTrigger(
-        incident_type=catalogue_entry["type"],
-        severity=severity,
+    trigger = build_trigger(
+        catalogue_entry=catalogue_entry,
         location=location,
+        severity=severity,
         description=description,
-        participating_agencies=agencies,
-        trace_id=new_id(),
-        span_id=new_id(),
-        metadata={
-            "generation": {
-                "selection_weight": catalogue_entry["weight"],
-                "medical_handoff_by": (
-                    catalogue_entry["medical_handoff_by"].value
-                    if catalogue_entry.get("medical_handoff_by")
-                    else None
-                ),
-            }
-        },
+        agencies=agencies,
+        generation_source="automatic",
     )
-
-    log.info(
-        "[INC] %s | %s | %s | sev=%s | agencies=%s",
-        trigger.incident_id[:8],
-        trigger.incident_type.value,
-        location.name,
-        severity,
-        [agency.value for agency in agencies],
-    )
-
-    active_incidents[trigger.incident_id] = {
-        "incident_id": trigger.incident_id,
-        "type": trigger.incident_type.value,
-        "location": location.name,
-        "severity": severity,
-        "agencies": [agency.value for agency in agencies],
-        "selection_weight": catalogue_entry["weight"],
-        "triggered_at": trigger.triggered_at.isoformat(),
-        "current_phase": "dispatching",
-        "phases_completed": [],
-        "status": "active",
-    }
-
-    await notify_agencies(client, agencies, trigger)
-    task = asyncio.create_task(run_scenario_phases(client, trigger))
-    phase_tasks.add(task)
-    task.add_done_callback(phase_tasks.discard)
+    await dispatch_incident(client, trigger, catalogue_entry["weight"])
 
 
 def resolve_agencies(catalogue_entry: dict, severity: int) -> list[AgencyID]:
@@ -393,14 +525,36 @@ def resolve_agencies(catalogue_entry: dict, severity: int) -> list[AgencyID]:
     return agencies
 
 
-async def notify_agencies(client: httpx.AsyncClient, agencies: list[AgencyID], trigger: IncidentTrigger):
+async def notify_agencies(
+    client: httpx.AsyncClient,
+    agencies: list[AgencyID],
+    trigger: IncidentTrigger,
+) -> list[dict]:
     tasks = []
     for agency in agencies:
         url = AGENCY_URLS.get(agency)
         if not url:
+            tasks.append(asyncio.sleep(0, result={
+                "agency": agency.value,
+                "accepted": False,
+                "status_code": None,
+                "error": "Agency URL is not configured",
+            }))
             continue
         tasks.append(_notify_agency(client, url, agency, trigger, random.uniform(0, 0.8)))
-    await asyncio.gather(*tasks, return_exceptions=True)
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    deliveries = []
+    for agency, result in zip(agencies, results):
+        if isinstance(result, Exception):
+            deliveries.append({
+                "agency": agency.value,
+                "accepted": False,
+                "status_code": None,
+                "error": str(result),
+            })
+        else:
+            deliveries.append(result)
+    return deliveries
 
 
 async def _notify_agency(
@@ -409,13 +563,25 @@ async def _notify_agency(
     agency: AgencyID,
     trigger: IncidentTrigger,
     delay: float,
-):
+) -> dict:
     await asyncio.sleep(delay)
     try:
         response = await client.post(f"{url}/incident", json=trigger.model_dump(mode="json"), timeout=5)
         log.info("  -> %s %s", agency.value, response.status_code)
+        return {
+            "agency": agency.value,
+            "accepted": response.is_success,
+            "status_code": response.status_code,
+            "error": None if response.is_success else response.text,
+        }
     except Exception as exc:
         log.warning("  -> %s FAILED: %s", agency.value, exc)
+        return {
+            "agency": agency.value,
+            "accepted": False,
+            "status_code": None,
+            "error": str(exc),
+        }
 
 
 async def run_scenario_phases(
@@ -515,26 +681,53 @@ async def _emit_phase_event(
 
 
 async def scenario_loop():
-    async with httpx.AsyncClient() as client:
-        log.info("Scenario loop started (interval=%ss)", INTERVAL)
-        while True:
-            try:
-                await generate_incident(client)
-            except Exception as exc:
-                log.error("Loop error: %s", exc)
-            await asyncio.sleep(INTERVAL)
+    client: httpx.AsyncClient = app.state.http
+    log.info("Scenario loop started (interval=%ss)", INTERVAL)
+    while True:
+        if not automation_enabled:
+            await automation_state_changed.wait()
+            automation_state_changed.clear()
+            continue
+
+        try:
+            await generate_incident(client)
+        except Exception as exc:
+            log.error("Loop error: %s", exc)
+
+        try:
+            await asyncio.wait_for(
+                automation_state_changed.wait(),
+                timeout=INTERVAL,
+            )
+            automation_state_changed.clear()
+        except TimeoutError:
+            pass
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global automation_enabled
+
+    automation_enabled = True
+    automation_state_changed.clear()
+    app.state.http = httpx.AsyncClient()
     task = asyncio.create_task(scenario_loop())
-    yield
-    task.cancel()
-    for phase_task in list(phase_tasks):
-        phase_task.cancel()
+    try:
+        yield
+    finally:
+        task.cancel()
+        for phase_task in list(phase_tasks):
+            phase_task.cancel()
+        await asyncio.gather(task, *phase_tasks, return_exceptions=True)
+        await app.state.http.aclose()
 
 
 app = FastAPI(title="Scenario Engine", lifespan=lifespan)
+
+
+@app.get("/", include_in_schema=False)
+async def control_panel():
+    return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -547,11 +740,115 @@ async def get_active_incidents():
     return {"incidents": list(active_incidents.values()), "total": len(active_incidents)}
 
 
+@app.get("/automation")
+async def get_automation():
+    return {
+        "enabled": automation_enabled,
+        "interval_seconds": INTERVAL,
+        "active_incidents": len(active_incidents),
+    }
+
+
+@app.post("/automation/pause")
+async def pause_automation():
+    global automation_enabled
+
+    if automation_enabled:
+        automation_enabled = False
+        automation_state_changed.set()
+        log.info("Automatic incident generation paused")
+    return {"enabled": automation_enabled}
+
+
+@app.post("/automation/resume")
+async def resume_automation():
+    global automation_enabled
+
+    if not automation_enabled:
+        automation_enabled = True
+        automation_state_changed.set()
+        log.info("Automatic incident generation resumed")
+    return {"enabled": automation_enabled}
+
+
+@app.post("/generate", status_code=202)
+async def generate_manual_incident(
+    payload: ManualIncidentRequest,
+    request: Request,
+):
+    try:
+        catalogue_entry = find_catalogue_entry(payload.incident_type)
+        location = find_location(payload.location_name)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    if payload.description not in catalogue_entry["descriptions"]:
+        raise HTTPException(
+            status_code=400,
+            detail="Description does not belong to the selected incident type",
+        )
+
+    invalid_agencies = [
+        agency
+        for agency in payload.agencies
+        if agency == AgencyID.SCENARIO_ENGINE or agency not in AGENCY_URLS
+    ]
+    if invalid_agencies:
+        raise HTTPException(
+            status_code=400,
+            detail="One or more selected agencies cannot receive incidents",
+        )
+
+    trigger = build_trigger(
+        catalogue_entry=catalogue_entry,
+        location=location,
+        severity=payload.severity,
+        description=fill_template(payload.description),
+        agencies=payload.agencies,
+        generation_source="manual",
+    )
+    deliveries = await dispatch_incident(
+        request.app.state.http,
+        trigger,
+        catalogue_entry["weight"],
+    )
+    return {
+        "accepted": any(delivery["accepted"] for delivery in deliveries),
+        "incident": trigger.model_dump(mode="json"),
+        "deliveries": deliveries,
+    }
+
+
 @app.get("/catalogue")
 async def get_catalogue():
     return {
-        "incident_types": [entry["type"].value for entry in INCIDENT_CATALOGUE],
-        "incident_weights": {entry["type"].value: entry["weight"] for entry in INCIDENT_CATALOGUE},
+        "incident_types": [
+            entry["type"].value for entry in INCIDENT_CATALOGUE
+        ],
+        "incident_weights": {
+            entry["type"].value: entry["weight"]
+            for entry in INCIDENT_CATALOGUE
+        },
+        "incident_catalogue": [
+            {
+                "type": entry["type"].value,
+                "weight": entry["weight"],
+                "severity_min": entry["severity_range"][0],
+                "severity_max": entry["severity_range"][1],
+                "descriptions": entry["descriptions"],
+                "required_agencies": [
+                    agency.value for agency in entry["required"]
+                ],
+                "optional_agencies": [
+                    agency.value for agency in entry["optional"]
+                ],
+            }
+            for entry in INCIDENT_CATALOGUE
+        ],
+        "agencies": [agency.value for agency in AGENCY_URLS],
         "locations": [location.model_dump() for location in LOCATIONS],
         "total_locations": len(LOCATIONS),
     }
+
+
+app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")

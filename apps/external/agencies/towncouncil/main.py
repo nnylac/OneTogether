@@ -189,6 +189,15 @@ class TownCouncilSimulator(BaseAgencySimulator):
             ),
             "completion_checklist": checklist,
             "resident_complaints": random.randint(0, 5),
+            "operations_log": [
+                {
+                    "ts": utcnow().isoformat(),
+                    "entry": (
+                        "Town council work order opened. "
+                        f"{trigger.description}"
+                    ),
+                }
+            ],
         }
         return payload
 
@@ -200,6 +209,9 @@ class TownCouncilSimulator(BaseAgencySimulator):
         for item in p.get("completion_checklist", []):
             if not item["completed"] and random.random() > 0.5:
                 item["completed"] = True
+        p.setdefault("operations_log", []).append(
+            {"ts": utcnow().isoformat(), "entry": note}
+        )
         return p
 
 
