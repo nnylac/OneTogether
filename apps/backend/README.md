@@ -6,7 +6,11 @@ This backend is intentionally structured as a modular monolith: one deployable N
 
 ## Current Status
 
-The backend currently contains the NestJS module scaffold and generated controllers/services/tests. Most business logic is still to be implemented. The app starts on port `3001` by default and exposes routes under the `/api` prefix.
+The backend is an active NestJS modular monolith with implemented
+authentication, incidents, incident middleware, incident rooms, resources,
+broadcasts, volunteer opportunities, maps, deterministic incident analysis and
+government analytics. The app starts on port `3001` by default and exposes
+routes under the `/api` prefix.
 
 ```txt
 Local backend: http://localhost:3001/api
@@ -99,6 +103,7 @@ apps/backend
     app.service.ts
 
     ai
+    analytics
     auth
     broadcasts
     incident-room
@@ -203,6 +208,12 @@ Designed for:
 
 This is the main business module for emergency cases.
 
+Canonical incidents use the coordination stages `reported`, `triage`,
+`responding`, `on_scene`, `stabilising`, `monitoring`, `resolved` and `closed`.
+Agency assignments remain compatible with the database values `DISPATCHED`,
+`ON SCENE` and `COMPLETED`, while richer agency stages are retained in timeline
+logs.
+
 ### `incident-room`
 
 Handles collaboration inside one incident.
@@ -217,6 +228,27 @@ Designed for:
 - Incident-specific map context
 
 Use this when the feature is about working inside a specific incident, not the general incident list.
+
+Message creation uses Socket.IO. Failed sends now return the backend reason to
+the frontend, and the draft is cleared only after the message is stored and
+broadcast successfully.
+
+### `analytics`
+
+Handles aggregated government reporting across all responding organisations.
+
+Implemented:
+
+```txt
+GET /api/analytics/overview
+```
+
+The overview supports date, incident type, severity, status, organisation and
+derived-region filters. It returns national KPIs, incident distributions,
+resolution timing and comparable organisation workload/response indicators.
+Log-derived agency timing is explicitly labelled as inferred.
+
+See `src/analytics/README.md` for metric definitions and data-quality rules.
 
 ### `resources`
 

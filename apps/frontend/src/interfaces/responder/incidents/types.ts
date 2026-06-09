@@ -1,9 +1,22 @@
-export type IncidentStatus = "active" | "closed";
+export type IncidentStatus =
+  | "reported"
+  | "triage"
+  | "responding"
+  | "on_scene"
+  | "stabilising"
+  | "monitoring"
+  | "resolved"
+  | "closed";
 
 export type IncidentSeverity = "Low" | "Medium" | "High" | "Critical";
 
 export type Incident = {
   assignedOrgs?: string[];
+  agencyProgress?: Array<{
+    agency: string;
+    stage: string;
+    updatedAt: string;
+  }>;
   confidenceScore?: number;
   analysis?: {
     category: string | null;

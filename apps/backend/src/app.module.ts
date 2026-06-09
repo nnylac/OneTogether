@@ -15,6 +15,7 @@ import { IncidentAnalysisModule } from './analysis/incident-analysis.module';
 import { IntegrationsModule } from './integrations/integrations.module';
 import { IncidentMiddlewareModule } from './incident-middleware/incident-middleware.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { AnalyticsModule } from './analytics/analytics.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { PrismaModule } from './prisma/prisma.module';
     IncidentAnalysisModule,
     IntegrationsModule,
     IncidentMiddlewareModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

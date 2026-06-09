@@ -10,8 +10,28 @@ export class UpdateIncidentDto {
   @ApiPropertyOptional({ example: 4 })
   severity?: number;
 
-  @ApiPropertyOptional({ example: 'active', enum: ['active', 'closed'] })
-  status?: 'active' | 'closed';
+  @ApiPropertyOptional({
+    example: 'responding',
+    enum: [
+      'reported',
+      'triage',
+      'responding',
+      'on_scene',
+      'stabilising',
+      'monitoring',
+      'resolved',
+      'closed',
+    ],
+  })
+  status?:
+    | 'reported'
+    | 'triage'
+    | 'responding'
+    | 'on_scene'
+    | 'stabilising'
+    | 'monitoring'
+    | 'resolved'
+    | 'closed';
 
   @ApiPropertyOptional({
     example: 'Patient found unconscious near platform B.',

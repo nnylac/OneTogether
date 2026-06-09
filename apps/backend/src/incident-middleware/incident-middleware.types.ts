@@ -8,6 +8,7 @@ export type RawAgencyMessage = {
   };
   external_incident_id?: string;
   trace_id?: string;
+  emitted_at?: string;
   incident?: {
     incident_id?: string;
     incident_type?: string;

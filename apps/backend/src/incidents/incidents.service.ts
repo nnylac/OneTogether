@@ -87,7 +87,7 @@ export class IncidentsService {
         resolved_at:
           dto.status === 'closed'
             ? new Date()
-            : dto.status === 'active'
+            : dto.status !== undefined && dto.status !== 'resolved'
               ? null
               : dto.resolvedAt === null
                 ? null
@@ -326,6 +326,7 @@ export class IncidentsService {
         status: assignedOrg.status,
         notes: assignedOrg.notes,
       })),
+      agencyProgress: this.getAgencyProgress(incident.logs ?? []),
       logs: incident.logs?.map((log) => ({
         id: log.id,
         agencyId: log.agency_id,
@@ -347,12 +348,44 @@ export class IncidentsService {
 
   private normaliseIncidentStatus(status: string) {
     const normalizedStatus = status.trim().toLowerCase();
+    const knownStatuses = new Set([
+      'reported',
+      'triage',
+      'responding',
+      'on_scene',
+      'stabilising',
+      'monitoring',
+      'resolved',
+      'closed',
+    ]);
 
-    if (normalizedStatus === 'closed') {
-      return 'closed';
+    return knownStatuses.has(normalizedStatus) ? normalizedStatus : 'reported';
+  }
+
+  private getAgencyProgress(
+    logs: Array<{
+      agency_id: string;
+      content: string;
+      created_at: Date;
+    }>,
+  ) {
+    const progress = new Map<
+      string,
+      { agency: string; stage: string; updatedAt: Date }
+    >();
+
+    for (const log of logs) {
+      if (progress.has(log.agency_id)) continue;
+      const match = log.content.match(/\bStatus:\s*([A-Z][A-Z_ ]*)\./i);
+      if (!match) continue;
+      progress.set(log.agency_id, {
+        agency: log.agency_id,
+        stage: match[1].trim().replace(/\s+/g, '_').toUpperCase(),
+        updatedAt: log.created_at,
+      });
     }
 
-    return 'active';
+    return Array.from(progress.values());
   }
 
   private getResourceType(organisationName: string, incidentType: string) {

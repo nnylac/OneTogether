@@ -60,6 +60,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
   scdf:
     build:
@@ -73,6 +75,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
       SINGHEALTH_URL: http://singhealth:8000
       NUHS_URL: http://nuhs:8000
 
@@ -88,6 +92,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
   nuhs:
     build:
@@ -101,6 +107,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
   towncouncil:
     build:
@@ -114,6 +122,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
   pub:
     build:
@@ -127,6 +137,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
   nea:
     build:
@@ -140,6 +152,8 @@ services:
     restart: unless-stopped
     environment:
       MIDDLEWARE_URL: ${MIDDLEWARE_URL:-http://host.docker.internal:3001/api/incident-middleware}
+      AGENCY_UPDATE_MIN_SECONDS: ${AGENCY_UPDATE_MIN_SECONDS:-60}
+      AGENCY_UPDATE_MAX_SECONDS: ${AGENCY_UPDATE_MAX_SECONDS:-120}
 
 networks:
   sim-net:
