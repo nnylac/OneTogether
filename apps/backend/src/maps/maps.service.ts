@@ -44,8 +44,11 @@ export class MapsService {
       throw new NotFoundException('Incident not found');
     }
 
+    const lat = incident.latitude ? Number(incident.latitude) : null;
+    const lng = incident.longitude ? Number(incident.longitude) : null;
+
     const resources = incident.resources.map((resource) =>
-      this.toResourceDto(resource, incident.lat, incident.lng),
+      this.toResourceDto(resource, lat, lng),
     );
 
     return {
@@ -57,8 +60,8 @@ export class MapsService {
         severity: incident.severity,
         status: this.normaliseStatus(incident.inc_status),
         location: incident.inc_location,
-        lat: incident.lat,
-        lng: incident.lng,
+        lat,
+        lng,
       },
       resources,
       summary: this.summarise(resources),
