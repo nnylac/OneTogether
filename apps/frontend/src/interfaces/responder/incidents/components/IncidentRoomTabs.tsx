@@ -7,6 +7,7 @@ import {
   Info,
   Map,
   MessageSquare,
+  Sparkles,
 } from "lucide-react";
 import { Box, Button, HStack, Icon } from "../../../../components/chakra-ui";
 import type { Incident, IncidentReportDraft } from "../types";
@@ -14,6 +15,7 @@ import { IncidentDiscussion } from "./IncidentDiscussion";
 import type { ChatMessage } from "./IncidentDiscussion";
 import { IncidentInformation } from "./IncidentInformation";
 import { IncidentLog } from "./IncidentLog";
+import { IncidentMap } from "./IncidentMap";
 import { IncidentReport } from "./IncidentReport";
 import { IncidentResources } from "./IncidentResources";
 import { IncidentRoomCard, IncidentRoomContent } from "./IncidentRoomShell";
@@ -138,22 +140,21 @@ export function IncidentRoomTabs({
         )}
 
         {activeTab === "resources" && (
-          <IncidentResources
-            incidentId={incident.id}
-            resources={resources}
-            onResourcesChange={setResources}
-          />
+          <IncidentResources incidentId={incident.id} />
         )}
 
         {activeTab === "information" && (
           <IncidentInformation incident={incident} resources={resources} />
         )}
 
+        {activeTab === "map" && <IncidentMap incidentId={incident.id} />}
+
         {activeTab !== "discussion" &&
           activeTab !== "incident-log" &&
           activeTab !== "report" &&
           activeTab !== "resources" &&
-          activeTab !== "information" && <Box flex="1" />}
+          activeTab !== "information" &&
+          activeTab !== "map" && <Box flex="1" />}
       </IncidentRoomContent>
     </IncidentRoomCard>
   );

@@ -25,6 +25,7 @@ export class IncidentNormalizerService {
     const coordinates = this.coordinatesFor(data, message);
     const incidentType = this.incidentTypeFor(agencyId, data, message);
     const severity = this.severityFor(agencyId, data, message);
+    const { lat, lng } = this.coordinatesFor(data, message);
 
     return {
       agencyId,
@@ -49,7 +50,7 @@ export class IncidentNormalizerService {
   private coordinatesFor(
     data: Record<string, unknown>,
     message: RawAgencyMessage,
-  ) {
+  ): { lat: number | null; lng: number | null } {
     const incidentLocation = message.incident?.location;
     const location = this.objectValue(data.location);
     const site = this.objectValue(data.site);
