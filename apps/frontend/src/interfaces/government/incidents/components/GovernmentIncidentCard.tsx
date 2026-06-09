@@ -20,7 +20,13 @@ const severityTones: Record<IncidentSeverity, LabelBoxTone> = {
 }
 
 const statusTones: Record<GovernmentIncidentStatus, LabelBoxTone> = {
-  active: 'orange',
+  reported: 'yellow',
+  triage: 'orange',
+  responding: 'blue',
+  on_scene: 'purple',
+  stabilising: 'red',
+  monitoring: 'yellow',
+  resolved: 'green',
   closed: 'teal',
 }
 
@@ -109,6 +115,20 @@ export function GovernmentIncidentCard({
             incident.assignedOrgs.length > 0
               ? incident.assignedOrgs.join(', ')
               : 'None assigned'
+          }
+        />
+
+        <IncidentDetailBox
+          label="Agency progress"
+          value={
+            incident.agencyProgress.length > 0
+              ? incident.agencyProgress
+                  .map(
+                    (progress) =>
+                      `${progress.agency}: ${progress.stage.replace(/_/g, ' ')}`,
+                  )
+                  .join(', ')
+              : 'No agency updates'
           }
         />
 

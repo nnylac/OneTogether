@@ -78,7 +78,11 @@ export class IncidentMiddlewareService {
       normalized,
       normalized.rawMessage,
     );
-    const canonicalStatus = await this.reconcileCanonicalStatus(incident.id);
+    const canonicalStatus = await this.reconcileCanonicalStatus(
+      incident.id,
+      normalized.status,
+      message,
+    );
     await this.applyAutomatedAnalysis(incident.id);
     if (canonicalStatus === 'CLOSED') {
       void this.analysisService
@@ -106,21 +110,38 @@ export class IncidentMiddlewareService {
     };
   }
 
-  private async reconcileCanonicalStatus(incidentId: string) {
-    const assignments = await this.prisma.assigned_orgs.findMany({
-      where: { incident_id: incidentId },
-      select: { status: true },
-    });
+  private async reconcileCanonicalStatus(
+    incidentId: string,
+    sourceStatus: string,
+    message?: RawAgencyMessage,
+  ) {
+    const [assignments, incident] = await Promise.all([
+      this.prisma.assigned_orgs.findMany({
+        where: { incident_id: incidentId },
+        select: { status: true },
+      }),
+      this.prisma.incidents.findUnique({
+        where: { id: incidentId },
+        select: { inc_status: true },
+      }),
+    ]);
     const allCompleted =
       assignments.length > 0 &&
       assignments.every((assignment) => assignment.status === 'COMPLETED');
-    const nextStatus = allCompleted ? 'CLOSED' : 'ACTIVE';
+    const nextStatus = allCompleted
+      ? 'CLOSED'
+      : this.nextOverallStatus(
+          incident?.inc_status ?? 'REPORTED',
+          sourceStatus,
+        );
 
     await this.prisma.incidents.update({
       where: { id: incidentId },
       data: {
         inc_status: nextStatus,
-        resolved_at: allCompleted ? new Date() : null,
+        resolved_at: allCompleted
+          ? this.sourceEventTime(message ?? {})
+          : null,
       },
     });
 
@@ -247,7 +268,6 @@ export class IncidentMiddlewareService {
         notes: `${orgName} assigned to ${incidentTitle}.`,
       },
       update: {
-        assigned_at: new Date(),
         status: this.mapAssignmentStatus(status),
       },
     });
@@ -272,7 +292,10 @@ export class IncidentMiddlewareService {
       normalizedStatus.includes('IN PROGRESS') ||
       normalizedStatus.includes('REOPENED') ||
       normalizedStatus.includes('ACTIVE') ||
-      normalizedStatus.includes('ON SCENE')
+      normalizedStatus.includes('ON SCENE') ||
+      normalizedStatus.includes('TREATING') ||
+      normalizedStatus.includes('HANDOFF') ||
+      normalizedStatus.includes('MONITORING')
     ) {
       return 'ON SCENE';
     }
@@ -299,6 +322,7 @@ export class IncidentMiddlewareService {
           normalized,
           message,
         ),
+        created_at: this.sourceEventTime(message),
       },
     });
   }
@@ -475,15 +499,7 @@ export class IncidentMiddlewareService {
   }
 
   private mapStatus(status: string) {
-    const normalizedStatus = this.normalizedStatus(status);
-
-    if (normalizedStatus === 'CLOSED') {
-      return 'CLOSED';
-    }
-    if (normalizedStatus === 'RESOLVED') {
-      return 'RESOLVED';
-    }
-    return 'ACTIVE';
+    return this.mapOverallStatus(status);
   }
 
   private nextIncidentStatus(currentStatus: string, sourceStatus: string) {
@@ -491,21 +507,97 @@ export class IncidentMiddlewareService {
     const nextStatus = this.mapStatus(sourceStatus);
 
     if (normalizedSourceStatus === 'REOPENED') {
-      return 'ACTIVE';
+      return 'RESPONDING';
     }
 
-    if (
-      (currentStatus === 'CLOSED' || currentStatus === 'RESOLVED') &&
-      nextStatus === 'ACTIVE'
-    ) {
+    if (currentStatus === 'CLOSED') {
       return currentStatus;
     }
 
-    if (currentStatus === 'CLOSED' && nextStatus === 'RESOLVED') {
-      return 'CLOSED';
+    return this.higherOverallStatus(currentStatus, nextStatus);
+  }
+
+  private nextOverallStatus(currentStatus: string, sourceStatus: string) {
+    const sourceOverallStatus = this.mapOverallStatus(sourceStatus);
+
+    if (
+      sourceOverallStatus === 'RESOLVED' ||
+      sourceOverallStatus === 'CLOSED'
+    ) {
+      return this.higherOverallStatus(currentStatus, 'MONITORING');
     }
 
-    return nextStatus;
+    return this.higherOverallStatus(currentStatus, sourceOverallStatus);
+  }
+
+  private mapOverallStatus(status: string) {
+    const normalizedStatus = this.normalizedStatus(status);
+
+    if (normalizedStatus === 'CLOSED') return 'CLOSED';
+    if (normalizedStatus === 'RESOLVED') return 'RESOLVED';
+    if (normalizedStatus === 'MONITORING' || normalizedStatus === 'HANDOFF') {
+      return 'MONITORING';
+    }
+    if (
+      normalizedStatus === 'TREATING' ||
+      normalizedStatus === 'ACTIVE_RESPONSE' ||
+      normalizedStatus === 'IN_PROGRESS'
+    ) {
+      return 'STABILISING';
+    }
+    if (normalizedStatus === 'ON_SCENE') return 'ON_SCENE';
+    if (
+      normalizedStatus === 'DISPATCHED' ||
+      normalizedStatus === 'EN_ROUTE' ||
+      normalizedStatus === 'REOPENED'
+    ) {
+      return 'RESPONDING';
+    }
+    if (normalizedStatus === 'TRIAGE' || normalizedStatus === 'PENDING_INFO') {
+      return 'TRIAGE';
+    }
+    return 'REPORTED';
+  }
+
+  private higherOverallStatus(currentStatus: string, nextStatus: string) {
+    const order = [
+      'REPORTED',
+      'TRIAGE',
+      'RESPONDING',
+      'ON_SCENE',
+      'STABILISING',
+      'MONITORING',
+      'RESOLVED',
+      'CLOSED',
+    ];
+    const normalizedCurrent = this.normalizedStatus(currentStatus);
+    const currentIndex = order.indexOf(normalizedCurrent);
+    const nextIndex = order.indexOf(nextStatus);
+
+    return nextIndex > currentIndex ? nextStatus : order[Math.max(0, currentIndex)];
+  }
+
+  private sourceEventTime(message: RawAgencyMessage) {
+    const candidates = [
+      message.emitted_at,
+      this.latestLogTimestamp(message.logs),
+    ];
+
+    for (const candidate of candidates) {
+      if (typeof candidate !== 'string') continue;
+      const parsed = new Date(candidate);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+    }
+
+    return new Date();
+  }
+
+  private latestLogTimestamp(logs: unknown[] | undefined) {
+    if (!Array.isArray(logs) || logs.length === 0) return undefined;
+    const latest = logs[logs.length - 1];
+    if (!latest || typeof latest !== 'object') return undefined;
+    const timestamp = (latest as Record<string, unknown>).ts;
+    return typeof timestamp === 'string' ? timestamp : undefined;
   }
 
   private normalizedStatus(status: string) {

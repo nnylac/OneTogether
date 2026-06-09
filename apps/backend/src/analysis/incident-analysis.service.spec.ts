@@ -1,6 +1,48 @@
 import { IncidentAnalysisService } from './incident-analysis.service';
 
 describe('IncidentAnalysisService', () => {
+  it.each([
+    ['TRAFFIC_ACCIDENT', 'traffic accident'],
+    ['BUILDING_FIRE', 'fire'],
+    ['FLOODING', 'flood'],
+    ['MEDICAL_EMERGENCY', 'medical emergency'],
+    ['GAS_LEAK', 'gas leak'],
+    ['BUILDING_COLLAPSE', 'building collapse'],
+    ['MISSING_PERSON', 'missing person'],
+    ['DISEASE_OUTBREAK', 'disease outbreak'],
+    ['HAZE', 'haze'],
+    ['CIVIL_DISTURBANCE', 'civil disturbance'],
+  ])('classifies authoritative incident type %s', (incidentType, category) => {
+    const service = new IncidentAnalysisService({} as never);
+
+    const result = service.classifyIncident(incidentType, 2);
+
+    expect(result.category).toBe(category);
+  });
+
+  it.each([
+    'Worker unconscious following suspected heat injury',
+    'Resident reporting symptoms of a possible stroke',
+    'Patient experiencing seizures in a public area',
+    'Child suffering a serious allergic reaction',
+    'Person experiencing severe breathing difficulty',
+  ])('treats critical medical evidence as severity 5: %s', (description) => {
+    const service = new IncidentAnalysisService({} as never);
+
+    const result = service.classifyIncident(
+      `MEDICAL_EMERGENCY ${description}`,
+      2,
+    );
+
+    expect(result).toEqual(
+      expect.objectContaining({
+        category: 'medical emergency',
+        urgency: 'critical',
+        severity_estimate: 5,
+      }),
+    );
+  });
+
   it('classifies explicit emergency evidence deterministically', () => {
     const service = new IncidentAnalysisService({} as never);
 

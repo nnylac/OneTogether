@@ -9,6 +9,7 @@ import { NotificationsService } from './notifications.service';
 describe('NotificationsService', () => {
   let service: NotificationsService;
   let repository: jest.Mocked<NotificationsRepository>;
+  let gateway: { emitCreated: jest.Mock };
 
   const recipientModel: NotificationRecipientModel = {
     id: '30000000-0000-0000-0000-000000000002',
@@ -43,7 +44,8 @@ describe('NotificationsService', () => {
       markAllAsRead: jest.fn(),
     } as unknown as jest.Mocked<NotificationsRepository>;
 
-    service = new NotificationsService(repository);
+    gateway = { emitCreated: jest.fn() };
+    service = new NotificationsService(repository, gateway);
   });
 
   it('should be defined', () => {
@@ -103,6 +105,15 @@ describe('NotificationsService', () => {
     );
   });
 
+  it('should not emit when reading one notification', async () => {
+    repository.findById.mockResolvedValue(notificationModel);
+
+    await expect(service.findOne(notificationModel.id)).resolves.toMatchObject({
+      id: notificationModel.id,
+    });
+    expect(gateway.emitCreated).not.toHaveBeenCalled();
+  });
+
   it('should create one notification with organisation recipient', async () => {
     repository.create.mockResolvedValue(notificationModel);
 
@@ -142,6 +153,12 @@ describe('NotificationsService', () => {
         },
       },
     ]);
+    expect(gateway.emitCreated).toHaveBeenCalledWith(
+      expect.objectContaining({
+        id: notificationModel.id,
+        notificationType: 'incident_assigned',
+      }),
+    );
   });
 
   it('should create one notification with role recipient', async () => {
@@ -217,6 +234,28 @@ describe('NotificationsService', () => {
         recipientType: 'organisation',
         recipientId: recipientModel.recipient_id,
         recipientRole: undefined,
+        notificationType: undefined,
+        isRead: false,
+      },
+    ]);
+  });
+
+  it('should mark all matching alert notifications as read', async () => {
+    repository.markAllAsRead.mockResolvedValue({ count: 1 });
+
+    await expect(
+      service.markAllAsRead({
+        recipientType: 'role',
+        recipientRole: 'government',
+        notificationType: 'government_alert_triggered',
+      }),
+    ).resolves.toEqual({ count: 1 });
+    expect(repository.markAllAsRead.mock.calls[0]).toEqual([
+      {
+        recipientType: 'role',
+        recipientId: undefined,
+        recipientRole: 'government',
+        notificationType: 'government_alert_triggered',
         isRead: false,
       },
     ]);

@@ -4,7 +4,7 @@ import math
 import random
 from typing import Any
 
-from models import AgencyID, IncidentType, Location
+from models import AgencyID, IncidentTrigger, IncidentType, Location
 
 
 HOSPITALS: list[dict[str, Any]] = [
@@ -75,6 +75,36 @@ HOSPITALS: list[dict[str, Any]] = [
         "base_icu": 8,
     },
 ]
+
+
+def infer_patient_profile(trigger: IncidentTrigger) -> str:
+    text = f"{trigger.description} {trigger.location.name}".lower()
+
+    if any(term in text for term in ("pregnant", "labour", "maternity")):
+        return "maternity"
+    if any(
+        term in text
+        for term in (
+            "child",
+            "childcare",
+            "preschool",
+            "school",
+            "student",
+            "young",
+        )
+    ):
+        return "child"
+    if any(
+        term in text
+        for term in (
+            "elderly",
+            "dementia",
+            "nursing home",
+            "senior",
+        )
+    ):
+        return "elderly"
+    return "adult"
 
 
 def hospitals_for_cluster(cluster: AgencyID) -> list[dict[str, Any]]:

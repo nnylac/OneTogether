@@ -99,7 +99,7 @@ describe('IncidentMiddlewareService canonical identity', () => {
     expect(result.incident.severity).toBe(5);
   });
 
-  it('keeps the canonical incident active until every assignment completes', async () => {
+  it('keeps the detailed canonical stage until every assignment completes', async () => {
     const update = jest.fn().mockResolvedValue({});
     const prisma = {
       assigned_orgs: {
@@ -107,7 +107,12 @@ describe('IncidentMiddlewareService canonical identity', () => {
           .fn()
           .mockResolvedValue([{ status: 'COMPLETED' }, { status: 'ON SCENE' }]),
       },
-      incidents: { update },
+      incidents: {
+        findUnique: jest
+          .fn()
+          .mockResolvedValue({ inc_status: 'STABILISING' }),
+        update,
+      },
     };
     const service = new IncidentMiddlewareService(
       prisma as never,
@@ -118,14 +123,17 @@ describe('IncidentMiddlewareService canonical identity', () => {
 
     const status = await (
       service as unknown as {
-        reconcileCanonicalStatus(id: string): Promise<string>;
+        reconcileCanonicalStatus(
+          id: string,
+          sourceStatus: string,
+        ): Promise<string>;
       }
-    ).reconcileCanonicalStatus('incident-db-id');
+    ).reconcileCanonicalStatus('incident-db-id', 'ON_SCENE');
 
-    expect(status).toBe('ACTIVE');
+    expect(status).toBe('STABILISING');
     expect(update).toHaveBeenCalledWith({
       where: { id: 'incident-db-id' },
-      data: { inc_status: 'ACTIVE', resolved_at: null },
+      data: { inc_status: 'STABILISING', resolved_at: null },
     });
   });
 
@@ -140,7 +148,10 @@ describe('IncidentMiddlewareService canonical identity', () => {
             { status: 'COMPLETED' },
           ]),
       },
-      incidents: { update },
+      incidents: {
+        findUnique: jest.fn().mockResolvedValue({ inc_status: 'MONITORING' }),
+        update,
+      },
     };
     const service = new IncidentMiddlewareService(
       prisma as never,
@@ -151,9 +162,12 @@ describe('IncidentMiddlewareService canonical identity', () => {
 
     const status = await (
       service as unknown as {
-        reconcileCanonicalStatus(id: string): Promise<string>;
+        reconcileCanonicalStatus(
+          id: string,
+          sourceStatus: string,
+        ): Promise<string>;
       }
-    ).reconcileCanonicalStatus('incident-db-id');
+    ).reconcileCanonicalStatus('incident-db-id', 'CLOSED');
 
     expect(status).toBe('CLOSED');
     expect(update).toHaveBeenCalledWith({
@@ -186,6 +200,51 @@ describe('IncidentMiddlewareService canonical identity', () => {
     ).applyAutomatedAnalysis('incident-db-id');
 
     expect(analyzeIncidentTimeline).toHaveBeenCalledWith('incident-db-id');
+  });
+
+  it('preserves the original assignment timestamp on agency updates', async () => {
+    const upsert = jest.fn().mockResolvedValue({});
+    const prisma = {
+      organisations: {
+        upsert: jest.fn().mockResolvedValue({
+          id: 'organisation-id',
+          org_name: 'SCDF',
+        }),
+      },
+      assigned_orgs: { upsert },
+    };
+    const service = new IncidentMiddlewareService(
+      prisma as never,
+      {} as never,
+      {} as never,
+      {} as never,
+      {} as never,
+    );
+
+    await (
+      service as unknown as {
+        assignOrganisation(
+          incidentId: string,
+          orgName: string,
+          status: string,
+          incidentTitle: string,
+        ): Promise<void>;
+      }
+    ).assignOrganisation(
+      'incident-db-id',
+      'SCDF',
+      'IN_PROGRESS',
+      'Building fire',
+    );
+
+    expect(upsert).toHaveBeenCalledWith(
+      expect.objectContaining({
+        update: {
+          status: 'ON SCENE',
+        },
+      }),
+    );
+    expect(upsert.mock.calls[0][0].update).not.toHaveProperty('assigned_at');
   });
 
   it('stores the originating agency on readable logs', async () => {

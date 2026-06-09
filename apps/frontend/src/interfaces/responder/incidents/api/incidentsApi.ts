@@ -11,7 +11,16 @@ import type {
   OrganisationApiDto,
 } from "./incidentsDto";
 
-const validStatuses = new Set<IncidentStatus>(["active", "closed"]);
+const validStatuses = new Set<IncidentStatus>([
+  "reported",
+  "triage",
+  "responding",
+  "on_scene",
+  "stabilising",
+  "monitoring",
+  "resolved",
+  "closed",
+]);
 
 const validResourceStatuses = new Set<IncidentResourceStatus>([
   "DISPATCHED",
@@ -182,6 +191,10 @@ function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
 
   return {
     analysis: apiIncident.aiAnalysis,
+    agencyProgress: apiIncident.agencyProgress?.map((progress) => ({
+      ...progress,
+      updatedAt: formatIncidentDate(progress.updatedAt),
+    })),
     assignedOrgs: apiIncident.assignedOrgs,
     confidenceScore: apiIncident.confidenceScore ?? undefined,
     createdAt: formatIncidentDate(apiIncident.createdAt),
@@ -231,11 +244,15 @@ function mapIncidentLogFromApi(log: IncidentLogApiDto) {
 }
 
 function getIncidentStatus(status: string): IncidentStatus {
-  const normalizedStatus = status.toLowerCase();
+  const normalizedStatus = status.trim().toLowerCase();
+
+  if (normalizedStatus === "active") {
+    return "responding";
+  }
 
   return validStatuses.has(normalizedStatus as IncidentStatus)
     ? (normalizedStatus as IncidentStatus)
-    : "active";
+    : "reported";
 }
 
 function getIncidentResourceStatus(status: string): IncidentResourceStatus {

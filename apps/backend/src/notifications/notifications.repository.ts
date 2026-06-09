@@ -79,7 +79,9 @@ export class NotificationsRepository {
     filters: FindNotificationsFilters,
   ): Promise<Prisma.BatchPayload> {
     return this.prisma.notification_recipients.updateMany({
-      where: this.buildRecipientWhere(filters),
+      where: this.buildRecipientWhere(filters, {
+        includeNotificationFilters: true,
+      }),
       data: {
         is_read: true,
         read_at: new Date(),
@@ -109,6 +111,7 @@ export class NotificationsRepository {
 
   private buildRecipientWhere(
     filters: FindNotificationsFilters,
+    options: { includeNotificationFilters?: boolean } = {},
   ): Prisma.notification_recipientsWhereInput {
     const where: Prisma.notification_recipientsWhereInput = {};
 
@@ -126,6 +129,12 @@ export class NotificationsRepository {
 
     if (filters.isRead !== undefined) {
       where.is_read = filters.isRead;
+    }
+
+    if (options.includeNotificationFilters && filters.notificationType) {
+      where.notifications = {
+        notification_type: filters.notificationType,
+      };
     }
 
     return where;

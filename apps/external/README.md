@@ -45,8 +45,16 @@ On Windows PowerShell:
 ```powershell
 $env:RANDOM_SEED="42"
 $env:INTERVAL_SECONDS="60"
+$env:AGENCY_UPDATE_MIN_SECONDS="60"
+$env:AGENCY_UPDATE_MAX_SECONDS="120"
 docker compose up --build scenario-engine
 ```
+
+Agency tickets are created immediately. Later agency status updates arrive with
+a random real-time delay between `AGENCY_UPDATE_MIN_SECONDS` and
+`AGENCY_UPDATE_MAX_SECONDS`. The default is 60 to 120 seconds. Each log is
+timestamped when it is actually emitted; the simulator does not create
+future-dated agency logs.
 
 ## Ports
 
@@ -84,10 +92,20 @@ POST /handoff
 The scenario engine exposes:
 
 ```txt
+GET /
 GET /health
 GET /catalogue
 GET /active-incidents
+GET /automation
+POST /automation/pause
+POST /automation/resume
+POST /generate
 ```
+
+Open `http://localhost:8100/` for the scenario control page. Automatic random
+generation remains enabled by default and runs without the page being open.
+Pausing it stops only new random incidents; manual generation and already
+running incident phases continue.
 
 Examples:
 
@@ -221,7 +239,8 @@ The simulators intentionally create integration noise:
 - SCDF handoff creates a parent-child relationship between agency records.
 - Hospital transfer creates another local record rather than editing the first one.
 - PUB and NEA may notify or imply follow-up by Town Council, SCDF or health clusters.
-- Scenario-level phase events add cross-agency milestones alongside agency ticket lifecycles.
+- Scenario-level phase events are labelled as scenario-engine milestones, so
+  they do not impersonate or prematurely close agency-owned ticket lifecycles.
 
 The goal is not perfect operational truth. The goal is realistic enough data
 shape, timing and inconsistency to test incident normalization and coordination

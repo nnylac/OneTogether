@@ -234,9 +234,19 @@ response record, and extracted entities.
 Classification uses weighted incident keywords, agency-reported severity,
 priority, casualty indicators, and response evidence. It also updates the
 canonical incident severity and confidence without any external model or API.
-Public incident status is intentionally limited to `active` and `closed`.
-Agency-level assignments retain their more detailed dispatched/on-scene/
-completed status.
+Canonical incident status now exposes the coordination stages `REPORTED`,
+`TRIAGE`, `RESPONDING`, `ON_SCENE`, `STABILISING`, `MONITORING`, `RESOLVED` and
+`CLOSED`. This gives the frontend more detail without pretending every agency
+is at the same operational step.
+
+Agency-level assignment rows remain compatible with the database constraint:
+`DISPATCHED`, `ON SCENE` and `COMPLETED`. Richer agency stages such as
+`RECEIVED`, `TRIAGE`, `EN_ROUTE`, `TREATING` and `HANDOFF` are preserved in
+agency logs and exposed as per-agency progress.
+
+Scenario-engine phase messages are attributed to `SCENARIO_ENGINE` and carry
+the intended agency only as context. They therefore do not impersonate an
+agency update or prematurely complete its assignment.
 
 Manual inspection or regeneration is available through:
 

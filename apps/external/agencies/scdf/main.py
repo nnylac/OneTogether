@@ -7,7 +7,7 @@ import sys
 
 sys.path.insert(0, "/app/shared")
 from base_agency import BaseAgencySimulator
-from hospital_routing import route_hospital
+from hospital_routing import infer_patient_profile, route_hospital
 from models import (
     AgencyID,
     EventType,
@@ -148,7 +148,7 @@ class SCDFSimulator(BaseAgencySimulator):
         self.allocate_resource(ticket["ticket_id"], outlet_id, "fire_engine", fire_engines)
         self.allocate_resource(ticket["ticket_id"], outlet_id, "ambulance", ambulances)
 
-        specialist_resource = self._specialist_resource(payload.get("incident_type", ""))
+        specialist_resource = self._specialist_resource(trigger.incident_type)
         allocated_specialist = self.allocate_resource(
             ticket["ticket_id"],
             outlet_id,
@@ -164,6 +164,9 @@ class SCDFSimulator(BaseAgencySimulator):
                 rescue_teams - allocated_specialist,
             )
 
+    def should_deploy_resources_on_receipt(self, trigger: IncidentTrigger) -> bool:
+        return trigger.incident_type != IncidentType.MEDICAL_EMERGENCY
+
     def _outlet_for_station(self, call_sign: str) -> str:
         station_code = call_sign.split("-")[1] if "-" in call_sign else ""
         return {
@@ -173,18 +176,58 @@ class SCDFSimulator(BaseAgencySimulator):
             "BDK": "SCDF-BDK",
         }.get(station_code, "SCDF-CENTRAL")
 
-    def _specialist_resource(self, incident_type: str) -> str:
-        if incident_type == "HAZMAT":
+    def _specialist_resource(self, incident_type: IncidentType) -> str:
+        if incident_type == IncidentType.GAS_LEAK:
             return "hazmat_unit"
-        if incident_type == "RESCUE":
+        if incident_type == IncidentType.FLOODING:
             return "water_rescue_team"
         return "rescue_team"
 
     async def _handle_incident(self, trigger: IncidentTrigger):
         await super()._handle_incident(trigger)
-        if self._should_handoff_to_hospital(trigger):
+        if (
+            trigger.incident_type != IncidentType.MEDICAL_EMERGENCY
+            and self._should_handoff_to_hospital(trigger)
+        ):
             ticket_id = f"{self.AGENCY_ID.value}-{trigger.incident_id[:8].upper()}"
             await self._handoff_to_hospital(trigger, ticket_id)
+
+    async def _run_lifecycle(self, ticket: dict, trigger: IncidentTrigger):
+        if trigger.incident_type != IncidentType.MEDICAL_EMERGENCY:
+            await super()._run_lifecycle(ticket, trigger)
+            return
+
+        phases = [
+            (TicketStatus.RECEIVED, "Emergency call received and incident details recorded."),
+            (TicketStatus.TRIAGE, "Call-taker triage completed. Patient acuity and response priority assessed."),
+            (TicketStatus.DISPATCHED, "Ambulance crew assigned and dispatched from the nearest available station."),
+            (TicketStatus.EN_ROUTE, "Ambulance en route. Crew reviewing caller updates and access details."),
+            (TicketStatus.ON_SCENE, "Ambulance arrived on scene. Paramedics commencing primary assessment."),
+            (TicketStatus.TREATING, "Patient treatment and stabilisation in progress."),
+            (TicketStatus.HANDOFF, "Patient conveyed and clinical handoff initiated with the receiving hospital."),
+            (TicketStatus.RESOLVED, "Hospital handoff accepted. SCDF response objectives completed."),
+            (TicketStatus.CLOSED, "Ambulance cleared and operational report closed."),
+        ]
+
+        for status, note in phases:
+            await asyncio.sleep(self.next_update_delay())
+
+            if status == TicketStatus.DISPATCHED:
+                self.apply_resource_deployment(ticket, trigger)
+
+            await self._apply_status_update(
+                ticket=ticket,
+                next_status=status,
+                note=note,
+            )
+
+            if status == TicketStatus.HANDOFF and self._should_handoff_to_hospital(trigger):
+                await self._handoff_to_hospital(
+                    trigger,
+                    ticket["ticket_id"],
+                )
+
+        self.active_incidents.pop(trigger.incident_id, None)
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         station   = random.choice(STATIONS)
@@ -245,7 +288,7 @@ class SCDFSimulator(BaseAgencySimulator):
             "weather_conditions": random.choice(["Clear", "Light rain", "Heavy rain", None]),
             # station_log grows with updates
             "station_log": [
-                {"ts": utcnow().isoformat(), "entry": f"Dispatch confirmed. {trigger.description}"}
+                {"ts": utcnow().isoformat(), "entry": f"Emergency call received. {trigger.description}"}
             ],
         }
 
@@ -253,7 +296,7 @@ class SCDFSimulator(BaseAgencySimulator):
         p = ticket["payload"].copy()
         p.setdefault("station_log", []).append({"ts": utcnow().isoformat(), "entry": note})
         # Casualties can evolve
-        if status == TicketStatus.IN_PROGRESS:
+        if status in (TicketStatus.IN_PROGRESS, TicketStatus.TREATING):
             p["casualties"]["injured"] = max(0, p["casualties"]["injured"] + random.randint(-1, 3))
         return p
 
@@ -386,12 +429,7 @@ class SCDFSimulator(BaseAgencySimulator):
             await asyncio.sleep(0.05)
 
     def _patient_profile(self, trigger: IncidentTrigger) -> str:
-        text = f"{trigger.description} {trigger.location.name}".lower()
-        if "child" in text or "childcare" in text or "school" in text:
-            return "child"
-        if "pregnant" in text or "labour" in text or "maternity" in text:
-            return "maternity"
-        return random.choices(["adult", "elderly", "child"], weights=[0.72, 0.2, 0.08], k=1)[0]
+        return infer_patient_profile(trigger)
 
     def _patient_count(self, trigger: IncidentTrigger) -> int:
         if trigger.incident_type == IncidentType.BUILDING_COLLAPSE:

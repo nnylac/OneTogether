@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Injectable,
   NotFoundException,
+  Optional,
 } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { CreateNotificationDto } from './dto/create-notification.dto';
@@ -16,6 +17,7 @@ import {
   FindNotificationsFilters,
   NotificationsRepository,
 } from './notifications.repository';
+import { NotificationsGateway } from './notifications.gateway';
 
 @Injectable()
 export class NotificationsService {
@@ -27,6 +29,8 @@ export class NotificationsService {
 
   constructor(
     private readonly notificationsRepository: NotificationsRepository,
+    @Optional()
+    private readonly notificationsGateway?: NotificationsGateway,
   ) {}
 
   async findAll(
@@ -66,7 +70,9 @@ export class NotificationsService {
       },
     });
 
-    return NotificationResponseDto.fromModel(notification);
+    const response = NotificationResponseDto.fromModel(notification);
+    this.notificationsGateway?.emitCreated(response);
+    return response;
   }
 
   async markRecipientAsRead(
@@ -98,6 +104,7 @@ export class NotificationsService {
       recipientType: dto.recipientType,
       recipientId: dto.recipientId,
       recipientRole: dto.recipientRole,
+      notificationType: dto.notificationType,
       isRead: false,
     });
 

@@ -20,8 +20,32 @@ const statusMeta: Record<
   IncidentStatus,
   { label: string; tone: DashboardStatusTone }
 > = {
-  active: {
-    label: "In progress",
+  reported: {
+    label: "Reported",
+    tone: "orange",
+  },
+  triage: {
+    label: "Triage",
+    tone: "orange",
+  },
+  responding: {
+    label: "Responding",
+    tone: "orange",
+  },
+  on_scene: {
+    label: "On scene",
+    tone: "orange",
+  },
+  stabilising: {
+    label: "Stabilising",
+    tone: "orange",
+  },
+  monitoring: {
+    label: "Monitoring",
+    tone: "orange",
+  },
+  resolved: {
+    label: "Resolved",
     tone: "orange",
   },
   closed: {

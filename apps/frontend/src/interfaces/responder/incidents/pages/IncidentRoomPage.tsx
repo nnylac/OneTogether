@@ -48,6 +48,7 @@ export function IncidentRoomPage() {
   const [reportIsGenerating, setReportIsGenerating] = useState(false);
   const [reportIsSaving, setReportIsSaving] = useState(false);
   const roomSocketRef = useRef<Socket | null>(null);
+  const pendingMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     let isMounted = true;
@@ -106,6 +107,14 @@ export function IncidentRoomPage() {
 
         return [...currentMessages, message];
       });
+
+      if (
+        message.senderId === user?.id &&
+        message.body === pendingMessageRef.current
+      ) {
+        pendingMessageRef.current = null;
+        setDiscussionDraft("");
+      }
     }
 
     async function loadMessages() {
@@ -129,8 +138,19 @@ export function IncidentRoomPage() {
         addMessage(mapIncidentRoomMessage(message));
       },
     );
-    socket.on("incident-room.message.error", () => {
-      setDiscussionError("Unable to send message.");
+    socket.on("incident-room.message.error", (error?: { message?: string }) => {
+      pendingMessageRef.current = null;
+      setDiscussionError(error?.message ?? "Unable to send message.");
+    });
+    socket.on("connect_error", () => {
+      pendingMessageRef.current = null;
+      setDiscussionError("Unable to connect to the discussion server.");
+    });
+    socket.on("disconnect", (reason) => {
+      if (reason !== "io client disconnect") {
+        pendingMessageRef.current = null;
+        setDiscussionError("Discussion server disconnected.");
+      }
     });
 
     void loadMessages();
@@ -162,20 +182,21 @@ export function IncidentRoomPage() {
 
     const socket = roomSocketRef.current;
 
-    if (!socket) {
+    if (!socket?.connected) {
       setDiscussionError("Unable to connect to discussion room.");
       return;
     }
 
     try {
       setDiscussionError(null);
+      pendingMessageRef.current = body;
       socket.emit("incident-room.message.create", {
         incidentId,
         senderId: user.id,
         body,
       });
-      setDiscussionDraft("");
     } catch {
+      pendingMessageRef.current = null;
       setDiscussionError("Unable to send message.");
     }
   }

@@ -11,7 +11,13 @@ const incidentFilters: GovernmentIncidentFilter[] = [
   'High',
   'Medium',
   'Low',
-  'active',
+  'reported',
+  'triage',
+  'responding',
+  'on_scene',
+  'stabilising',
+  'monitoring',
+  'resolved',
   'closed',
 ]
 
@@ -21,7 +27,13 @@ const filterLabels: Record<GovernmentIncidentFilter, string> = {
   High: 'High',
   Medium: 'Medium',
   Low: 'Low',
-  active: 'Active',
+  reported: 'Reported',
+  triage: 'Triage',
+  responding: 'Responding',
+  on_scene: 'On scene',
+  stabilising: 'Stabilising',
+  monitoring: 'Monitoring',
+  resolved: 'Resolved',
   closed: 'Closed',
 }
 

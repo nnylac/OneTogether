@@ -1,12 +1,300 @@
-import { Heading, Stack, Text } from '../../../../components/chakra-ui'
+import { useMemo, useState } from 'react'
+import { CircleCheck, LineChart, Plus, ShieldAlert, TriangleAlert } from 'lucide-react'
+import {
+  Box,
+  Button,
+  Flex,
+  Heading,
+  HStack,
+  Icon,
+  Stack,
+  Text,
+} from '../../../../components/chakra-ui'
+import { AlertFormPanel } from '../components/AlertFormPanel'
+import { AlertList } from '../components/AlertList'
+import { AlertSummaryCard } from '../components/AlertSummaryCard'
+import { createGovernmentAlertNotification } from '../api/alertNotificationsApi'
+import {
+  alertMetricDefinitions,
+  sampleGovernmentAlerts,
+} from '../data/sampleGovernmentAlerts'
+import type {
+  AlertFilter,
+  GovernmentAlert,
+  NewAlertInput,
+} from '../types/alert'
+import { calculateAlertStatus } from '../utils/alertStatus'
+
+const alertFilters: AlertFilter[] = ['All', 'Critical', 'Warning', 'Normal']
+
+const alertFilterLabels: Record<AlertFilter, string> = {
+  All: 'All',
+  Critical: 'Critical',
+  Warning: 'Warning',
+  Normal: 'Normal',
+}
+
+function getCurrentAlertTime() {
+  return new Intl.DateTimeFormat('en-SG', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+  }).format(new Date())
+}
+
+function getMetricCurrentValue(metric: NewAlertInput['metric']) {
+  return (
+    alertMetricDefinitions.find((definition) => definition.value === metric)
+      ?.currentValue ?? 0
+  )
+}
+
+function doesAlertMatchFilter(alert: GovernmentAlert, selectedFilter: AlertFilter) {
+  if (selectedFilter === 'All') {
+    return true
+  }
+
+  return alert.status === selectedFilter
+}
+
+function countAlertsForFilter(alerts: GovernmentAlert[], filter: AlertFilter) {
+  return alerts.filter((alert) => doesAlertMatchFilter(alert, filter)).length
+}
+
+function getAlertListTitle(selectedFilter: AlertFilter) {
+  if (selectedFilter === 'All') {
+    return 'All Alert Rules'
+  }
+
+  return `${alertFilterLabels[selectedFilter]} Alert Rules`
+}
 
 export function GovernmentAlertsPage() {
+  const [alerts, setAlerts] = useState<GovernmentAlert[]>(
+    sampleGovernmentAlerts,
+  )
+  const [notificationError, setNotificationError] = useState<string | null>(
+    null,
+  )
+  const [selectedFilter, setSelectedFilter] = useState<AlertFilter>('All')
+  const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
+
+  const filterOptions = useMemo(() => {
+    return alertFilters.map((filter) => ({
+      label: alertFilterLabels[filter],
+      value: filter,
+      count: countAlertsForFilter(alerts, filter),
+    }))
+  }, [alerts])
+
+  const filteredAlerts = useMemo(() => {
+    return alerts.filter((alert) => doesAlertMatchFilter(alert, selectedFilter))
+  }, [alerts, selectedFilter])
+
+  const normalAlerts = alerts.filter((alert) => alert.status === 'Normal').length
+  const warningAlerts = alerts.filter((alert) => alert.status === 'Warning').length
+  const criticalAlerts = alerts.filter(
+    (alert) => alert.status === 'Critical',
+  ).length
+
+  function notifyGovernmentForAlert(alert: GovernmentAlert) {
+    createGovernmentAlertNotification(alert)
+      .then(() => setNotificationError(null))
+      .catch(() =>
+        setNotificationError(
+          'Alert rule saved, but the government notification could not be created.',
+        ),
+      )
+  }
+
+  function handleCreateAlert(newAlert: NewAlertInput) {
+    const currentValue = getMetricCurrentValue(newAlert.metric)
+    const status = calculateAlertStatus(
+      currentValue,
+      newAlert.thresholdValue,
+      newAlert.condition,
+    )
+
+    const alert: GovernmentAlert = {
+      id: `alert-${Date.now()}`,
+      name: newAlert.name,
+      metric: newAlert.metric,
+      currentValue,
+      thresholdValue: newAlert.thresholdValue,
+      condition: newAlert.condition,
+      unit: newAlert.unit,
+      status,
+      notificationMessage: newAlert.notificationMessage,
+      createdAt: getCurrentAlertTime(),
+    }
+
+    setAlerts((currentAlerts) => [alert, ...currentAlerts])
+    setSelectedFilter('All')
+    setIsCreatePanelOpen(false)
+
+    if (alert.status === 'Critical') {
+      notifyGovernmentForAlert(alert)
+    }
+  }
+
+  function handleUpdateAlertThreshold(alertId: string, thresholdValue: number) {
+    const currentAlert = alerts.find((alert) => alert.id === alertId)
+
+    if (!currentAlert) {
+      return
+    }
+
+    const nextStatus = calculateAlertStatus(
+      currentAlert.currentValue,
+      thresholdValue,
+      currentAlert.condition,
+    )
+    const updatedAlert: GovernmentAlert = {
+      ...currentAlert,
+      thresholdValue,
+      status: nextStatus,
+    }
+
+    setAlerts((currentAlerts) =>
+      currentAlerts.map((alert) => {
+        if (alert.id !== alertId) {
+          return alert
+        }
+
+        return updatedAlert
+      }),
+    )
+
+    if (nextStatus === 'Critical') {
+      notifyGovernmentForAlert(updatedAlert)
+    }
+  }
+
+  function handleDeleteAlert(alertId: string) {
+    setAlerts((currentAlerts) =>
+      currentAlerts.filter((alert) => alert.id !== alertId),
+    )
+  }
+
+  function handleRefreshAlerts() {
+    setAlerts(sampleGovernmentAlerts)
+    setSelectedFilter('All')
+  }
+
   return (
-    <Stack gap="3">
-      <Heading size="3xl" color="gray.900">
-        Alerts
-      </Heading>
-      <Text color="gray.500">This page is ready for setting thresholds and receiving alerts.</Text>
+    <Stack gap="6">
+      <Flex
+        align={{ base: 'stretch', lg: 'center' }}
+        direction={{ base: 'column', lg: 'row' }}
+        gap="4"
+        justify="space-between"
+      >
+        <Box>
+          <Heading size="3xl" color="gray.900">
+            Alerts / Thresholds
+          </Heading>
+
+          <Text color="gray.500" mt="1">
+            Create threshold rules and notify government command when incident
+            metrics exceed safe limits.
+          </Text>
+        </Box>
+
+        <Button
+          alignSelf={{ base: 'flex-start', lg: 'center' }}
+          bg="blue.900"
+          color="white"
+          onClick={() => setIsCreatePanelOpen((isOpen) => !isOpen)}
+          _hover={{
+            bg: 'blue.800',
+          }}
+        >
+          <Icon as={Plus} />
+          Create Alert
+        </Button>
+      </Flex>
+
+      <Flex direction={{ base: 'column', xl: 'row' }} gap="4">
+        <AlertSummaryCard
+          label="Total Alerts"
+          value={alerts.length}
+          helper="Configured threshold alerts"
+          icon={LineChart}
+          tone="blue"
+        />
+        <AlertSummaryCard
+          label="Normal"
+          value={normalAlerts}
+          helper="Rules below warning range"
+          icon={CircleCheck}
+          tone="green"
+        />
+        <AlertSummaryCard
+          label="Warning"
+          value={warningAlerts}
+          helper="Rules near threshold limit"
+          icon={TriangleAlert}
+          tone="orange"
+        />
+        <AlertSummaryCard
+          label="Critical"
+          value={criticalAlerts}
+          helper="Rules at or past threshold"
+          icon={ShieldAlert}
+          tone="red"
+        />
+      </Flex>
+
+      <HStack gap="3" wrap="wrap">
+        {filterOptions.map((filter) => {
+          const isActive = selectedFilter === filter.value
+
+          return (
+            <Button
+              key={filter.value}
+              bg={isActive ? 'blue.900' : 'white'}
+              borderColor={isActive ? 'blue.900' : 'gray.200'}
+              color={isActive ? 'white' : 'gray.700'}
+              size="sm"
+              variant="outline"
+              onClick={() => setSelectedFilter(filter.value)}
+              _hover={{
+                bg: isActive ? 'blue.900' : 'gray.50',
+                borderColor: isActive ? 'blue.900' : 'gray.300',
+              }}
+            >
+              {filter.label}
+              <Text as="span" color={isActive ? 'blue.100' : 'gray.400'}>
+                {filter.count}
+              </Text>
+            </Button>
+          )
+        })}
+      </HStack>
+
+      <AlertFormPanel
+        isOpen={isCreatePanelOpen}
+        onClose={() => setIsCreatePanelOpen(false)}
+        onCreateAlert={handleCreateAlert}
+      />
+
+      {notificationError && (
+        <Box bg="red.50" borderColor="red.200" borderWidth="1px" p="4">
+          <Text color="red.700" fontSize="sm" fontWeight="700">
+            {notificationError}
+          </Text>
+        </Box>
+      )}
+
+      <AlertList
+        title={getAlertListTitle(selectedFilter)}
+        alerts={filteredAlerts}
+        onDelete={handleDeleteAlert}
+        onRefresh={handleRefreshAlerts}
+        onUpdateThreshold={handleUpdateAlertThreshold}
+      />
     </Stack>
   )
 }

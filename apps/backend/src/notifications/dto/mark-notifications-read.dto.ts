@@ -19,4 +19,7 @@ export class MarkNotificationsReadDto {
     description: 'Required for role recipients.',
   })
   recipientRole?: string;
+
+  @ApiPropertyOptional({ example: 'government_alert_triggered' })
+  notificationType?: string;
 }
