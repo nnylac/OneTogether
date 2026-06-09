@@ -34,7 +34,7 @@ export class MapsService {
     const incident = await this.prisma.incidents.findUnique({
       where: { id: incidentId },
       include: {
-        resources: {
+        incident_resources: {
           orderBy: { dispatched_at: 'asc' },
         },
       },
@@ -44,8 +44,12 @@ export class MapsService {
       throw new NotFoundException('Incident not found');
     }
 
-    const resources = incident.resources.map((resource) =>
-      this.toResourceDto(resource, incident.lat, incident.lng),
+    const incidentLat =
+      incident.latitude == null ? null : Number(incident.latitude);
+    const incidentLng =
+      incident.longitude == null ? null : Number(incident.longitude);
+    const resources = incident.incident_resources.map((resource) =>
+      this.toResourceDto(resource, incidentLat, incidentLng),
     );
 
     return {
@@ -57,8 +61,8 @@ export class MapsService {
         severity: incident.severity,
         status: this.normaliseStatus(incident.inc_status),
         location: incident.inc_location,
-        lat: incident.lat,
-        lng: incident.lng,
+        lat: incidentLat,
+        lng: incidentLng,
       },
       resources,
       summary: this.summarise(resources),

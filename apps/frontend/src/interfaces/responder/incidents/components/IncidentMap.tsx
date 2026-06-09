@@ -587,7 +587,7 @@ const SUMMARY_ITEMS: Array<{ key: keyof LocalSummary; label: string; color: stri
   { key: 'onScene', label: 'On scene', color: '#22c55e' },
   { key: 'returning', label: 'Returning', color: '#a855f7' },
   { key: 'completed', label: 'Completed', color: '#14b8a6' },
-  { key: 'unavailable', label: 'Unavailable', color: '#9ca3af' },
+  
 ]
 
 function SummaryPanel({ summary }: { summary: LocalSummary }) {
