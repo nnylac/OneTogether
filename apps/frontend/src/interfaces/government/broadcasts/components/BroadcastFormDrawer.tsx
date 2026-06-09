@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useCallback, useState } from 'react'
 import {
   Box,
   Button,
@@ -12,8 +12,10 @@ import {
 } from '../../../../components/chakra-ui'
 import { AiDraftAssistant } from './AiDraftAssistant'
 import { BroadcastAudienceSelector } from './BroadcastAudienceSelector'
+import { BroadcastResponderOrganisationSelector } from './BroadcastResponderOrganisationSelector'
 import { BroadcastSeveritySelector } from './BroadcastSeveritySelector'
 import { BroadcastZoneSelector } from './BroadcastZoneSelector'
+import type { OrganisationApiDto } from '../../../responder/incidents/api/incidentsDto'
 import type {
   BroadcastAudience,
   BroadcastSeverity,
@@ -32,7 +34,9 @@ const initialFormState: NewBroadcastInput = {
   message: '',
   audience: 'Public',
   zone: 'Nationwide',
-  severity: 'Low',
+  responderOrganisationIds: [],
+  responderOrganisationNames: [],
+  severity: 'info',
 }
 
 function getAudienceLabel(audience: BroadcastAudience, zone: BroadcastZone) {
@@ -41,22 +45,22 @@ function getAudienceLabel(audience: BroadcastAudience, zone: BroadcastZone) {
   }
 
   if (audience === 'Responders') {
-    return 'all response teams'
+    return 'selected response teams'
   }
 
   return `residents and responders in ${zone}`
 }
 
 function getActionBySeverity(severity: BroadcastSeverity) {
-  if (severity === 'Critical') {
+  if (severity === 'critical') {
     return 'take immediate precautions, avoid the affected area, and follow official emergency instructions.'
   }
 
-  if (severity === 'High') {
+  if (severity === 'warning') {
     return 'avoid the affected area where possible, stay alert, and monitor official updates closely.'
   }
 
-  if (severity === 'Medium') {
+  if (severity === 'advisory') {
     return 'exercise caution, expect possible disruption, and check official channels for updates.'
   }
 
@@ -68,10 +72,12 @@ function getGeneratedDraft(form: NewBroadcastInput) {
   const action = getActionBySeverity(form.severity)
 
   const zoneText = form.audience === 'Zone' ? ` - ${form.zone}` : ''
+  const severityText =
+    form.severity.charAt(0).toUpperCase() + form.severity.slice(1)
 
-  const title = `${form.severity} Advisory${zoneText}`
+  const title = `${severityText} Advisory${zoneText}`
 
-  const message = `This is a ${form.severity.toLowerCase()} advisory for ${audienceLabel}. Please ${action} Further updates will be provided through OneTogether as the situation develops.`
+  const message = `This is a ${form.severity} advisory for ${audienceLabel}. Please ${action} Further updates will be provided through OneTogether as the situation develops.`
 
   return {
     title,
@@ -101,8 +107,31 @@ export function BroadcastFormDrawer({
       ...currentForm,
       audience,
       zone: audience === 'Zone' ? currentForm.zone : 'Nationwide',
+      responderOrganisationIds:
+        audience === 'Responders'
+          ? currentForm.responderOrganisationIds
+          : [],
+      responderOrganisationNames:
+        audience === 'Responders'
+          ? currentForm.responderOrganisationNames
+          : [],
     }))
   }
+
+  const handleSelectResponderOrganisations = useCallback(
+    (organisations: OrganisationApiDto[]) => {
+      setForm((currentForm) => ({
+        ...currentForm,
+        responderOrganisationIds: organisations.map(
+          (organisation) => organisation.id,
+        ),
+        responderOrganisationNames: organisations.map(
+          (organisation) => organisation.orgName,
+        ),
+      }))
+    },
+    [],
+  )
 
   function handleRegenerateDraft() {
     const generatedDraft = getGeneratedDraft(form)
@@ -115,7 +144,12 @@ export function BroadcastFormDrawer({
   }
 
   function handlePublish() {
-    if (!form.title.trim() || !form.message.trim()) {
+    if (
+      !form.title.trim() ||
+      !form.message.trim() ||
+      (form.audience === 'Responders' &&
+        form.responderOrganisationIds.length === 0)
+    ) {
       return
     }
 
@@ -173,6 +207,13 @@ export function BroadcastFormDrawer({
           />
         )}
 
+        {form.audience === 'Responders' && (
+          <BroadcastResponderOrganisationSelector
+            selectedOrganisationIds={form.responderOrganisationIds}
+            onSelectOrganisations={handleSelectResponderOrganisations}
+          />
+        )}
+
         <BroadcastSeveritySelector
           selectedSeverity={form.severity}
           onSelectSeverity={(severity: BroadcastSeverity) =>
@@ -219,7 +260,12 @@ export function BroadcastFormDrawer({
           <Button
             bg="blue.900"
             color="white"
-            disabled={!form.title.trim() || !form.message.trim()}
+            disabled={
+              !form.title.trim() ||
+              !form.message.trim() ||
+              (form.audience === 'Responders' &&
+                form.responderOrganisationIds.length === 0)
+            }
             onClick={handlePublish}
             _hover={{
               bg: 'blue.800',

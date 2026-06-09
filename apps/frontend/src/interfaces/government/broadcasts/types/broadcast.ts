@@ -1,5 +1,3 @@
-import type { IncidentSeverity } from '../../../responder/incidents/types'
-
 export type BroadcastAudience = 'Public' | 'Responders' | 'Zone'
 
 export type BroadcastZone =
@@ -10,7 +8,7 @@ export type BroadcastZone =
   | 'North'
   | 'South'
 
-export type BroadcastSeverity = IncidentSeverity
+export type BroadcastSeverity = 'info' | 'advisory' | 'warning' | 'critical'
 
 export type BroadcastFilter =
   | 'All'
@@ -23,6 +21,8 @@ export type GovernmentBroadcast = {
   message: string
   audience: BroadcastAudience
   zone?: BroadcastZone
+  responderOrganisationIds?: string[]
+  responderOrganisationNames?: string[]
   severity: BroadcastSeverity
   authorName: string
   createdAt: string
@@ -33,5 +33,7 @@ export type NewBroadcastInput = {
   message: string
   audience: BroadcastAudience
   zone: BroadcastZone
+  responderOrganisationIds: string[]
+  responderOrganisationNames: string[]
   severity: BroadcastSeverity
 }
