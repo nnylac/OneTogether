@@ -1,4 +1,8 @@
-import { BadRequestException, Injectable, NotFoundException } from '@nestjs/common';
+import {
+  BadRequestException,
+  Injectable,
+  NotFoundException,
+} from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
 @Injectable()
@@ -56,10 +60,7 @@ export class IncidentRoomService {
       where: { id: incidentId },
       select: {
         id: true,
-        discussions: {
-          orderBy: { created_at: 'asc' },
-          take: 1,
-        },
+        discussions: true,
       },
     });
 
@@ -67,7 +68,7 @@ export class IncidentRoomService {
       throw new NotFoundException('Incident not found');
     }
 
-    const discussion = incident.discussions[0];
+    const discussion = incident.discussions;
 
     if (discussion) {
       return discussion;

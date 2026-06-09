@@ -46,9 +46,7 @@ export class IncidentsService {
         logs: {
           orderBy: { created_at: 'desc' },
         },
-        discussions: {
-          orderBy: { created_at: 'desc' },
-        },
+        discussions: true,
         incident_sources: {
           orderBy: { last_synced_at: 'desc' },
         },
@@ -108,9 +106,7 @@ export class IncidentsService {
         logs: {
           orderBy: { created_at: 'desc' },
         },
-        discussions: {
-          orderBy: { created_at: 'desc' },
-        },
+        discussions: true,
         incident_sources: {
           orderBy: { last_synced_at: 'desc' },
         },
@@ -220,9 +216,7 @@ export class IncidentsService {
         logs: {
           orderBy: { created_at: 'desc' },
         },
-        discussions: {
-          orderBy: { created_at: 'desc' },
-        },
+        discussions: true,
         incident_sources: {
           orderBy: { last_synced_at: 'desc' },
         },
@@ -338,12 +332,16 @@ export class IncidentsService {
         content: log.content,
         createdAt: log.created_at,
       })),
-      discussions: incident.discussions?.map((discussion) => ({
-        id: discussion.id,
-        title: discussion.title,
-        createdAt: discussion.created_at,
-        updatedAt: discussion.updated_at,
-      })),
+      discussions: incident.discussions
+        ? [
+            {
+              id: incident.discussions.id,
+              title: incident.discussions.title,
+              createdAt: incident.discussions.created_at,
+              updatedAt: incident.discussions.updated_at,
+            },
+          ]
+        : [],
     };
   }
 

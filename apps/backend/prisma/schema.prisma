@@ -1,7 +1,8 @@
 generator client {
-  provider     = "prisma-client"
-  output       = "../generated/prisma"
-  moduleFormat = "cjs"
+  provider        = "prisma-client"
+  output          = "../generated/prisma"
+  previewFeatures = ["partialIndexes"]
+  moduleFormat    = "cjs"
 }
 
 datasource db {
@@ -26,7 +27,7 @@ model assigned_orgs {
 
 model discussions {
   id          String     @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
-  incident_id String     @db.Uuid
+  incident_id String     @unique @db.Uuid
   title       String     @db.VarChar(255)
   created_at  DateTime   @default(now()) @db.Timestamptz(6)
   updated_at  DateTime   @default(now()) @db.Timestamptz(6)
@@ -74,7 +75,7 @@ model incidents {
   resolved_at           DateTime?          @db.Timestamptz(6)
   confidence_score      Int?
   assigned_orgs         assigned_orgs[]
-  discussions           discussions[]
+  discussions           discussions?
   incident_sources      incident_sources[]
   logs                  logs[]
 
