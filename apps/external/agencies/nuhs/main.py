@@ -78,6 +78,7 @@ class NUHSSimulator(BaseAgencySimulator):
                 self._resource("nurse_on_duty", "Nurses On Duty", "personnel", nurses_total, nurses_available, nurses_deployed, nurses_reserved, nurses_maintenance),
             ],
         }
+        return payload
 
     def _resource(self, resource_id: str, name: str, category: str, total: int, available: int, deployed: int, reserved: int, maintenance: int) -> dict:
         return {
