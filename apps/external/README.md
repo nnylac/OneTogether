@@ -84,10 +84,20 @@ POST /handoff
 The scenario engine exposes:
 
 ```txt
+GET /
 GET /health
 GET /catalogue
 GET /active-incidents
+GET /automation
+POST /automation/pause
+POST /automation/resume
+POST /generate
 ```
+
+Open `http://localhost:8100/` for the scenario control page. Automatic random
+generation remains enabled by default and runs without the page being open.
+Pausing it stops only new random incidents; manual generation and already
+running incident phases continue.
 
 Examples:
 

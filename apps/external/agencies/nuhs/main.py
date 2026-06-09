@@ -7,7 +7,13 @@ import sys
 
 sys.path.insert(0, "/app/shared")
 from base_agency import BaseAgencySimulator
-from hospital_routing import capacity_snapshot, choose_transfer_target, get_hospital, hospitals_for_cluster
+from hospital_routing import (
+    capacity_snapshot,
+    choose_transfer_target,
+    get_hospital,
+    hospitals_for_cluster,
+    infer_patient_profile,
+)
 from models import AgencyID, IncidentTrigger, TicketStatus, new_id, utcnow
 
 logging.basicConfig(
@@ -129,7 +135,10 @@ class NUHSSimulator(BaseAgencySimulator):
 
     def build_ticket_payload(self, trigger: IncidentTrigger, ticket_id: str) -> dict:
         handoff = trigger.metadata.get("handoff", {})
-        patient_profile = handoff.get("patient_profile", "adult")
+        patient_profile = handoff.get(
+            "patient_profile",
+            infer_patient_profile(trigger),
+        )
         hospital_code = self._receiving_hospital(handoff)
         hospital = get_hospital(hospital_code) or hospitals_for_cluster(self.AGENCY_ID)[0]
         patient_count = int(handoff.get("patient_count", max(1, trigger.severity * random.randint(1, 3))))

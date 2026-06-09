@@ -7,7 +7,13 @@ import sys
 
 sys.path.insert(0, "/app/shared")
 from base_agency import BaseAgencySimulator
-from hospital_routing import capacity_snapshot, choose_transfer_target, get_hospital, hospitals_for_cluster
+from hospital_routing import (
+    capacity_snapshot,
+    choose_transfer_target,
+    get_hospital,
+    hospitals_for_cluster,
+    infer_patient_profile,
+)
 from models import AgencyID, IncidentTrigger, TicketStatus, new_id, utcnow
 
 logging.basicConfig(
@@ -280,12 +286,7 @@ class SingHealthSimulator(BaseAgencySimulator):
             log.warning("transfer failed: %s", exc)
 
     def _infer_patient_profile(self, trigger: IncidentTrigger) -> str:
-        text = f"{trigger.description} {trigger.location.name}".lower()
-        if "child" in text or "childcare" in text:
-            return "child"
-        if "pregnant" in text or "labour" in text:
-            return "maternity"
-        return "adult"
+        return infer_patient_profile(trigger)
 
     def _triage(self, severity: int, patient_count: int) -> dict:
         p1 = random.randint(0, max(0, severity - 3))
