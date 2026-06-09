@@ -1,4 +1,10 @@
 import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from 'react'
+import {
   BarChart3,
   Building2,
   Grid2X2,
@@ -11,6 +17,10 @@ import {
 } from 'lucide-react'
 import { ConsoleLayout } from '../../../components/layout/ConsoleLayout'
 import type { ConsoleNavItem, ConsoleSidebarTheme } from '../../../components/layout/ConsoleSidebar'
+import {
+  fetchUnreadGovernmentAlertNotificationCount,
+  markGovernmentAlertNotificationsRead,
+} from '../alerts/api/governmentAlertNotificationsApi'
 
 const navItems: ConsoleNavItem[] = [
   { label: 'Dashboard', href: '/government', icon: Grid2X2, end: true },
@@ -32,11 +42,70 @@ const sidebarTheme: ConsoleSidebarTheme = {
 }
 
 export function GovernmentLayout() {
+  const [alertNotificationCount, setAlertNotificationCount] = useState(0)
+
+  const refreshAlertNotificationCount = useCallback(() => {
+    fetchUnreadGovernmentAlertNotificationCount()
+      .then(setAlertNotificationCount)
+      .catch(() => setAlertNotificationCount(0))
+  }, [])
+
+  const handleGovernmentAlertNotificationCreated = useCallback(() => {
+    setAlertNotificationCount((currentCount) => currentCount + 1)
+  }, [])
+
+  const handleReadAlertNotifications = useCallback(() => {
+    if (alertNotificationCount === 0) {
+      return
+    }
+
+    setAlertNotificationCount(0)
+    markGovernmentAlertNotificationsRead().catch(() => {
+      fetchUnreadGovernmentAlertNotificationCount()
+        .then(setAlertNotificationCount)
+        .catch(() => setAlertNotificationCount(0))
+    })
+  }, [alertNotificationCount])
+
+  useEffect(() => {
+    refreshAlertNotificationCount()
+
+    const intervalId = window.setInterval(refreshAlertNotificationCount, 30000)
+    window.addEventListener(
+      'government-alert-notification-created',
+      handleGovernmentAlertNotificationCreated,
+    )
+
+    return () => {
+      window.clearInterval(intervalId)
+      window.removeEventListener(
+        'government-alert-notification-created',
+        handleGovernmentAlertNotificationCreated,
+      )
+    }
+  }, [handleGovernmentAlertNotificationCreated, refreshAlertNotificationCount])
+
+  const governmentNavItems = useMemo(
+    () =>
+      navItems.map((item) => {
+        if (item.label !== 'Alerts') {
+          return item
+        }
+
+        return {
+          ...item,
+          badgeCount: alertNotificationCount,
+          onClick: handleReadAlertNotifications,
+        }
+      }),
+    [alertNotificationCount, handleReadAlertNotifications],
+  )
+
   return (
     <ConsoleLayout
       brandIcon={Shield}
       brandSubtitle="Government"
-      navItems={navItems}
+      navItems={governmentNavItems}
       theme={sidebarTheme}
     />
   )
