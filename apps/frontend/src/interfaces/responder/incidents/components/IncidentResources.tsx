@@ -1,393 +1,240 @@
-import { Fragment, useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
-import { Pencil, Plus } from 'lucide-react'
+import { Activity, AlertTriangle } from 'lucide-react'
+import { Box, Flex, HStack, Heading, Icon, Text, VStack } from '../../../../components/chakra-ui'
+import { fetchIncidentMap } from '../api/incidentMapApi'
+import type { IncidentMapDto, IncidentMapResourceDto } from '../api/incidentMapDto'
 import {
-  Box,
-  Button,
-  Flex,
-  Heading,
-  Icon,
-  Select,
-  Text,
-  Textarea,
-  VStack,
-} from '../../../../components/chakra-ui'
-import {
-  assignOrganisationToIncident,
-  fetchOrganisations,
-  updateIncidentAssignedOrganisation,
-} from '../api/incidentsApi'
-import type { OrganisationApiDto } from '../api/incidentsDto'
-import type { IncidentResource, IncidentResourceStatus } from '../types'
+  formatClock,
+  formatDistance,
+  movementState,
+  movementStateColor,
+  movementStateLabel,
+  progressOf,
+  remainingMeters,
+} from '../api/incidentMapUtils'
 
-const resourceStatuses: IncidentResourceStatus[] = ['DISPATCHED', 'ON SCENE', 'COMPLETED']
+const REFRESH_MS = 2500
+const CLOCK_TICK_MS = 1000
 
 type IncidentResourcesProps = {
   incidentId: string
-  onResourcesChange: (resources: IncidentResource[]) => void
-  resources: IncidentResource[]
 }
 
-export function IncidentResources({
-  incidentId,
-  onResourcesChange,
-  resources,
-}: IncidentResourcesProps) {
-  const [assignmentError, setAssignmentError] = useState<string | null>(null)
-  const [isAssigning, setIsAssigning] = useState(false)
-  const [isAssignPanelOpen, setIsAssignPanelOpen] = useState(false)
-  const [openNotesResourceId, setOpenNotesResourceId] = useState<string | null>(null)
-  const [organisations, setOrganisations] = useState<OrganisationApiDto[]>([])
-  const [resourceUpdateError, setResourceUpdateError] = useState<string | null>(null)
-  const [savingResourceId, setSavingResourceId] = useState<string | null>(null)
-  const [selectedOrganisationId, setSelectedOrganisationId] = useState('')
+/**
+ * Read-only operational view of the resources committed to an incident. Shares the
+ * Map tab's live snapshot (`/api/maps/incidents/:id`) so the two stay consistent.
+ * Pure situational awareness — no assignment or editing controls.
+ */
+export function IncidentResources({ incidentId }: IncidentResourcesProps) {
+  const [snapshot, setSnapshot] = useState<IncidentMapDto | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState<string | null>(null)
+  const [nowMs, setNowMs] = useState(() => Date.now())
 
+  // Poll the snapshot; first load shows the loading state, refreshes are silent.
   useEffect(() => {
-    if (!isAssignPanelOpen || organisations.length > 0) {
-      return
-    }
-
     let isMounted = true
 
-    fetchOrganisations()
-      .then((loadedOrganisations) => {
-        if (isMounted) {
-          setOrganisations(loadedOrganisations)
-          setSelectedOrganisationId(loadedOrganisations[0]?.id ?? '')
-        }
-      })
-      .catch(() => {
-        if (isMounted) {
-          setAssignmentError('Unable to load organisations.')
-        }
-      })
+    async function load(showLoading: boolean) {
+      if (showLoading) {
+        setIsLoading(true)
+        setSnapshot(null)
+      }
+      try {
+        const data = await fetchIncidentMap(incidentId)
+        if (!isMounted) return
+        setSnapshot(data)
+        setError(null)
+      } catch {
+        if (isMounted) setError('Unable to load resource status.')
+      } finally {
+        if (showLoading && isMounted) setIsLoading(false)
+      }
+    }
 
+    void load(true)
+    const refreshId = window.setInterval(() => void load(false), REFRESH_MS)
     return () => {
       isMounted = false
+      window.clearInterval(refreshId)
     }
-  }, [isAssignPanelOpen, organisations.length])
+  }, [incidentId])
 
-  const assignedAgencies = new Set(resources.map((resource) => resource.agency))
-  const assignableOrganisations = organisations.filter(
-    (organisation) => !assignedAgencies.has(organisation.orgName),
-  )
-
+  // Steady clock so ETA-derived progress / distance stay live between polls.
   useEffect(() => {
-    if (
-      selectedOrganisationId &&
-      assignableOrganisations.some((organisation) => organisation.id === selectedOrganisationId)
-    ) {
-      return
+    const tickId = window.setInterval(() => setNowMs(Date.now()), CLOCK_TICK_MS)
+    return () => window.clearInterval(tickId)
+  }, [])
+
+  const resources = useMemo(() => snapshot?.resources ?? [], [snapshot])
+  const incidentCode = snapshot?.incident.code ?? incidentId
+
+  const counts = useMemo(() => {
+    let dispatched = 0
+    let enRoute = 0
+    let arrived = 0
+    for (const resource of resources) {
+      const state = movementState(resource.status, progressOf(resource, nowMs))
+      if (state === 'arrived') arrived += 1
+      else if (state === 'en_route') enRoute += 1
+      else if (state === 'dispatched') dispatched += 1
     }
+    return { total: resources.length, dispatched, enRoute, arrived }
+  }, [resources, nowMs])
 
-    setSelectedOrganisationId(assignableOrganisations[0]?.id ?? '')
-  }, [assignableOrganisations, selectedOrganisationId])
-
-  function updateResource(id: string, updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>) {
-    onResourcesChange(
-      resources.map((resource) =>
-        resource.id === id ? { ...resource, ...updates } : resource,
-      ),
-    )
+  if (isLoading) {
+    return <Notice tone="muted" title="Loading resource status…" body="Fetching dispatched units for this incident." />
   }
 
-  function getResourceOrganisationId(resource: IncidentResource) {
-    return resource.organisationId ?? resource.id.split(':')[1] ?? ''
-  }
-
-  async function persistResourceUpdate(
-    resource: IncidentResource,
-    updates: Partial<Pick<IncidentResource, 'notes' | 'status'>>,
-  ) {
-    const organisationId = getResourceOrganisationId(resource)
-
-    if (!organisationId) {
-      setResourceUpdateError('Unable to identify the assigned organisation.')
-      return
-    }
-
-    setResourceUpdateError(null)
-    setSavingResourceId(resource.id)
-
-    try {
-      const updatedIncident = await updateIncidentAssignedOrganisation(
-        incidentId,
-        organisationId,
-        updates,
-      )
-
-      onResourcesChange(updatedIncident.resources ?? [])
-    } catch (error) {
-      setResourceUpdateError(
-        error instanceof Error ? error.message : 'Unable to save resource updates.',
-      )
-      onResourcesChange(resources)
-    } finally {
-      setSavingResourceId(null)
-    }
-  }
-
-  async function updateResourceStatus(resource: IncidentResource, status: IncidentResourceStatus) {
-    updateResource(resource.id, { status })
-    await persistResourceUpdate(resource, { status })
-  }
-
-  async function closeResourceNotes(resource: IncidentResource) {
-    await persistResourceUpdate(resource, { notes: resource.notes })
-    setOpenNotesResourceId(null)
-  }
-
-  async function assignOrganisation() {
-    if (!selectedOrganisationId) {
-      return
-    }
-
-    setAssignmentError(null)
-    setIsAssigning(true)
-
-    try {
-      const updatedIncident = await assignOrganisationToIncident(
-        incidentId,
-        selectedOrganisationId,
-      )
-
-      onResourcesChange(updatedIncident.resources ?? [])
-      setIsAssignPanelOpen(false)
-    } catch {
-      setAssignmentError('Unable to assign organisation to this incident.')
-    } finally {
-      setIsAssigning(false)
-    }
+  if (error) {
+    return <Notice tone="error" title="Resource status unavailable" body={error} />
   }
 
   return (
     <Box flex="1" minH="0" overflowY="auto" p="6">
       <VStack align="stretch" gap="5">
-        <Flex justify="space-between" align={{ base: 'stretch', lg: 'center' }} gap="4" direction={{ base: 'column', lg: 'row' }}>
+        <Flex
+          justify="space-between"
+          align={{ base: 'stretch', lg: 'center' }}
+          gap="4"
+          direction={{ base: 'column', lg: 'row' }}
+        >
           <Box>
             <Heading size="xl" color="gray.900">
-              Assigned resources
+              Resource status
             </Heading>
             <Text color="gray.500" mt="1">
-              {resources.length} units deployed
+              Live situational awareness · Incident {incidentCode}
             </Text>
           </Box>
 
-          <Button
-            bg="purple.600"
-            color="white"
-            alignSelf={{ base: 'flex-start', lg: 'center' }}
-            onClick={() => {
-              setAssignmentError(null)
-              setIsAssignPanelOpen((isOpen) => !isOpen)
-            }}
-            _hover={{ bg: 'purple.700' }}
-          >
-            <Icon as={Plus} />
-            Assign unit
-          </Button>
+          <HStack gap="2" flexWrap="wrap">
+            <CountChip label="Total" value={counts.total} color="gray.700" />
+            <CountChip label="Dispatched" value={counts.dispatched} color="#3b82f6" />
+            <CountChip label="En route" value={counts.enRoute} color="#f59e0b" />
+            <CountChip label="Arrived" value={counts.arrived} color="#22c55e" />
+          </HStack>
         </Flex>
 
-        {isAssignPanelOpen && (
-          <Box bg="gray.50" borderColor="gray.200" borderWidth="1px" p="4">
-            <Flex
-              align={{ base: 'stretch', md: 'end' }}
-              direction={{ base: 'column', md: 'row' }}
-              gap="3"
-            >
-              <Box flex="1">
-                <Text color="gray.700" fontSize="sm" fontWeight="700" mb="2">
-                  Organisation
-                </Text>
-                <Select
-                  aria-label="Organisation to assign"
-                  onChange={(event) => setSelectedOrganisationId(event.currentTarget.value)}
-                  value={selectedOrganisationId}
-                >
-                  {assignableOrganisations.length > 0 ? (
-                    assignableOrganisations.map((organisation) => (
-                      <option key={organisation.id} value={organisation.id}>
-                        {organisation.orgName}
-                      </option>
-                    ))
-                  ) : (
-                    <option value="">No organisations available</option>
-                  )}
-                </Select>
+        {resources.length === 0 ? (
+          <Box bg="white" borderWidth="1px" borderColor="gray.200" px="5" py="8" textAlign="center">
+            <Text color="gray.500" fontWeight="600">
+              No resources dispatched to this incident yet.
+            </Text>
+          </Box>
+        ) : (
+          <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
+            <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="860px">
+              <Box as="colgroup">
+                <Box as="col" width="22%" />
+                <Box as="col" width="13%" />
+                <Box as="col" width="12%" />
+                <Box as="col" width="11%" />
+                <Box as="col" width="13%" />
+                <Box as="col" width="14%" />
+                <Box as="col" width="15%" />
               </Box>
 
-              <Button
-                bg="gray.900"
-                color="white"
-                disabled={!selectedOrganisationId || isAssigning}
-                onClick={assignOrganisation}
-                _hover={{ bg: 'gray.800' }}
-              >
-                {isAssigning ? 'Assigning...' : 'Assign'}
-              </Button>
-            </Flex>
+              <Box as="thead" bg="gray.50">
+                <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
+                  <HeaderCell>Organisation</HeaderCell>
+                  <HeaderCell>State</HeaderCell>
+                  <HeaderCell>Departed</HeaderCell>
+                  <HeaderCell>ETA</HeaderCell>
+                  <HeaderCell>Est. arrival</HeaderCell>
+                  <HeaderCell>Dist. remaining</HeaderCell>
+                  <HeaderCell>Notes</HeaderCell>
+                </Box>
+              </Box>
 
-            {assignmentError && (
-              <Text color="red.600" fontSize="sm" fontWeight="700" mt="3">
-                {assignmentError}
-              </Text>
-            )}
+              <Box as="tbody">
+                {resources.map((resource) => (
+                  <ResourceRow key={resource.id} resource={resource} nowMs={nowMs} />
+                ))}
+              </Box>
+            </Box>
           </Box>
         )}
+      </VStack>
+    </Box>
+  )
+}
 
-        {resourceUpdateError && (
-          <Text color="red.600" fontSize="sm" fontWeight="700">
-            {resourceUpdateError}
+function ResourceRow({ resource, nowMs }: { resource: IncidentMapResourceDto; nowMs: number }) {
+  const progress = progressOf(resource, nowMs)
+  const state = movementState(resource.status, progress)
+  const arrived = state === 'arrived'
+  const stateColor = movementStateColor(state)
+
+  const eta =
+    !arrived && resource.etaMinutes != null ? `${resource.etaMinutes} min` : '—'
+  const estArrival = !arrived ? formatClock(resource.etaAt) || '—' : '—'
+  const remaining = remainingMeters(resource, nowMs)
+  const distance = !arrived && remaining != null ? formatDistance(remaining) : '—'
+
+  return (
+    <Box as="tr" borderBottomWidth="1px" borderColor="gray.100" _hover={{ bg: 'gray.50' }}>
+      <BodyCell>
+        <Text color="gray.900" fontWeight="700" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+          {resource.agency}
+        </Text>
+        {resource.originStation && (
+          <Text color="gray.500" fontSize="xs" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+            {resource.originStation}
           </Text>
         )}
+      </BodyCell>
 
-        <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-          <Box as="table" width="100%" borderCollapse="collapse" tableLayout="fixed" minW="920px">
-            <Box as="colgroup">
-              <Box as="col" width="22%" />
-              <Box as="col" width="13%" />
-              <Box as="col" width="17%" />
-              <Box as="col" width="20%" />
-              <Box as="col" width="13%" />
-              <Box as="col" width="15%" />
-            </Box>
+      <BodyCell>
+        <HStack gap="2" minW="0">
+          <Box width="8px" height="8px" borderRadius="full" bg={stateColor} flexShrink="0" />
+          <Text color="gray.700" fontWeight="600" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+            {movementStateLabel(state)}
+          </Text>
+        </HStack>
+      </BodyCell>
 
-            <Box as="thead" bg="gray.50">
-              <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
-                <HeaderCell>Unit</HeaderCell>
-                <HeaderCell>Agency</HeaderCell>
-                <HeaderCell>Type</HeaderCell>
-                <HeaderCell>Assigned</HeaderCell>
-                <HeaderCell textAlign="center">Status</HeaderCell>
-                <HeaderCell>Notes</HeaderCell>
-              </Box>
-            </Box>
+      <BodyCell>
+        <Text color="gray.600">{formatClock(resource.dispatchedAt) || '—'}</Text>
+      </BodyCell>
 
-            <Box as="tbody">
-              {resources.map((resource) => (
-                <Fragment key={resource.id}>
-                  <Box
-                    as="tr"
-                    borderBottomWidth="1px"
-                    borderColor="gray.100"
-                    _hover={{ bg: 'gray.50' }}
-                  >
-                    <BodyCell>
-                      <Text color="gray.900" fontWeight="700">
-                        {resource.unit}
-                      </Text>
-                    </BodyCell>
+      <BodyCell>
+        <Text color="gray.600">{eta}</Text>
+      </BodyCell>
 
-                    <BodyCell>
-                      <Text color="gray.700" fontWeight="700">
-                        {resource.agency}
-                      </Text>
-                    </BodyCell>
+      <BodyCell>
+        <Text color="gray.600">{estArrival}</Text>
+      </BodyCell>
 
-                    <BodyCell>
-                      <Text color="gray.600">{resource.type}</Text>
-                    </BodyCell>
+      <BodyCell>
+        <Text color="gray.600">{distance}</Text>
+      </BodyCell>
 
-                    <BodyCell>
-                      <Text color="gray.600">{resource.assignedAt}</Text>
-                    </BodyCell>
+      <BodyCell>
+        <Text
+          color={resource.notes ? 'gray.700' : 'gray.400'}
+          overflow="hidden"
+          textOverflow="ellipsis"
+          whiteSpace="nowrap"
+          title={resource.notes ?? undefined}
+        >
+          {resource.notes || '—'}
+        </Text>
+      </BodyCell>
+    </Box>
+  )
+}
 
-                    <BodyCell textAlign="center">
-                      <Select
-                        aria-label={`${resource.unit} status`}
-                        onChange={(event) => {
-                          void updateResourceStatus(
-                            resource,
-                            event.currentTarget.value as IncidentResourceStatus,
-                          )
-                        }}
-                        rootProps={{ disabled: savingResourceId === resource.id }}
-                        value={resource.status}
-                      >
-                        {resourceStatuses.map((status) => (
-                          <option key={status} value={status}>
-                            {status}
-                          </option>
-                        ))}
-                      </Select>
-                    </BodyCell>
-
-                    <BodyCell>
-                      <Button
-                        aria-expanded={openNotesResourceId === resource.id}
-                        color="gray.600"
-                        fontWeight="600"
-                        gap="2"
-                        justifyContent="space-between"
-                        maxW="100%"
-                        minW="0"
-                        onClick={() =>
-                          setOpenNotesResourceId((currentId) =>
-                            currentId === resource.id ? null : resource.id,
-                          )
-                        }
-                        px="0"
-                        variant="ghost"
-                        width="100%"
-                        _hover={{ bg: 'transparent', color: 'gray.900' }}
-                      >
-                        <Text overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                          {resource.notes || 'Add notes'}
-                        </Text>
-                        <Icon as={Pencil} color="gray.500" flexShrink="0" boxSize="4" />
-                      </Button>
-                    </BodyCell>
-                  </Box>
-
-                  {openNotesResourceId === resource.id && (
-                    <Box as="tr" borderBottomWidth="1px" borderColor="gray.100">
-                      <td colSpan={6}>
-                        <Box bg="gray.50" px="5" py="4">
-                          <Flex justify="space-between" align="center" gap="3" mb="3">
-                            <Box>
-                              <Text color="gray.900" fontWeight="700">
-                                Resource notes
-                              </Text>
-                              <Text color="gray.500" fontSize="sm">
-                                {resource.unit}
-                              </Text>
-                            </Box>
-                            <Button
-                              borderColor="gray.300"
-                              borderWidth="1px"
-                              disabled={savingResourceId === resource.id}
-                              onClick={() => {
-                                void closeResourceNotes(resource)
-                              }}
-                              variant="ghost"
-                            >
-                              {savingResourceId === resource.id ? 'Saving...' : 'Done'}
-                            </Button>
-                          </Flex>
-
-                          <Textarea
-                            aria-label={`${resource.unit} full notes`}
-                            bg="white"
-                            borderColor="gray.300"
-                            minH="32"
-                            onChange={(event) =>
-                              updateResource(resource.id, { notes: event.currentTarget.value })
-                            }
-                            placeholder="Add notes for this resource"
-                            resize="vertical"
-                            value={resource.notes}
-                            _focus={{ borderColor: 'purple.500', outline: 'none' }}
-                          />
-                        </Box>
-                      </td>
-                    </Box>
-                  )}
-                </Fragment>
-              ))}
-            </Box>
-          </Box>
-        </Box>
-      </VStack>
+function CountChip({ label, value, color }: { label: string; value: number; color: string }) {
+  return (
+    <Box borderWidth="1px" borderColor="gray.200" borderRadius="sm" px="3" py="1.5" minW="84px">
+      <Text fontSize="lg" fontWeight="700" color={color} lineHeight="1.1">
+        {value}
+      </Text>
+      <Text fontSize="xs" color="gray.500" fontWeight="600" textTransform="uppercase">
+        {label}
+      </Text>
     </Box>
   )
 }
@@ -406,7 +253,7 @@ function HeaderCell({
       fontSize="xs"
       fontWeight="700"
       letterSpacing="0"
-      px="5"
+      px="4"
       py="3"
       textAlign={textAlign}
       textTransform="uppercase"
@@ -424,8 +271,44 @@ function BodyCell({
   textAlign?: 'left' | 'center' | 'right'
 }) {
   return (
-    <Box as="td" px="5" py="4" textAlign={textAlign} verticalAlign="middle">
+    <Box as="td" px="4" py="3" textAlign={textAlign} verticalAlign="middle">
       {children}
+    </Box>
+  )
+}
+
+function Notice({
+  tone,
+  title,
+  body,
+}: {
+  tone: 'muted' | 'error'
+  title: string
+  body: string
+}) {
+  const palette = {
+    muted: { bg: 'gray.50', border: 'gray.200', color: 'gray.700', icon: Activity },
+    error: { bg: 'red.50', border: 'red.200', color: 'red.700', icon: AlertTriangle },
+  }[tone]
+
+  return (
+    <Box flex="1" minH="0" p="6">
+      <Box
+        bg={palette.bg}
+        borderWidth="1px"
+        borderColor={palette.border}
+        color={palette.color}
+        px="6"
+        py="5"
+      >
+        <Icon as={palette.icon} boxSize="5" />
+        <Heading size="sm" mt="2">
+          {title}
+        </Heading>
+        <Text fontSize="sm" mt="1">
+          {body}
+        </Text>
+      </Box>
     </Box>
   )
 }

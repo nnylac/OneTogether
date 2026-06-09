@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import type { AssignedOrganisationStatus } from '../incidents/assigned-organisation-status';
 import { PrismaService } from '../prisma/prisma.service';
 import { IncidentNormalizerService } from './incident-normalizer.service';
+import { IncidentResourceExtractorService } from './incident-resource-extractor.service';
 import {
   NormalizedIncidentTicket,
   RawAgencyMessage,
@@ -18,6 +19,7 @@ export class IncidentMiddlewareService {
     private readonly normalizer: IncidentNormalizerService,
     private readonly analyzer: SemanticIncidentAnalyzerService,
     private readonly analysisService: IncidentAnalysisService,
+    private readonly resourceExtractor: IncidentResourceExtractorService,
   ) {}
 
   async ingest(message: RawAgencyMessage) {
@@ -51,11 +53,21 @@ export class IncidentMiddlewareService {
     const incident = resolved.incident;
 
     await this.upsertSource(incident.id, normalized.externalTicketId);
+    await this.upsertSource(incident.id, normalized.externalIncidentId);
     await this.assignOrganisation(
       incident.id,
       normalized.orgId,
       normalized.status,
       normalized.title,
+    );
+    await this.resourceExtractor.extract(
+      incident.id,
+      normalized.agencyId,
+      normalized.status,
+      incident.latitude != null && incident.longitude != null
+        ? { lat: Number(incident.latitude), lng: Number(incident.longitude) }
+        : null,
+      message,
     );
     await this.createLog(
       incident.id,
