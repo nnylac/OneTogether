@@ -24,11 +24,22 @@ const broadcastFilters: BroadcastFilter[] = [
   'Public',
   'Responders',
   'Zone',
-  'Low',
-  'Medium',
-  'High',
-  'Critical',
+  'info',
+  'advisory',
+  'warning',
+  'critical',
 ]
+
+const broadcastFilterLabels: Record<BroadcastFilter, string> = {
+  All: 'All',
+  Public: 'Public',
+  Responders: 'Responders',
+  Zone: 'Zone',
+  info: 'Info',
+  advisory: 'Advisory',
+  warning: 'Warning',
+  critical: 'Critical',
+}
 
 function getCurrentBroadcastTime() {
   return new Intl.DateTimeFormat('en-SG', {
@@ -68,7 +79,7 @@ function getBroadcastListTitle(selectedFilter: BroadcastFilter) {
     return 'All Broadcasts'
   }
 
-  return `${selectedFilter} Broadcasts`
+  return `${broadcastFilterLabels[selectedFilter]} Broadcasts`
 }
 
 export function GovernmentBroadcastsPage() {
@@ -80,7 +91,8 @@ export function GovernmentBroadcastsPage() {
 
   const filterOptions = useMemo(() => {
     return broadcastFilters.map((filter) => ({
-      label: filter,
+      label: broadcastFilterLabels[filter],
+      value: filter,
       count: countBroadcastsForFilter(broadcasts, filter),
     }))
   }, [broadcasts])
@@ -98,6 +110,14 @@ export function GovernmentBroadcastsPage() {
       message: newBroadcast.message,
       audience: newBroadcast.audience,
       zone: newBroadcast.audience === 'Zone' ? newBroadcast.zone : undefined,
+      responderOrganisationIds:
+        newBroadcast.audience === 'Responders'
+          ? newBroadcast.responderOrganisationIds
+          : undefined,
+      responderOrganisationNames:
+        newBroadcast.audience === 'Responders'
+          ? newBroadcast.responderOrganisationNames
+          : undefined,
       severity: newBroadcast.severity,
       authorName: 'Raj Kumar',
       createdAt: getCurrentBroadcastTime(),

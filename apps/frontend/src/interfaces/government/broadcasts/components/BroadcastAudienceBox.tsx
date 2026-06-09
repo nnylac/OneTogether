@@ -1,4 +1,4 @@
-import { Box, Text } from '../../../../components/chakra-ui'
+import { Button, Text } from '../../../../components/chakra-ui'
 
 type BroadcastAudienceBoxProps = {
   title: string
@@ -14,17 +14,20 @@ export function BroadcastAudienceBox({
   onClick,
 }: BroadcastAudienceBoxProps) {
   return (
-    <Box
-      as="button"
-      type="button"
+    <Button
       bg={isActive ? 'blue.50' : 'white'}
       borderColor={isActive ? 'blue.700' : 'gray.200'}
       borderWidth="1px"
       cursor="pointer"
+      display="block"
+      h="auto"
       minH="20"
       p="4"
       textAlign="left"
       transition="all 0.15s ease"
+      variant="ghost"
+      whiteSpace="normal"
+      w="100%"
       onClick={onClick}
       _hover={{
         bg: isActive ? 'blue.50' : 'gray.50',
@@ -38,6 +41,6 @@ export function BroadcastAudienceBox({
       <Text color="gray.500" fontSize="xs" mt="1">
         {description}
       </Text>
-    </Box>
+    </Button>
   )
 }

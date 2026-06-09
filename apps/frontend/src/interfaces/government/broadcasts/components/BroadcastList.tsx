@@ -1,4 +1,12 @@
-import { Box, Button, Flex, Stack, Text } from '../../../../components/chakra-ui'
+import { RefreshCcw } from 'lucide-react'
+import {
+  Box,
+  Button,
+  Flex,
+  Icon,
+  Stack,
+  Text,
+} from '../../../../components/chakra-ui'
 import { BroadcastListItem } from './BroadcastListItem'
 import type { GovernmentBroadcast } from '../types/broadcast'
 
@@ -23,14 +31,15 @@ export function BroadcastList({
         </Text>
 
         <Button
-          color="green.600"
+          bg="green.600"
+          color="white"
           size="sm"
-          variant="ghost"
           onClick={onRefresh}
           _hover={{
-            bg: 'green.50',
+            bg: 'green.700',
           }}
         >
+          <Icon as={RefreshCcw} />
           Refresh
         </Button>
       </Flex>

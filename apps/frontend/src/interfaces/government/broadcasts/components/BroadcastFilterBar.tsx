@@ -3,7 +3,8 @@ import { BroadcastFilterBadge } from './BroadcastFilterBadge'
 import type { BroadcastFilter } from '../types/broadcast'
 
 type BroadcastFilterOption = {
-  label: BroadcastFilter
+  label: string
+  value: BroadcastFilter
   count: number
 }
 
@@ -22,11 +23,11 @@ export function BroadcastFilterBar({
     <HStack gap="3" wrap="wrap">
       {filters.map((filter) => (
         <BroadcastFilterBadge
-          key={filter.label}
+          key={filter.value}
           label={filter.label}
           count={filter.count}
-          isActive={selectedFilter === filter.label}
-          onClick={() => onSelectFilter(filter.label)}
+          isActive={selectedFilter === filter.value}
+          onClick={() => onSelectFilter(filter.value)}
         />
       ))}
     </HStack>

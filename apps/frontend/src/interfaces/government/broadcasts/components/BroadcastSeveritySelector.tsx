@@ -7,10 +7,10 @@ type BroadcastSeveritySelectorProps = {
 }
 
 const severityOptions: BroadcastSeverity[] = [
-  'Low',
-  'Medium',
-  'High',
-  'Critical',
+  'info',
+  'advisory',
+  'warning',
+  'critical',
 ]
 
 const severityStyles: Record<
@@ -23,34 +23,41 @@ const severityStyles: Record<
     activeColor: string
   }
 > = {
-  Low: {
+  info: {
     bg: 'green.50',
     borderColor: 'green.200',
     color: 'green.700',
     activeBg: 'green.600',
     activeColor: 'white',
   },
-  Medium: {
+  advisory: {
     bg: 'yellow.50',
     borderColor: 'yellow.200',
     color: 'yellow.800',
     activeBg: 'yellow.500',
     activeColor: 'white',
   },
-  High: {
+  warning: {
     bg: 'orange.50',
     borderColor: 'orange.200',
     color: 'orange.700',
     activeBg: 'orange.500',
     activeColor: 'white',
   },
-  Critical: {
+  critical: {
     bg: 'red.50',
     borderColor: 'red.200',
     color: 'red.700',
     activeBg: 'red.600',
     activeColor: 'white',
   },
+}
+
+const severityLabels: Record<BroadcastSeverity, string> = {
+  info: 'Info',
+  advisory: 'Advisory',
+  warning: 'Warning',
+  critical: 'Critical',
 }
 
 export function BroadcastSeveritySelector({
@@ -86,7 +93,7 @@ export function BroadcastSeveritySelector({
                 borderColor: isActive ? styles.activeBg : styles.borderColor,
               }}
             >
-              {severity}
+              {severityLabels[severity]}
             </Button>
           )
         })}

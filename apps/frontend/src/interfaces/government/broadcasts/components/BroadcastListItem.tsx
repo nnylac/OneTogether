@@ -41,6 +41,14 @@ export function BroadcastListItem({
           {broadcast.audience === 'Zone' && broadcast.zone && (
             <BroadcastTypeBadge label={broadcast.zone} />
           )}
+
+          {broadcast.audience === 'Responders' &&
+            broadcast.responderOrganisationNames?.map((organisationName) => (
+              <BroadcastTypeBadge
+                key={organisationName}
+                label={organisationName}
+              />
+            ))}
         </HStack>
 
         <Text color="gray.600" fontSize="sm">
@@ -48,7 +56,7 @@ export function BroadcastListItem({
         </Text>
 
         <Text color="gray.500" fontSize="xs">
-          {broadcast.authorName} · {broadcast.createdAt}
+          {broadcast.authorName} - {broadcast.createdAt}
         </Text>
       </Stack>
 
