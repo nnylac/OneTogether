@@ -3,7 +3,7 @@ import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
 import type { BroadcastAudience, BroadcastZone } from '../types/broadcast'
 
 type BroadcastTypeBadgeProps = {
-  label: BroadcastAudience | BroadcastZone
+  label: BroadcastAudience | BroadcastZone | string
 }
 
 const badgeTones: Record<string, LabelBoxTone> = {
