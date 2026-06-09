@@ -3,7 +3,8 @@ import { IncidentFilterBadge } from './IncidentFilterBadge'
 import type { GovernmentIncidentFilter } from '../types/incident'
 
 type IncidentFilterOption = {
-  label: GovernmentIncidentFilter
+  label: string
+  value: GovernmentIncidentFilter
   count: number
 }
 
@@ -22,11 +23,11 @@ export function IncidentFilterBar({
     <HStack gap="3" wrap="wrap">
       {filters.map((filter) => (
         <IncidentFilterBadge
-          key={filter.label}
+          key={filter.value}
           label={filter.label}
           count={filter.count}
-          isActive={selectedFilter === filter.label}
-          onClick={() => onSelectFilter(filter.label)}
+          isActive={selectedFilter === filter.value}
+          onClick={() => onSelectFilter(filter.value)}
         />
       ))}
     </HStack>
