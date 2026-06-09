@@ -1,4 +1,4 @@
-import type { GovernmentIncident } from '../types'
+import type { GovernmentIncident } from '../types/incident'
 
 export const sampleGovernmentIncidents: GovernmentIncident[] = [
   {
@@ -7,12 +7,11 @@ export const sampleGovernmentIncidents: GovernmentIncident[] = [
     description: 'Unconscious commuter. AED deployed by station staff.',
     severity: 'Critical',
     incidentType: 'Medical',
-    visibility: 'Private',
-    status: 'Open',
+    status: 'active',
     location: 'Orchard MRT Exit B',
     createdAt: '20 May 2026, 01:42 pm',
     assignedOrgs: ['SCDF', 'SGH'],
-    respondingUnits: 2,
+    assignedResources: [],
     volunteerCount: 0,
   },
   {
@@ -21,13 +20,12 @@ export const sampleGovernmentIncidents: GovernmentIncident[] = [
     description: 'Flash flooding affecting pedestrian underpasses and low-lying roads.',
     severity: 'Critical',
     incidentType: 'Flood',
-    visibility: 'Public',
-    status: 'In Progress',
+    status: 'active',
     location: 'Orchard Road / Scotts Road',
     createdAt: '20 May 2026, 01:50 pm',
     assignedOrgs: ['SCDF', 'SPF', 'REDCROSS'],
-    respondingUnits: 7,
-    volunteerCount: 14,
+    assignedResources: [],
+    volunteerCount: 0,
   },
   {
     id: 'INC-2026-0521',
@@ -35,12 +33,11 @@ export const sampleGovernmentIncidents: GovernmentIncident[] = [
     description: 'Worker fall injury. Trauma bay notified.',
     severity: 'High',
     incidentType: 'Medical',
-    visibility: 'Private',
-    status: 'Dispatched',
+    status: 'active',
     location: 'Marina Bay construction zone',
     createdAt: '20 May 2026, 01:36 pm',
     assignedOrgs: ['SGH', 'SCDF'],
-    respondingUnits: 1,
+    assignedResources: [],
     volunteerCount: 0,
   },
   {
@@ -49,12 +46,11 @@ export const sampleGovernmentIncidents: GovernmentIncident[] = [
     description: 'Power fault causing crowding and station closures.',
     severity: 'High',
     incidentType: 'Infrastructure',
-    visibility: 'Public',
-    status: 'Open',
+    status: 'active',
     location: 'North-South Line',
     createdAt: '20 May 2026, 01:50 pm',
     assignedOrgs: ['SPF'],
-    respondingUnits: 3,
+    assignedResources: [],
     volunteerCount: 0,
   },
 ]

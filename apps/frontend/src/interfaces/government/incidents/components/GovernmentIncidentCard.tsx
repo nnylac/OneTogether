@@ -1,11 +1,10 @@
-import { Box, Flex, Heading, HStack, Stack, Text } from '../../../../components/chakra-ui'
+import { Box, Flex, Heading, HStack, Text } from '../../../../components/chakra-ui'
 import { LabelBox } from '../../../../components/ui/LabelBox'
 import type { LabelBoxTone } from '../../../../components/ui/LabelBox'
 import { IncidentDetailBox } from './IncidentDetailBox'
 import type {
   GovernmentIncident,
   GovernmentIncidentStatus,
-  GovernmentIncidentVisibility,
 } from '../types/incident'
 import type { IncidentSeverity } from '../../../responder/incidents/types'
 
@@ -21,16 +20,8 @@ const severityTones: Record<IncidentSeverity, LabelBoxTone> = {
 }
 
 const statusTones: Record<GovernmentIncidentStatus, LabelBoxTone> = {
-  Open: 'gray',
-  Triage: 'purple',
-  Dispatched: 'blue',
-  'In Progress': 'orange',
-  Resolved: 'teal',
-}
-
-const visibilityTones: Record<GovernmentIncidentVisibility, LabelBoxTone> = {
-  Public: 'green',
-  Private: 'gray',
+  active: 'orange',
+  closed: 'teal',
 }
 
 function getIncidentTypeTone(incidentType: string): LabelBoxTone {
@@ -51,7 +42,16 @@ function getIncidentTypeTone(incidentType: string): LabelBoxTone {
   return 'gray'
 }
 
-export function GovernmentIncidentCard({ incident }: GovernmentIncidentCardProps) {
+export function GovernmentIncidentCard({
+  incident,
+}: GovernmentIncidentCardProps) {
+  const assignedResourceSummary =
+    incident.assignedResources.length > 0
+      ? incident.assignedResources
+          .map((resource) => `${resource.agency} ${resource.unit}`)
+          .join(', ')
+      : 'None assigned'
+
   return (
     <Box
       bg="white"
@@ -84,14 +84,10 @@ export function GovernmentIncidentCard({ incident }: GovernmentIncidentCardProps
         <LabelBox tone={getIncidentTypeTone(incident.incidentType)}>
           {incident.incidentType.toUpperCase()}
         </LabelBox>
-
-        <LabelBox tone={visibilityTones[incident.visibility]}>
-          {incident.visibility.toUpperCase()}
-        </LabelBox>
       </HStack>
 
       <Text color="gray.600" fontSize="sm" mt="4">
-        {incident.description}
+        {incident.description ?? 'No description provided.'}
       </Text>
 
       <Box
@@ -100,18 +96,27 @@ export function GovernmentIncidentCard({ incident }: GovernmentIncidentCardProps
         gap="3"
         mt="5"
       >
-        <IncidentDetailBox label="Location" value={incident.location} />
+        <IncidentDetailBox
+          label="Location"
+          value={incident.location ?? 'Location unavailable'}
+        />
 
         <IncidentDetailBox label="Created" value={incident.createdAt} />
 
         <IncidentDetailBox
           label="Assigned"
-          value={incident.assignedOrgs.join(', ')}
+          value={
+            incident.assignedOrgs.length > 0
+              ? incident.assignedOrgs.join(', ')
+              : 'None assigned'
+          }
         />
 
+        <IncidentDetailBox label="Resources" value={assignedResourceSummary} />
+
         <IncidentDetailBox
-          label="Responding"
-          value={`${incident.respondingUnits} units · ${incident.volunteerCount} volunteers`}
+          label="Volunteers"
+          value={`${incident.volunteerCount} volunteers`}
         />
       </Box>
     </Box>
