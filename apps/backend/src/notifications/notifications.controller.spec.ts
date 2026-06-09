@@ -108,6 +108,7 @@ describe('NotificationsController', () => {
     const dto: MarkNotificationsReadDto = {
       recipientType: 'organisation',
       recipientId: notification.recipients[0].recipientId!,
+      notificationType: 'government_alert_triggered',
     };
     service.markAllAsRead.mockResolvedValue({ count: 2 });
 

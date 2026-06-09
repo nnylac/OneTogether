@@ -20,6 +20,8 @@ export type ConsoleNavItem = {
   href: string
   icon: ElementType
   end?: boolean
+  badgeCount?: number
+  onClick?: () => void
 }
 
 export type ConsoleSidebarTheme = {
@@ -64,11 +66,24 @@ function ConsoleSidebarNavLink({
       _hover={{ bg: theme.hoverBg, color: theme.hoverColor }}
     >
       <NavLink to={item.href} end={item.end} style={getNavLinkStyle(theme)}>
-        <HStack w="100%" px="3">
+        <HStack w="100%" px="3" onClick={item.onClick}>
           <Icon as={item.icon} />
-          <Text fontSize="sm" fontWeight="600">
+          <Text fontSize="sm" fontWeight="600" flex="1">
             {item.label}
           </Text>
+          {item.badgeCount !== undefined && item.badgeCount > 0 && (
+            <Badge
+              bg="red.600"
+              borderRadius="full"
+              color="white"
+              minW="5"
+              px="2"
+              py="0.5"
+              textAlign="center"
+            >
+              {item.badgeCount}
+            </Badge>
+          )}
         </HStack>
       </NavLink>
     </Button>
