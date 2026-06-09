@@ -75,11 +75,21 @@ resource "aws_security_group" "rds" {
   vpc_id      = aws_vpc.main.id
 
   ingress {
-    description     = "PostgreSQL from EKS nodes"
+    description     = "PostgreSQL from EKS nodes (custom SG)"
     from_port       = 5432
     to_port         = 5432
     protocol        = "tcp"
     security_groups = [aws_security_group.eks_nodes.id]
+  }
+
+  # EKS managed node groups also attach the auto-created cluster security group.
+  # Traffic from pods reaches RDS via that SG, not our custom eks_nodes SG.
+  ingress {
+    description     = "PostgreSQL from EKS cluster SG (auto-created by EKS)"
+    from_port       = 5432
+    to_port         = 5432
+    protocol        = "tcp"
+    security_groups = [aws_eks_cluster.main.vpc_config[0].cluster_security_group_id]
   }
 
   ingress {

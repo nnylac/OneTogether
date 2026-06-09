@@ -282,6 +282,8 @@ resource "aws_iam_policy" "aws_lb_controller" {
           "elasticloadbalancing:DescribeLoadBalancerAttributes",
           "elasticloadbalancing:DescribeListeners",
           "elasticloadbalancing:DescribeListenerCertificates",
+          "elasticloadbalancing:DescribeListenerAttributes",
+          "elasticloadbalancing:DescribeCapacityReservation",
           "elasticloadbalancing:DescribeSSLPolicies",
           "elasticloadbalancing:DescribeRules",
           "elasticloadbalancing:DescribeTargetGroups",
@@ -402,7 +404,9 @@ resource "aws_iam_policy" "aws_lb_controller" {
           "elasticloadbalancing:DeleteLoadBalancer",
           "elasticloadbalancing:ModifyTargetGroup",
           "elasticloadbalancing:ModifyTargetGroupAttributes",
-          "elasticloadbalancing:DeleteTargetGroup"
+          "elasticloadbalancing:DeleteTargetGroup",
+          "elasticloadbalancing:ModifyListenerAttributes",
+          "elasticloadbalancing:ModifyCapacityReservation"
         ]
         Resource = "*"
         Condition = {

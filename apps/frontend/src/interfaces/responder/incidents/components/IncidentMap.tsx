@@ -59,6 +59,13 @@ function severityColor(severity: number): string {
   return '#f59e0b'
 }
 
+/** Minimal shape of a Google Directions result — typed locally since
+ *  @types/google.maps is not a project dependency. */
+type LatLngFn = { lat: () => number; lng: () => number }
+type DirectionsResultLike = {
+  routes: Array<{ overview_path?: LatLngFn[] }>
+}
+
 /** A drivable route resolved from the Directions API (or a straight-line fallback). */
 type RouteData = {
   path: LatLng[]
@@ -116,7 +123,7 @@ function useResourceRoutes(resources: IncidentMapResourceDto[]): Map<string, Rou
           destination,
           travelMode: routesLib.TravelMode.DRIVING,
         })
-        .then((result) => {
+        .then((result: DirectionsResultLike) => {
           if (cancelled) return
           const overview = result.routes[0]?.overview_path
           const path =
@@ -587,7 +594,7 @@ const SUMMARY_ITEMS: Array<{ key: keyof LocalSummary; label: string; color: stri
   { key: 'onScene', label: 'On scene', color: '#22c55e' },
   { key: 'returning', label: 'Returning', color: '#a855f7' },
   { key: 'completed', label: 'Completed', color: '#14b8a6' },
-  { key: 'unavailable', label: 'Unavailable', color: '#9ca3af' },
+  
 ]
 
 function SummaryPanel({ summary }: { summary: LocalSummary }) {

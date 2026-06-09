@@ -7,7 +7,6 @@ import {
   Info,
   Map,
   MessageSquare,
-  Sparkles,
 } from "lucide-react";
 import { Box, Button, HStack, Icon } from "../../../../components/chakra-ui";
 import type { Incident, IncidentReportDraft } from "../types";

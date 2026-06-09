@@ -45,9 +45,9 @@ describe('MapsService', () => {
       severity: 4,
       inc_status: 'ACTIVE',
       inc_location: 'Toa Payoh Hub',
-      lat: 1.3329,
-      lng: 103.848,
-      resources: [
+      latitude: 1.3329,
+      longitude: 103.848,
+      incident_resources: [
         {
           id: 'r1',
           unit_ref: 'PE742',

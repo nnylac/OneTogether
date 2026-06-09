@@ -9,6 +9,17 @@ import { registerIncidentRoomSocket } from './incident-room/incident-room.socket
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), 'apps/backend/.env') });
 
+// Background tasks (resource polling, incident pollers) issue DB queries that can
+// reject with transient errors like Prisma SocketTimeout. An unhandled rejection
+// crashes the Node process (exit 1) and crash-loops the pod. Log and keep serving
+// instead — a single failed background query must not take the API down.
+process.on('unhandledRejection', (reason) => {
+  console.error('[unhandledRejection]', reason);
+});
+process.on('uncaughtException', (error) => {
+  console.error('[uncaughtException]', error);
+});
+
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
   app.setGlobalPrefix('api');
@@ -31,10 +42,7 @@ async function bootstrap() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() }),
   );
 
-  registerIncidentRoomSocket(
-    app.getHttpServer(),
-    app.get(IncidentRoomService),
-  );
+  registerIncidentRoomSocket(app.getHttpServer(), app.get(IncidentRoomService));
 
   await app.listen(process.env.PORT ?? 3001);
 }

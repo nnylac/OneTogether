@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Plus, RefreshCw } from 'lucide-react'
+import { RefreshCw } from 'lucide-react'
 import {
   Box,
   Button,
