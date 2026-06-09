@@ -52,6 +52,14 @@ spec:
               value: production
             - name: PORT
               value: "3001"
+            # The agency resource feeds (SCDF/SPF/NEA/PUB/...) only exist as the
+            # apps/external simulators, which are not deployed in-cluster. Polling
+            # their localhost defaults from EKS just fails on a loop, so disable
+            # the sync. Resource data is loaded by the seed job (static snapshot
+            # mirroring the simulator shapes). Set to "true" and supply the
+            # *_RESOURCES_URL vars if the simulators are ever deployed to EKS.
+            - name: RESOURCE_SYNC_ENABLED
+              value: "false"
             # Injected by the CI/CD pipeline from AWS Secrets Manager
             - name: DATABASE_URL
               valueFrom:

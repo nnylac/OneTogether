@@ -25,6 +25,12 @@ export async function fetchIncidentRoomMessages(incidentId: string) {
 export function createIncidentRoomSocket(incidentId: string) {
   const socket: Socket = io(getSocketOrigin(), {
     path: '/socket.io',
+    // Use the WebSocket transport directly instead of starting with HTTP
+    // long-polling. Behind the multi-replica ALB, polling's handshake and
+    // follow-up requests can land on different pods (unknown Engine.IO sid →
+    // HTTP 400). A single WebSocket connection stays pinned to one pod, and
+    // cross-pod broadcast is handled by the Socket.IO Redis adapter.
+    transports: ['websocket'],
   })
 
   socket.on('connect', () => {
