@@ -15,6 +15,14 @@ metadata:
     alb.ingress.kubernetes.io/listen-ports: '[{"HTTP":80}]'
     # Route the ALB health check at the app's health endpoint
     alb.ingress.kubernetes.io/healthcheck-path: /api/health
+
+    # Socket.IO long-polling requires every request carrying a given session id
+    # (sid) to return to the same pod. With replicas > 1 and no stickiness the
+    # Engine.IO handshake lands on pod A but a follow-up poll is balanced to pod
+    # B, which rejects the unknown sid with HTTP 400 — breaking the incident-room
+    # discussion. Duration-based ALB cookie stickiness pins each client to one
+    # target. Cross-pod broadcast is handled by the Socket.IO Redis adapter.
+    alb.ingress.kubernetes.io/target-group-attributes: "stickiness.enabled=true,stickiness.type=lb_cookie,stickiness.lb_cookie.duration_seconds=86400"
 spec:
   rules:
     - http:
