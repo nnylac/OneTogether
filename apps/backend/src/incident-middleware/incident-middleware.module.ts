@@ -5,9 +5,10 @@ import { IncidentNormalizerService } from './incident-normalizer.service';
 import { IncidentResourceExtractorService } from './incident-resource-extractor.service';
 import { SemanticIncidentAnalyzerService } from './semantic-incident-analyzer.service';
 import { IncidentAnalysisModule } from '../analysis/incident-analysis.module';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
-  imports: [IncidentAnalysisModule],
+  imports: [IncidentAnalysisModule, NotificationsModule],
   controllers: [IncidentMiddlewareController],
   providers: [
     IncidentMiddlewareService,

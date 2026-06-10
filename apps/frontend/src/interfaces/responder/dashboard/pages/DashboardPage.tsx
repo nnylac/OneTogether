@@ -13,20 +13,67 @@ import { AssignedIncidentTickets } from "../components/AssignedIncidentTickets";
 import { DashboardMetricCard } from "../components/DashboardMetricCard";
 import { DashboardNotifications } from "../components/DashboardNotifications";
 import { ResourceSnapshot } from "../components/ResourceSnapshot";
-import {
-  dashboardMetrics,
-  dashboardNotifications,
-} from "../data/sampleDashboard";
-import type { ResourceSnapshot as DashboardResourceSnapshot } from "../types";
-import { fetchIncidents } from "../../incidents/api/incidentsApi";
+import type {
+  DashboardMetric,
+  DashboardNotification,
+  ResourceSnapshot as DashboardResourceSnapshot,
+} from "../types";
+import { fetchIncidents, fetchOrganisations } from "../../incidents/api/incidentsApi";
 import type { Incident } from "../../incidents/types";
+import { useAuth } from "../../../auth/useAuth";
+import type { AuthUser } from "../../../auth/types";
+import { fetchResponderNotifications } from "../../notifications/api/responderNotificationsApi";
 
 export function DashboardPage() {
+  const { user } = useAuth();
   const [liveResourceSnapshot, setLiveResourceSnapshot] =
     useState<DashboardResourceSnapshot | null>(null);
   const [resourceError, setResourceError] = useState<string | undefined>();
   const [isResourceLoading, setIsResourceLoading] = useState(true);
   const [assignedIncidents, setAssignedIncidents] = useState<Incident[]>([]);
+  const [dashboardNotifications, setDashboardNotifications] = useState<
+    DashboardNotification[]
+  >([]);
+  const [organisationId, setOrganisationId] = useState<string | undefined>(
+    () => user?.userOrganisationId ?? user?.organisations[0]?.id ?? undefined,
+  );
+  const assignedOrganisationName =
+    user?.organisations[0]?.orgName ?? getFallbackOrganisationName(user);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function resolveOrganisationId() {
+      if (user?.userOrganisationId ?? user?.organisations[0]?.id) {
+        setOrganisationId(user.userOrganisationId ?? user.organisations[0]?.id);
+        return;
+      }
+
+      if (!assignedOrganisationName) {
+        setOrganisationId(undefined);
+        return;
+      }
+
+      const organisations = await fetchOrganisations();
+      const resolvedOrganisationId = organisations.find(
+        (organisation) =>
+          organisation.orgName.toLowerCase() ===
+          assignedOrganisationName.toLowerCase(),
+      )?.id;
+
+      if (isMounted) {
+        setOrganisationId(resolvedOrganisationId);
+      }
+    }
+
+    void resolveOrganisationId().catch(() => {
+      if (isMounted) setOrganisationId(undefined);
+    });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [assignedOrganisationName, user]);
 
   useEffect(() => {
     let isMounted = true;
@@ -72,13 +119,18 @@ export function DashboardPage() {
     let isMounted = true;
 
     async function loadIncidents() {
+      if (!organisationId) {
+        if (isMounted) {
+          setAssignedIncidents([]);
+        }
+        return;
+      }
+
       try {
-        const nextIncidents = await fetchIncidents();
+        const nextIncidents = await fetchIncidents({ organisationId });
         if (isMounted) {
           setAssignedIncidents(
-            nextIncidents
-              .filter((incident) => incident.status !== "closed")
-              .slice(0, 3),
+            nextIncidents.filter((incident) => !isResolvedIncident(incident)),
           );
         }
       } catch {
@@ -92,7 +144,49 @@ export function DashboardPage() {
     return () => {
       isMounted = false;
     };
-  }, []);
+  }, [organisationId]);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadNotifications() {
+      if (!organisationId) {
+        if (isMounted) {
+          setDashboardNotifications([]);
+        }
+        return;
+      }
+
+      try {
+        const notifications = await fetchResponderNotifications(organisationId);
+        if (isMounted) {
+          setDashboardNotifications(
+            notifications.map((notification) => ({
+              id: notification.id,
+              title: notification.title,
+              time: formatRelativeTime(notification.createdAt),
+            })),
+          );
+        }
+      } catch {
+        if (isMounted) {
+          setDashboardNotifications([]);
+        }
+      }
+    }
+
+    void loadNotifications();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [organisationId]);
+
+  const dashboardMetrics = getDashboardMetrics(
+    assignedIncidents,
+    liveResourceSnapshot,
+    assignedOrganisationName,
+  );
 
   return (
     <Stack gap="6" maxW="1600px">
@@ -124,7 +218,7 @@ export function DashboardPage() {
         gap="6"
         gridTemplateColumns={{ base: "1fr", xl: "3fr 2fr" }}
       >
-        <AssignedIncidentTickets incidents={assignedIncidents} />
+        <AssignedIncidentTickets incidents={assignedIncidents.slice(0, 3)} />
         <DashboardNotifications notifications={dashboardNotifications} />
       </Box>
 
@@ -135,6 +229,49 @@ export function DashboardPage() {
       />
     </Stack>
   );
+}
+
+function getDashboardMetrics(
+  assignedIncidents: Incident[],
+  resourceSnapshot: DashboardResourceSnapshot | null,
+  organisationName: string | null,
+): DashboardMetric[] {
+  const activeIncidents = assignedIncidents.filter(
+    (incident) => !isResolvedIncident(incident),
+  );
+  const reportedIncidents = activeIncidents.filter(
+    (incident) => incident.status === "reported",
+  );
+  const criticalIncidents = activeIncidents.filter(
+    (incident) => incident.isCritical,
+  );
+  const availableResources =
+    resourceSnapshot?.progress.find(
+      (progress) => progress.label === "Resources available",
+    )?.value ?? 0;
+
+  return [
+    {
+      label: "Active assigned",
+      value: activeIncidents.length,
+      detail: organisationName ? `visible to ${organisationName}` : "visible to organisation",
+    },
+    {
+      label: "New source tickets",
+      value: reportedIncidents.length,
+      detail: "reported and awaiting action",
+    },
+    {
+      label: "Critical assigned",
+      value: criticalIncidents.length,
+      detail: "high priority active tickets",
+    },
+    {
+      label: "Resources available",
+      value: availableResources,
+      detail: "from resource inventory",
+    },
+  ];
 }
 
 function mapResourceSummaryToSnapshot(
@@ -175,4 +312,49 @@ function mapResourceSummaryToSnapshot(
       },
     ],
   };
+}
+
+function isResolvedIncident(incident: Incident) {
+  return incident.status === "resolved" || incident.status === "closed";
+}
+
+function getFallbackOrganisationName(user: AuthUser | null) {
+  const source = `${user?.username ?? ""} ${user?.email ?? ""}`.toLowerCase();
+
+  if (source.includes("scdf") || user?.username === "responder") {
+    return "SCDF";
+  }
+  if (source.includes("spf")) {
+    return "SPF";
+  }
+  if (source.includes("moh")) {
+    return "MOH";
+  }
+  if (source.includes("pub")) {
+    return "PUB";
+  }
+  if (source.includes("lta")) {
+    return "LTA";
+  }
+
+  return null;
+}
+
+function formatRelativeTime(value: string) {
+  const timestamp = new Date(value).getTime();
+  const deltaMs = Date.now() - timestamp;
+
+  if (!Number.isFinite(timestamp) || deltaMs < 0) {
+    return "Just now";
+  }
+
+  const minutes = Math.floor(deltaMs / 60000);
+  if (minutes < 1) return "Just now";
+  if (minutes < 60) return `${minutes} min ago`;
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `${hours} hr ago`;
+
+  const days = Math.floor(hours / 24);
+  return `${days} day${days === 1 ? "" : "s"} ago`;
 }

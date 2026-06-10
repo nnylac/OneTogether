@@ -13,6 +13,7 @@ import { AssignOrganisationDto } from './assign-organisation.dto';
 import { UpdateAssignedOrganisationDto } from './update-assigned-organisation.dto';
 import { UpdateIncidentDto } from './update-incident.dto';
 import type { Prisma } from '../../generated/prisma/client';
+import { NotificationsService } from '../notifications/notifications.service';
 
 type IncidentWithRelations = Awaited<
   ReturnType<IncidentsService['findIncidentById']>
@@ -20,7 +21,10 @@ type IncidentWithRelations = Awaited<
 
 @Injectable()
 export class IncidentsService {
-  constructor(private readonly prisma: PrismaService) {}
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly notificationsService: NotificationsService,
+  ) {}
 
   async findAll(filters: { organisationId?: string } = {}) {
     const where: Prisma.incidentsWhereInput = {};
@@ -145,6 +149,13 @@ export class IncidentsService {
           dto.notes ??
           this.defaultAssignmentNotes(organisation.org_name, incident.title),
       },
+    });
+
+    await this.createIncidentAssignedNotification({
+      incidentId: id,
+      incidentTitle: incident.title,
+      organisationId: dto.organisationId,
+      organisationName: organisation.org_name,
     });
 
     const updatedIncident = await this.findIncidentById(id);
@@ -445,5 +456,36 @@ export class IncidentsService {
     incidentTitle: string,
   ) {
     return `${organisationName} assigned to ${incidentTitle}.`;
+  }
+
+  private async createIncidentAssignedNotification({
+    incidentId,
+    incidentTitle,
+    organisationId,
+    organisationName,
+  }: {
+    incidentId: string;
+    incidentTitle: string;
+    organisationId: string;
+    organisationName: string;
+  }) {
+    await this.notificationsService.create({
+      title: `${incidentTitle} assigned to your organisation`,
+      message: `${organisationName} has been assigned to ${incidentTitle}.`,
+      notificationType: 'incident_assigned',
+      referenceType: 'incident',
+      referenceId: incidentId,
+      metadata: {
+        assignedAt: new Date().toISOString(),
+        organisationId,
+        organisationName,
+      },
+      recipients: [
+        {
+          recipientType: 'organisation',
+          recipientId: organisationId,
+        },
+      ],
+    });
   }
 }

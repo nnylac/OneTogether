@@ -1,13 +1,11 @@
-import { BrowserRouter, Route, Routes } from 'react-router-dom'
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom'
 import { AuthProvider } from './interfaces/auth/AuthContext'
 import { LoginPage } from './interfaces/auth/pages/LoginPage'
 import { ProtectedRoute } from './interfaces/auth/ProtectedRoute'
 import { PublicLayout } from './interfaces/public/layout/PublicLayout'
 import { AlertsPage } from './interfaces/public/alerts/pages/AlertsPage'
 import { CommunityPage } from './interfaces/public/community/pages/CommunityPage'
-import { ProfilePage } from './interfaces/public/profile/pages/ProfilePage'
 import { ReportPage } from './interfaces/public/report/pages/ReportPage'
-import { VolunteerPage } from './interfaces/public/volunteer/pages/VolunteerPage'
 import { GovernmentLayout } from './interfaces/government/layout/GovernmentLayout'
 import { GovernmentAnalyticsPage } from './interfaces/government/analytics/pages/GovernmentAnalyticsPage'
 import { GovernmentAlertsPage} from './interfaces/government/alerts/pages/GovernmentAlertsPage'
@@ -37,17 +35,21 @@ export default function App() {
               <Route index element={<AlertsPage />} />
               <Route path="alerts" element={<AlertsPage />} />
               <Route path="report" element={<ReportPage />} />
-              <Route path="volunteer" element={<VolunteerPage />} />
+              <Route
+                path="volunteer"
+                element={<Navigate replace to="/citizen/community?category=volunteer" />}
+              />
               <Route path="community" element={<CommunityPage />} />
-              <Route path="profile" element={<ProfilePage />} />
             </Route>
             <Route path="public" element={<PublicLayout />}>
               <Route index element={<AlertsPage />} />
               <Route path="alerts" element={<AlertsPage />} />
               <Route path="report" element={<ReportPage />} />
-              <Route path="volunteer" element={<VolunteerPage />} />
+              <Route
+                path="volunteer"
+                element={<Navigate replace to="/public/community?category=volunteer" />}
+              />
               <Route path="community" element={<CommunityPage />} />
-              <Route path="profile" element={<ProfilePage />} />
             </Route>
           </Route>
           <Route element={<ProtectedRoute allowedRoles={['admin']} />}>

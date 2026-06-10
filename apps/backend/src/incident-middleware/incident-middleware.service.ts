@@ -9,6 +9,7 @@ import {
 } from './incident-middleware.types';
 import { SemanticIncidentAnalyzerService } from './semantic-incident-analyzer.service';
 import { IncidentAnalysisService } from '../analysis/incident-analysis.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import { ClassificationRefinementService } from '../analysis/classification-refinement.service';
 
 @Injectable()
@@ -21,6 +22,7 @@ export class IncidentMiddlewareService {
     private readonly analyzer: SemanticIncidentAnalyzerService,
     private readonly analysisService: IncidentAnalysisService,
     private readonly resourceExtractor: IncidentResourceExtractorService,
+    private readonly notificationsService: NotificationsService,
     private readonly refinement: ClassificationRefinementService,
   ) {}
 
@@ -255,6 +257,14 @@ export class IncidentMiddlewareService {
       },
       update: {},
     });
+    const existingAssignment = await this.prisma.assigned_orgs.findUnique({
+      where: {
+        incident_id_organisation_id: {
+          incident_id: incidentId,
+          organisation_id: organisation.id,
+        },
+      },
+    });
 
     await this.prisma.assigned_orgs.upsert({
       where: {
@@ -273,6 +283,46 @@ export class IncidentMiddlewareService {
       update: {
         status: this.mapAssignmentStatus(status),
       },
+    });
+
+    if (!existingAssignment) {
+      await this.createIncidentAssignedNotification({
+        incidentId,
+        incidentTitle,
+        organisationId: organisation.id,
+        organisationName: organisation.org_name,
+      });
+    }
+  }
+
+  private async createIncidentAssignedNotification({
+    incidentId,
+    incidentTitle,
+    organisationId,
+    organisationName,
+  }: {
+    incidentId: string;
+    incidentTitle: string;
+    organisationId: string;
+    organisationName: string;
+  }) {
+    await this.notificationsService.create({
+      title: `${incidentTitle} assigned to your organisation`,
+      message: `${organisationName} has been assigned to ${incidentTitle}.`,
+      notificationType: 'incident_assigned',
+      referenceType: 'incident',
+      referenceId: incidentId,
+      metadata: {
+        assignedAt: new Date().toISOString(),
+        organisationId,
+        organisationName,
+      },
+      recipients: [
+        {
+          recipientType: 'organisation',
+          recipientId: organisationId,
+        },
+      ],
     });
   }
 

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import {
   BookOpen,
   Clock,
+  HandHeart,
   Heart,
   MapPin,
-  RefreshCcw,
   Shield,
   Users,
 } from 'lucide-react'
@@ -24,26 +25,30 @@ import {
   type CommunityEvent,
 } from '../api/communityEventsApi'
 
-type CommunityFilter = 'all' | 'preparedness' | 'relief' | 'training'
+type CommunityFilter = 'all' | 'preparedness' | 'relief' | 'training' | 'volunteer'
 
 const filters: Array<{ icon: typeof Shield; label: string; value: CommunityFilter }> = [
   { icon: Users, label: 'All', value: 'all' },
   { icon: Shield, label: 'Preparedness', value: 'preparedness' },
   { icon: Heart, label: 'Relief', value: 'relief' },
   { icon: BookOpen, label: 'Training', value: 'training' },
+  { icon: HandHeart, label: 'Volunteer', value: 'volunteer' },
 ]
 
 const categoryTone: Record<string, { bg: string; color: string; icon: typeof Shield }> = {
   preparedness: { bg: 'blue.50', color: 'blue.700', icon: Shield },
   relief: { bg: 'red.50', color: 'red.600', icon: Heart },
   training: { bg: 'purple.50', color: 'purple.700', icon: BookOpen },
+  volunteer: { bg: 'green.50', color: 'green.700', icon: HandHeart },
 }
 
 export function CommunityPage() {
   const [events, setEvents] = useState<CommunityEvent[]>([])
-  const [activeFilter, setActiveFilter] = useState<CommunityFilter>('all')
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [searchParams, setSearchParams] = useSearchParams()
+  const categoryParam = searchParams.get('category')
+  const activeFilter = isCommunityFilter(categoryParam) ? categoryParam : 'all'
 
   async function loadEvents() {
     setIsLoading(true)
@@ -72,38 +77,20 @@ export function CommunityPage() {
 
   return (
     <Stack gap="6" maxW="1440px" mx="auto">
-      <Flex
-        align={{ base: 'stretch', lg: 'end' }}
-        direction={{ base: 'column', lg: 'row' }}
-        gap="4"
-        justify="space-between"
-      >
-        <Box>
-          <HStack color="green.700" gap="2" mb="2">
-            <Icon as={Users} boxSize="5" />
-            <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
-              COMMUNITY RESILIENCE
-            </Text>
-          </HStack>
-          <Heading color="gray.900" size="3xl">
-            Communities
-          </Heading>
-          <Text color="gray.600" mt="2">
-            Workshops, training, and relief activities organised near you.
+      <Box>
+        <HStack color="green.700" gap="2" mb="2">
+          <Icon as={Users} boxSize="5" />
+          <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
+            COMMUNITY RESILIENCE
           </Text>
-        </Box>
-
-        <Button
-          alignSelf={{ base: 'stretch', lg: 'auto' }}
-          bg="green.600"
-          color="white"
-          onClick={() => void loadEvents()}
-          _hover={{ bg: 'green.700' }}
-        >
-          <Icon as={RefreshCcw} />
-          Refresh
-        </Button>
-      </Flex>
+        </HStack>
+        <Heading color="gray.900" size="3xl">
+          Communities
+        </Heading>
+        <Text color="gray.600" mt="2">
+          Workshops, training, and relief activities organised near you.
+        </Text>
+      </Box>
 
       <Box bg="blue.950" color="white" p="6">
         <Heading color="white" size="md">
@@ -127,7 +114,14 @@ export function CommunityPage() {
               borderWidth="1px"
               color={isActive ? 'white' : 'gray.600'}
               minW="fit-content"
-              onClick={() => setActiveFilter(filter.value)}
+              onClick={() => {
+                if (filter.value === 'all') {
+                  setSearchParams({})
+                  return
+                }
+
+                setSearchParams({ category: filter.value })
+              }}
               rounded="full"
               _hover={{ bg: isActive ? 'blue.950' : 'gray.50' }}
             >
@@ -170,15 +164,12 @@ export function CommunityPage() {
 }
 
 function CommunityEventCard({ event }: { event: CommunityEvent }) {
+  const descriptionParts = getEventDescriptionParts(event.description)
   const tone = categoryTone[event.category] ?? {
     bg: 'gray.100',
     color: 'gray.700',
     icon: Users,
   }
-  const progressPercent = Math.min(
-    Math.max((event.registrationProgress ?? 0) * 100, 0),
-    100,
-  )
 
   return (
     <Stack bg="white" borderColor="gray.200" borderWidth="1px" gap="4" p="5">
@@ -197,9 +188,11 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
         </Badge>
       </Flex>
 
-      <Text color="gray.600" fontSize="sm" lineHeight="1.7">
-        {event.description}
-      </Text>
+      {descriptionParts.body && (
+        <Text color="gray.600" fontSize="sm" lineHeight="1.7">
+          {descriptionParts.body}
+        </Text>
+      )}
 
       <Stack color="gray.500" fontSize="sm" gap="2">
         <HStack gap="2">
@@ -213,6 +206,11 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
       </Stack>
 
       <HStack gap="2" wrap="wrap">
+        {descriptionParts.tags.map((tag) => (
+          <Badge key={tag} bg="gray.100" color="gray.600" px="3" py="1">
+            {tag}
+          </Badge>
+        ))}
         <Badge bg="gray.100" color="gray.600" px="3" py="1">
           {event.isFree ? 'Free' : 'Paid'}
         </Badge>
@@ -222,31 +220,28 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
           </Badge>
         )}
       </HStack>
-
-      <Stack gap="2">
-        <Flex justify="space-between" gap="3">
-          <Text color="gray.500" fontSize="sm">
-            {event.registeredCount}
-            {event.capacity ? `/${event.capacity}` : ''} registered
-          </Text>
-          <Text color="green.700" fontSize="sm" fontWeight="800">
-            {event.spotsLeft ?? 'Open'} spots left
-          </Text>
-        </Flex>
-        <Box bg="gray.100" h="2">
-          <Box bg="green.500" h="2" w={`${progressPercent}%`} />
-        </Box>
-      </Stack>
-
-      {event.signupUrl && (
-        <Button asChild alignSelf="flex-start" color="green.700" variant="ghost">
-          <a href={event.signupUrl} rel="noreferrer" target="_blank">
-            Tap to view and register
-          </a>
-        </Button>
-      )}
     </Stack>
   )
+}
+
+function isCommunityFilter(value: string | null): value is CommunityFilter {
+  return filters.some((filter) => filter.value === value)
+}
+
+function getEventDescriptionParts(description: string | null) {
+  if (!description) {
+    return { body: '', tags: [] }
+  }
+
+  const [body, tagsText] = description.split('Tags:')
+  const tags = tagsText
+    ? tagsText
+        .split(',')
+        .map((tag) => tag.trim().replace(/\.$/, ''))
+        .filter(Boolean)
+    : []
+
+  return { body: body.trim(), tags }
 }
 
 function toTitleCase(value: string) {

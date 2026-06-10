@@ -12,6 +12,10 @@ export type AnalyticsOverviewQuery = {
   region?: string;
 };
 
+export type AnalyticsForecastQuery = AnalyticsOverviewQuery & {
+  days?: string;
+};
+
 @ApiTags('analytics')
 @Controller('analytics')
 export class AnalyticsController {
@@ -23,5 +27,13 @@ export class AnalyticsController {
   })
   findOverview(@Query() query: AnalyticsOverviewQuery) {
     return this.analyticsService.findOverview(query);
+  }
+
+  @Get('forecast')
+  @ApiOperation({
+    summary: 'Forecast future simulated incident volume and distribution',
+  })
+  findForecast(@Query() query: AnalyticsForecastQuery) {
+    return this.analyticsService.findForecast(query);
   }
 }

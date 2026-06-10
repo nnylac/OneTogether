@@ -1,9 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Bell, RefreshCcw, ShieldAlert } from 'lucide-react'
+import { Bell } from 'lucide-react'
 import {
   Box,
-  Button,
-  Flex,
   Heading,
   HStack,
   Icon,
@@ -13,7 +11,6 @@ import {
 import { fetchPublicAlerts } from '../api/publicBroadcastsApi'
 import { AlertFilterBar } from '../components/AlertFilterBar'
 import type { AlertFilter } from '../components/AlertFilterBar'
-import { AlertSeverityBadge } from '../components/AlertSeverityBadge'
 import { AlertSummaryCards } from '../components/AlertSummaryCards'
 import { PublicAlertDetailPanel } from '../components/PublicAlertDetailPanel'
 import { PublicAlertListItem } from '../components/PublicAlertListItem'
@@ -80,9 +77,6 @@ export function AlertsPage() {
     filteredAlerts[0] ??
     alerts[0] ??
     null
-  const urgentAlert =
-    alerts.find((alert) => alert.severity === 'critical') ?? alerts[0] ?? null
-
   function handleSelectAlert(alert: PublicAlert) {
     setSelectedAlertId(alert.id)
   }
@@ -98,75 +92,20 @@ export function AlertsPage() {
 
   return (
     <Stack gap="6" maxW="1440px" mx="auto">
-      <Flex
-        align={{ base: 'stretch', lg: 'end' }}
-        direction={{ base: 'column', lg: 'row' }}
-        gap="4"
-        justify="space-between"
-      >
-        <Box>
-          <HStack color="green.700" gap="2" mb="2">
-            <Icon as={Bell} boxSize="5" />
-            <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
-              OFFICIAL BROADCASTS
-            </Text>
-          </HStack>
-          <Heading color="gray.900" size="3xl">
-            Alerts
-          </Heading>
-          <Text color="gray.600" mt="2">
-            Live government advisories and zone announcements for public safety.
+      <Box>
+        <HStack color="green.700" gap="2" mb="2">
+          <Icon as={Bell} boxSize="5" />
+          <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
+            OFFICIAL BROADCASTS
           </Text>
-        </Box>
-
-        <Button
-          alignSelf={{ base: 'stretch', lg: 'auto' }}
-          bg="green.600"
-          color="white"
-          onClick={() => void loadAlerts({ showLoading: true })}
-          _hover={{ bg: 'green.700' }}
-        >
-          <Icon as={RefreshCcw} />
-          Refresh
-        </Button>
-      </Flex>
-
-      {urgentAlert && (
-        <Flex
-          align={{ base: 'start', lg: 'center' }}
-          bg="orange.50"
-          borderColor="orange.200"
-          borderWidth="1px"
-          direction={{ base: 'column', lg: 'row' }}
-          gap="3"
-          justify="space-between"
-          p="4"
-        >
-          <HStack align="start" gap="3">
-            <Icon as={ShieldAlert} boxSize="5" color="orange.600" mt="1" />
-            <Box>
-              <HStack gap="2" wrap="wrap">
-                <Text color="orange.800" fontWeight="800">
-                  {urgentAlert.title}
-                </Text>
-                <AlertSeverityBadge severity={urgentAlert.severity} />
-              </HStack>
-              <Text color="gray.600" fontSize="sm" mt="1">
-                {urgentAlert.message}
-              </Text>
-            </Box>
-          </HStack>
-          <Button
-            color="orange.800"
-            flexShrink="0"
-            size="sm"
-            variant="ghost"
-            onClick={() => handleSelectAlert(urgentAlert)}
-          >
-            View advisory
-          </Button>
-        </Flex>
-      )}
+        </HStack>
+        <Heading color="gray.900" size="3xl">
+          Alerts
+        </Heading>
+        <Text color="gray.600" mt="2">
+          Live government advisories and zone announcements for public safety.
+        </Text>
+      </Box>
 
       <AlertSummaryCards alerts={alerts} />
 

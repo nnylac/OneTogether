@@ -1,21 +1,10 @@
-import {
-  SubscribeMessage,
-  WebSocketGateway,
-  WebSocketServer,
-} from '@nestjs/websockets';
+import { Injectable } from '@nestjs/common';
+import { getIncidentSocketServer } from '../incident-room/socket-registry';
 import type { NotificationResponseDto } from './dto/notification-response.dto';
 
-@WebSocketGateway()
+@Injectable()
 export class NotificationsGateway {
-  @WebSocketServer()
-  private readonly server?: { emit: (event: string, payload: unknown) => void };
-
-  @SubscribeMessage('message')
-  handleMessage(): string {
-    return 'Hello world!';
-  }
-
   emitCreated(notification: NotificationResponseDto): void {
-    this.server?.emit('notification.created', notification);
+    getIncidentSocketServer()?.emit('notification.created', notification);
   }
 }
