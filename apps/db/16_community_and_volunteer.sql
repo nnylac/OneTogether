@@ -90,7 +90,12 @@ WITH seed_community_events (
     ('51000000-0000-0000-0000-000000000002'::uuid, 'Flood Relief Donation Drive', 'Singapore Red Cross', 'relief', 'Donate clean clothes, bottled water, blankets, hygiene kits, and packed food for residents affected by flooding.', 'Clementi MRT Station Exit A', 'West', '2026-05-20 09:00:00+08'::timestamptz, '2026-05-21 21:00:00+08'::timestamptz, 100, 72, TRUE, 'https://redcross.sg/volunteer/flood-relief-donation-drive', 'open', '2026-05-20 13:50:00+08'::timestamptz),
     ('51000000-0000-0000-0000-000000000003'::uuid, 'Basic First Aid Training', 'SCDF Community Resilience', 'training', 'Hands-on training covering CPR awareness, wound care, emergency response basics, and when to call emergency services.', 'Clementi Community Club', 'West', '2026-05-25 14:00:00+08'::timestamptz, '2026-05-25 17:00:00+08'::timestamptz, 40, 21, TRUE, 'https://www.scdf.gov.sg/community-volunteers/basic-first-aid-training', 'open', '2026-05-20 13:50:00+08'::timestamptz),
     ('51000000-0000-0000-0000-000000000004'::uuid, 'Neighbourhood Flood Readiness Briefing', 'Tanjong Pagar Town Council', 'preparedness', 'A short resident briefing on flood-prone areas, reporting channels, safety procedures, and evacuation reminders.', 'Tanjong Pagar Community Club', 'Central', '2026-05-26 19:00:00+08'::timestamptz, '2026-05-26 20:30:00+08'::timestamptz, 80, 46, TRUE, 'https://onetogether.sg/community/flood-readiness-briefing', 'open', '2026-05-20 13:50:00+08'::timestamptz),
-    ('51000000-0000-0000-0000-000000000005'::uuid, 'Emergency Kit Packing Session', 'People''s Association', 'relief', 'Help prepare emergency kits containing water, masks, torchlights, simple medical supplies, and safety leaflets.', 'Queenstown Community Centre', 'Central', '2026-05-27 10:00:00+08'::timestamptz, '2026-05-27 13:00:00+08'::timestamptz, 50, 33, TRUE, 'https://www.pa.gov.sg/volunteer/emergency-kit-packing-session', 'open', '2026-05-20 13:50:00+08'::timestamptz)
+    ('51000000-0000-0000-0000-000000000005'::uuid, 'Emergency Kit Packing Session', 'People''s Association', 'relief', 'Help prepare emergency kits containing water, masks, torchlights, simple medical supplies, and safety leaflets.', 'Queenstown Community Centre', 'Central', '2026-05-27 10:00:00+08'::timestamptz, '2026-05-27 13:00:00+08'::timestamptz, 50, 33, TRUE, 'https://www.pa.gov.sg/volunteer/emergency-kit-packing-session', 'open', '2026-05-20 13:50:00+08'::timestamptz),
+    ('51000000-0000-0000-0000-000000000006'::uuid, 'Evacuation Centre - Registration Desk', 'SCDF Community Resilience Volunteer Portal', 'volunteer', 'Assist residents with registration, queue management, and basic information at the evacuation centre. Tags: Registration, Crowd Control, No prior experience.', 'Clementi Community Club', 'West', '2026-05-20 12:00:00+08'::timestamptz, '2026-05-20 20:00:00+08'::timestamptz, 20, 12, TRUE, 'https://www.scdf.gov.sg/community-volunteers/evacuation-centre-registration', 'open', '2026-05-20 13:50:00+08'::timestamptz),
+    ('51000000-0000-0000-0000-000000000007'::uuid, 'Flood Relief - Emergency Food Packing', 'Singapore Red Cross Volunteer Portal', 'volunteer', 'Pack emergency food and water supplies for residents affected by flash floods. Tags: Packing, Logistics, No prior experience.', 'Jurong West Sports Centre', 'West', '2026-05-20 10:00:00+08'::timestamptz, '2026-05-20 14:00:00+08'::timestamptz, 30, 18, TRUE, 'https://redcross.sg/volunteer/flood-relief-food-packing', 'open', '2026-05-20 13:50:00+08'::timestamptz),
+    ('51000000-0000-0000-0000-000000000008'::uuid, 'Medical Support - First Aid Station', 'SCDF Community Resilience Volunteer Portal', 'volunteer', 'Support first aid volunteers with crowd control, basic supplies, patient guidance, and escalation to responders where needed. Tags: Medical Support, First Aid, Training preferred.', 'Orchard Road First Aid Point', 'Central', '2026-05-20 15:00:00+08'::timestamptz, '2026-05-20 22:00:00+08'::timestamptz, 15, 9, TRUE, 'https://www.scdf.gov.sg/community-volunteers/medical-support-first-aid', 'open', '2026-05-20 13:50:00+08'::timestamptz),
+    ('51000000-0000-0000-0000-000000000009'::uuid, 'Relief Supplies - Logistics Runner', 'People''s Association Community Portal', 'volunteer', 'Move packed supplies between collection points, staging areas, and volunteer counters. Tags: Logistics, Supplies, Physical task.', 'Queenstown Community Centre', 'Central', '2026-05-21 09:00:00+08'::timestamptz, '2026-05-21 15:00:00+08'::timestamptz, 25, 10, TRUE, 'https://www.pa.gov.sg/volunteer/relief-supplies-logistics-runner', 'open', '2026-05-20 13:50:00+08'::timestamptz),
+    ('51000000-0000-0000-0000-000000000010'::uuid, 'Community Check-in Call Team', 'People''s Association Community Portal', 'volunteer', 'Call vulnerable residents to check on their safety, record support needs, and escalate urgent requests to responders. Tags: Welfare, Phone Support, Remote.', 'Remote / Phone Support', 'Islandwide', '2026-05-21 10:00:00+08'::timestamptz, '2026-05-21 18:00:00+08'::timestamptz, 40, 16, TRUE, 'https://www.pa.gov.sg/volunteer/community-check-in-call-team', 'open', '2026-05-20 13:50:00+08'::timestamptz)
 )
 INSERT INTO community_events (
     id,
@@ -145,136 +150,18 @@ SET
     event_status = EXCLUDED.event_status,
     updated_at = EXCLUDED.updated_at;
 
-WITH seed_volunteer_sources (
-    id,
-    source_name,
-    source_url,
-    org_name,
-    is_active,
-    last_synced_at,
-    created_at
-) AS (
-    VALUES
-    ('70000000-0000-0000-0000-000000000001'::uuid, 'Singapore Red Cross Volunteer Portal', 'https://redcross.sg/volunteer', NULL, TRUE, '2026-05-20 13:50:00+08'::timestamptz, '2026-05-20 13:50:00+08'::timestamptz),
-    ('70000000-0000-0000-0000-000000000002'::uuid, 'SCDF Community Resilience Volunteer Portal', 'https://www.scdf.gov.sg/community-volunteers', 'SCDF', TRUE, '2026-05-20 13:50:00+08'::timestamptz, '2026-05-20 13:50:00+08'::timestamptz),
-    ('70000000-0000-0000-0000-000000000003'::uuid, 'People''s Association Community Portal', 'https://www.pa.gov.sg/volunteer', NULL, TRUE, '2026-05-20 13:50:00+08'::timestamptz, '2026-05-20 13:50:00+08'::timestamptz)
-)
-INSERT INTO volunteer_sources (
-    id,
-    source_name,
-    source_url,
-    organisation_id,
-    is_active,
-    last_synced_at,
-    created_at,
-    updated_at
-)
-SELECT
-    seed_volunteer_sources.id,
-    seed_volunteer_sources.source_name,
-    seed_volunteer_sources.source_url,
-    organisations.id,
-    seed_volunteer_sources.is_active,
-    seed_volunteer_sources.last_synced_at,
-    seed_volunteer_sources.created_at,
-    seed_volunteer_sources.created_at
-FROM seed_volunteer_sources
-LEFT JOIN organisations ON organisations.org_name = seed_volunteer_sources.org_name
-ON CONFLICT (source_url) DO UPDATE
-SET
-    source_name = EXCLUDED.source_name,
-    organisation_id = EXCLUDED.organisation_id,
-    is_active = EXCLUDED.is_active,
-    last_synced_at = EXCLUDED.last_synced_at,
-    updated_at = EXCLUDED.updated_at;
+DELETE FROM volunteer_opportunities
+WHERE external_id IN (
+    'VOL-FLOOD-FOOD-001',
+    'VOL-EVAC-REG-001',
+    'VOL-MEDICAL-001',
+    'VOL-LOGISTICS-001',
+    'VOL-WELFARE-001'
+);
 
-WITH seed_volunteer_opportunities (
-    id,
-    source_id,
-    external_id,
-    title,
-    description,
-    opportunity_type,
-    urgency,
-    location,
-    region,
-    start_at,
-    end_at,
-    slots_total,
-    slots_filled,
-    requires_training,
-    signup_url,
-    source_url,
-    external_updated_at,
-    opportunity_status,
-    created_at
-) AS (
-    VALUES
-    ('72000000-0000-0000-0000-000000000001'::uuid, '70000000-0000-0000-0000-000000000001'::uuid, 'VOL-FLOOD-FOOD-001', 'Flood Relief - Emergency Food Packing', 'Pack emergency food and water supplies for residents affected by flash floods. Tags: Packing, Logistics, No prior experience.', 'packing', 'urgent', 'Jurong West Sports Centre', 'West', '2026-05-20 10:00:00+08'::timestamptz, '2026-05-20 14:00:00+08'::timestamptz, 30, 18, FALSE, 'https://redcross.sg/volunteer/flood-relief-food-packing', 'https://redcross.sg/volunteer', '2026-05-20 13:50:00+08'::timestamptz, 'open', '2026-05-20 13:50:00+08'::timestamptz),
-    ('72000000-0000-0000-0000-000000000002'::uuid, '70000000-0000-0000-0000-000000000002'::uuid, 'VOL-EVAC-REG-001', 'Evacuation Centre - Registration Desk', 'Assist residents with registration, queue management, and basic information at the evacuation centre. Tags: Registration, Crowd Control, No prior experience.', 'registration', 'critical', 'Clementi Community Club', 'West', '2026-05-20 12:00:00+08'::timestamptz, '2026-05-20 20:00:00+08'::timestamptz, 20, 12, FALSE, 'https://www.scdf.gov.sg/community-volunteers/evacuation-centre-registration', 'https://www.scdf.gov.sg/community-volunteers', '2026-05-20 13:50:00+08'::timestamptz, 'open', '2026-05-20 13:50:00+08'::timestamptz),
-    ('72000000-0000-0000-0000-000000000003'::uuid, '70000000-0000-0000-0000-000000000002'::uuid, 'VOL-MEDICAL-001', 'Medical Support - First Aid Station', 'Support first aid volunteers with crowd control, basic supplies, patient guidance, and escalation to responders where needed. Tags: Medical Support, First Aid, Training preferred.', 'medical', 'urgent', 'Orchard Road First Aid Point', 'Central', '2026-05-20 15:00:00+08'::timestamptz, '2026-05-20 22:00:00+08'::timestamptz, 15, 9, TRUE, 'https://www.scdf.gov.sg/community-volunteers/medical-support-first-aid', 'https://www.scdf.gov.sg/community-volunteers', '2026-05-20 13:50:00+08'::timestamptz, 'open', '2026-05-20 13:50:00+08'::timestamptz),
-    ('72000000-0000-0000-0000-000000000004'::uuid, '70000000-0000-0000-0000-000000000003'::uuid, 'VOL-LOGISTICS-001', 'Relief Supplies - Logistics Runner', 'Move packed supplies between collection points, staging areas, and volunteer counters. Tags: Logistics, Supplies, Physical task.', 'logistics', 'normal', 'Queenstown Community Centre', 'Central', '2026-05-21 09:00:00+08'::timestamptz, '2026-05-21 15:00:00+08'::timestamptz, 25, 10, FALSE, 'https://www.pa.gov.sg/volunteer/relief-supplies-logistics-runner', 'https://www.pa.gov.sg/volunteer', '2026-05-20 13:50:00+08'::timestamptz, 'open', '2026-05-20 13:50:00+08'::timestamptz),
-    ('72000000-0000-0000-0000-000000000005'::uuid, '70000000-0000-0000-0000-000000000003'::uuid, 'VOL-WELFARE-001', 'Community Check-in Call Team', 'Call vulnerable residents to check on their safety, record support needs, and escalate urgent requests to responders. Tags: Welfare, Phone Support, Remote.', 'welfare', 'normal', 'Remote / Phone Support', 'Islandwide', '2026-05-21 10:00:00+08'::timestamptz, '2026-05-21 18:00:00+08'::timestamptz, 40, 16, FALSE, 'https://www.pa.gov.sg/volunteer/community-check-in-call-team', 'https://www.pa.gov.sg/volunteer', '2026-05-20 13:50:00+08'::timestamptz, 'open', '2026-05-20 13:50:00+08'::timestamptz)
-)
-INSERT INTO volunteer_opportunities (
-    id,
-    source_id,
-    external_id,
-    title,
-    description,
-    opportunity_type,
-    urgency,
-    location,
-    region,
-    start_at,
-    end_at,
-    slots_total,
-    slots_filled,
-    requires_training,
-    signup_url,
-    source_url,
-    external_updated_at,
-    opportunity_status,
-    created_at,
-    updated_at
-)
-SELECT
-    id,
-    source_id,
-    external_id,
-    title,
-    description,
-    opportunity_type,
-    urgency,
-    location,
-    region,
-    start_at,
-    end_at,
-    slots_total,
-    slots_filled,
-    requires_training,
-    signup_url,
-    source_url,
-    external_updated_at,
-    opportunity_status,
-    created_at,
-    created_at
-FROM seed_volunteer_opportunities
-ON CONFLICT (source_id, external_id) DO UPDATE
-SET
-    title = EXCLUDED.title,
-    description = EXCLUDED.description,
-    opportunity_type = EXCLUDED.opportunity_type,
-    urgency = EXCLUDED.urgency,
-    location = EXCLUDED.location,
-    region = EXCLUDED.region,
-    start_at = EXCLUDED.start_at,
-    end_at = EXCLUDED.end_at,
-    slots_total = EXCLUDED.slots_total,
-    slots_filled = EXCLUDED.slots_filled,
-    requires_training = EXCLUDED.requires_training,
-    signup_url = EXCLUDED.signup_url,
-    source_url = EXCLUDED.source_url,
-    external_updated_at = EXCLUDED.external_updated_at,
-    opportunity_status = EXCLUDED.opportunity_status,
-    updated_at = EXCLUDED.updated_at;
+DELETE FROM volunteer_sources
+WHERE id IN (
+    '70000000-0000-0000-0000-000000000001'::uuid,
+    '70000000-0000-0000-0000-000000000002'::uuid,
+    '70000000-0000-0000-0000-000000000003'::uuid
+);
