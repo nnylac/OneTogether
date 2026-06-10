@@ -1,15 +1,11 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Box, Flex, Heading, Stack, Text } from '../../../../components/chakra-ui'
+import { Box, Flex, Heading, Text } from '../../../../components/chakra-ui'
 import { BackToDashboardLink } from '../../components/BackToDashboardLink'
 import { fetchIncidents } from '../../incidents/api/incidentsApi'
 import type { Incident, IncidentSeverity } from '../../incidents/types'
-import { fetchResourceSummary } from '../../resources/api/resourcesApi'
-import type { ResourceSummary } from '../../resources/api/resourcesApi'
 import { OverviewMap } from '../components/OverviewMap'
-import { OverviewStatRail } from '../components/OverviewStatRail'
 import { OverviewIncidentList } from '../components/OverviewIncidentList'
 import { OverviewFilters } from '../components/OverviewFilters'
-import { OverviewResourcePanel } from '../components/OverviewResourcePanel'
 import { ALL, defaultFilters } from '../filterState'
 import type { OverviewFilterState, OverviewView } from '../filterState'
 
@@ -46,7 +42,6 @@ function matchesChips(incident: Incident, filters: OverviewFilterState): boolean
 
 export function MapPage() {
   const [incidents, setIncidents] = useState<Incident[]>([])
-  const [resourceSummary, setResourceSummary] = useState<ResourceSummary | null>(null)
   const [filters, setFilters] = useState<OverviewFilterState>(defaultFilters)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -66,14 +61,6 @@ export function MapPage() {
         if (isMounted) setError('Unable to load incidents from the backend.')
       } finally {
         if (showLoading && isMounted) setIsLoading(false)
-      }
-
-      // Resource summary is supplementary — never blocks the overview if it fails.
-      try {
-        const summary = await fetchResourceSummary()
-        if (isMounted) setResourceSummary(summary)
-      } catch {
-        /* leave the resource panel in its graceful "unavailable" state */
       }
     }
 
@@ -123,40 +110,35 @@ export function MapPage() {
   )
 
   return (
-    <Stack gap="5">
-      <Box>
-        <BackToDashboardLink />
-        <Flex justify="space-between" align={{ base: 'start', md: 'end' }} gap="3" direction={{ base: 'column', md: 'row' }}>
-          <Box>
-            <Heading size="3xl" color="gray.900">
-              Operations Overview
-            </Heading>
-            <Text color="gray.600" mt="1">
-              Live situational picture across all agencies — view only.
-            </Text>
-          </Box>
-          <Text color="gray.400" fontSize="xs">
-            Auto-refreshing every {overviewPollingIntervalMs / 1000}s
-          </Text>
-        </Flex>
-      </Box>
+    <Flex direction="column" gap="3" height="calc(100vh - 80px)">
+      {/* Compact header */}
+      <Flex justify="space-between" align="end" gap="3" px="1" flexShrink="0">
+        <Box>
+          <BackToDashboardLink />
+          <Heading size="xl" color="gray.900" mt="1">
+            Operations Overview
+          </Heading>
+        </Box>
+        <Text color="gray.400" fontSize="xs" flexShrink="0">
+          Auto-refresh every {overviewPollingIntervalMs / 1000}s
+        </Text>
+      </Flex>
 
       {error && (
-        <Box bg="red.50" borderWidth="1px" borderColor="red.200" color="red.700" p="4">
+        <Box bg="red.50" borderWidth="1px" borderColor="red.200" color="red.700" p="3" flexShrink="0">
           <Text fontWeight="700">{error}</Text>
         </Box>
       )}
 
-      <OverviewStatRail incidents={incidents} />
-
-      <Flex gap="4" direction={{ base: 'column', xl: 'row' }} align="stretch">
+      {/* Map + sidebar — fills remaining viewport */}
+      <Flex gap="3" flex="1" minH="0" direction={{ base: 'column', xl: 'row' }} align="stretch">
         <Box
-          flex={{ base: 'none', xl: '2' }}
+          flex={{ base: 'none', xl: '3' }}
           minW="0"
-          height={{ base: '460px', xl: '640px' }}
           borderWidth="1px"
           borderColor="gray.200"
           overflow="hidden"
+          borderRadius="md"
         >
           {isLoading && incidents.length === 0 ? (
             <Box height="100%" display="flex" alignItems="center" justifyContent="center" bg="gray.50">
@@ -173,7 +155,7 @@ export function MapPage() {
 
         <Flex
           direction="column"
-          gap="4"
+          gap="3"
           flex={{ base: 'none', xl: '1' }}
           minW="0"
           maxW={{ base: 'none', xl: '380px' }}
@@ -194,9 +176,8 @@ export function MapPage() {
             counts={viewCounts}
             onViewChange={(view) => setFilters((current) => ({ ...current, view }))}
           />
-          <OverviewResourcePanel summary={resourceSummary} />
         </Flex>
       </Flex>
-    </Stack>
+    </Flex>
   )
 }
