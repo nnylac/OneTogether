@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Building2, RefreshCcw, Search } from 'lucide-react'
+import { Building2, Search } from 'lucide-react'
 import {
   Box,
-  Button,
   Flex,
   Heading,
   HStack,
@@ -59,39 +58,21 @@ export function ReportPage() {
 
   return (
     <Stack gap="6" maxW="1440px" mx="auto">
-      <Flex
-        align={{ base: 'stretch', lg: 'end' }}
-        direction={{ base: 'column', lg: 'row' }}
-        gap="4"
-        justify="space-between"
-      >
-        <Box>
-          <HStack color="green.700" gap="2" mb="2">
-            <Icon as={Building2} boxSize="5" />
-            <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
-              OFFICIAL CONTACT GUIDANCE
-            </Text>
-          </HStack>
-          <Heading color="gray.900" size="3xl">
-            Report
-          </Heading>
-          <Text color="gray.600" mt="2">
-            Find the right organisation to contact for emergency and public
-            service issues.
+      <Box>
+        <HStack color="green.700" gap="2" mb="2">
+          <Icon as={Building2} boxSize="5" />
+          <Text fontSize="sm" fontWeight="800" letterSpacing="0.12em">
+            OFFICIAL CONTACT GUIDANCE
           </Text>
-        </Box>
-
-        <Button
-          alignSelf={{ base: 'stretch', lg: 'auto' }}
-          bg="green.600"
-          color="white"
-          onClick={() => void loadGuides({ showLoading: true })}
-          _hover={{ bg: 'green.700' }}
-        >
-          <Icon as={RefreshCcw} />
-          Refresh
-        </Button>
-      </Flex>
+        </HStack>
+        <Heading color="gray.900" size="3xl">
+          Report
+        </Heading>
+        <Text color="gray.600" mt="2">
+          Find the right organisation to contact for emergency and public
+          service issues.
+        </Text>
+      </Box>
 
       <Flex
         align={{ base: 'stretch', lg: 'center' }}
