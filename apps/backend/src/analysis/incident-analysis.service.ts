@@ -349,7 +349,11 @@ export class IncidentAnalysisService implements OnApplicationBootstrap {
       include: {
         logs: { orderBy: { created_at: 'asc' } },
         assigned_orgs: {
-          include: { organisations: true },
+          include: {
+            organisations: {
+              select: { org_name: true },
+            },
+          },
           orderBy: { assigned_at: 'asc' },
         },
         incident_sources: {
