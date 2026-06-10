@@ -7,7 +7,7 @@ import {
   Clock3,
   PieChart,
   Siren,
-  Table2,
+  TrendingUp,
   TriangleAlert,
 } from 'lucide-react'
 import {
@@ -23,8 +23,11 @@ import {
 } from '../../../../components/chakra-ui'
 import { LabelBox } from '../../../../components/ui/LabelBox'
 import {
+  fetchAnalyticsForecast,
   fetchAnalyticsOverview,
   type AnalyticsDistributionItem,
+  type AnalyticsForecast,
+  type AnalyticsForecastDistributionItem,
   type AnalyticsOverview,
   type AnalyticsOverviewFilters,
 } from '../api/analyticsApi'
@@ -51,7 +54,9 @@ const chartColors = [
 type DistributionView = 'bar' | 'doughnut'
 
 function dateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+  }).format(date)
 }
 
 function initialFilters(): AnalyticsOverviewFilters {
@@ -71,6 +76,7 @@ export function GovernmentAnalyticsPage() {
   const [appliedFilters, setAppliedFilters] =
     useState<AnalyticsOverviewFilters>(filters)
   const [overview, setOverview] = useState<AnalyticsOverview | null>(null)
+  const [forecast, setForecast] = useState<AnalyticsForecast | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
@@ -81,14 +87,19 @@ export function GovernmentAnalyticsPage() {
       try {
         setIsLoading(true)
         setError(null)
-        const nextOverview = await fetchAnalyticsOverview({
+        const requestFilters = {
           ...appliedFilters,
           from: `${appliedFilters.from}T00:00:00.000+08:00`,
           to: `${appliedFilters.to}T23:59:59.999+08:00`,
-        })
+        }
+        const [nextOverview, nextForecast] = await Promise.all([
+          fetchAnalyticsOverview(requestFilters),
+          fetchAnalyticsForecast(requestFilters),
+        ])
 
         if (isCurrent) {
           setOverview(nextOverview)
+          setForecast(nextForecast)
         }
       } catch (loadError) {
         if (isCurrent) {
@@ -187,6 +198,12 @@ export function GovernmentAnalyticsPage() {
               detail="Direct incident timestamps"
             />
           </Box>
+
+          {forecast ? (
+            <SimulationForecast forecast={forecast} />
+          ) : (
+            <DashboardNotice text="No simulation forecast was returned." />
+          )}
 
           <Box
             display="grid"
@@ -414,6 +431,393 @@ function MetricCard({
   )
 }
 
+function SimulationForecast({ forecast }: { forecast: AnalyticsForecast }) {
+  const data = forecast.forecast
+  const hasEnoughData = data.sampleSize >= 10 && data.historyDays >= 7
+  const confidenceTone =
+    data.confidence === 'high'
+      ? 'green'
+      : data.confidence === 'medium'
+        ? 'blue'
+        : 'yellow'
+
+  return (
+    <Box
+      bg="white"
+      borderWidth="1px"
+      borderColor="blue.200"
+      overflow="hidden"
+    >
+      <Flex
+        bg="blue.50"
+        p="5"
+        justify="space-between"
+        align="start"
+        gap="4"
+        wrap="wrap"
+      >
+        <Box>
+          <HStack gap="2">
+            <Box color="blue.700">
+              <TrendingUp size={22} />
+            </Box>
+            <Heading size="md" color="gray.900">
+              Simulation Forecast
+            </Heading>
+          </HStack>
+          <Text color="gray.600" fontSize="sm" mt="2">
+            Automatically projects scenario-engine incidents from the selected
+            history window.
+          </Text>
+        </Box>
+        <LabelBox tone={confidenceTone}>
+          {formatLabel(data.confidence)} confidence
+        </LabelBox>
+      </Flex>
+
+      <Box p="5">
+        <Box
+          display="grid"
+          gridTemplateColumns={{
+            base: '1fr',
+            md: 'repeat(2, 1fr)',
+            xl: 'repeat(4, 1fr)',
+          }}
+          gap="3"
+        >
+          <ForecastMetric
+            label={`Expected next ${data.horizonDays} days`}
+            value={formatForecastCount(data.expectedIncidents)}
+            detail={`${formatShortDate(data.periodStart)} to ${formatShortDate(data.periodEnd)}`}
+          />
+          <ForecastMetric
+            label="Likely range"
+            value={`${data.likelyRange.low}-${data.likelyRange.high}`}
+            detail="Approximate 95% statistical range"
+          />
+          <ForecastMetric
+            label="Most likely type"
+            value={
+              data.topIncidentType
+                ? formatLabel(data.topIncidentType)
+                : 'Not available'
+            }
+            detail="Based on recency-weighted history"
+          />
+          <ForecastMetric
+            label="Highest projected region"
+            value={data.topRegion ?? 'Not available'}
+            detail={`${data.sampleSize} incidents across ${data.historyDays} days`}
+          />
+        </Box>
+
+        {!hasEnoughData ? (
+          <Box
+            bg="red.50"
+            borderWidth="1px"
+            borderColor="red.200"
+            p="4"
+            mt="5"
+          >
+            <Text color="red.700" fontWeight="800">
+              Not enough data to show a reliable forecast
+            </Text>
+            <Text color="red.600" fontSize="sm" mt="1">
+              At least 10 incidents across 7 days are required. The selected
+              period currently contains {data.sampleSize} incidents across{' '}
+              {data.historyDays} days.
+            </Text>
+          </Box>
+        ) : (
+          <>
+            <Box mt="6">
+              <ForecastTimeSeries items={data.dailySeries} />
+            </Box>
+            <Box
+              display="grid"
+              gridTemplateColumns={{ base: '1fr', xl: 'repeat(2, 1fr)' }}
+              gap="5"
+              mt="6"
+            >
+              <ForecastDistribution
+                title="Projected mix by type"
+                items={data.byType}
+              />
+              <ForecastDistribution
+                title="Projected mix by region"
+                items={data.byRegion}
+              />
+            </Box>
+          </>
+        )}
+
+        <Text color="gray.500" fontSize="xs" mt="5">
+          Experimental projection of simulator behavior, not real-world
+          emergency risk. It updates automatically as incidents accumulate.
+        </Text>
+      </Box>
+    </Box>
+  )
+}
+
+function ForecastTimeSeries({
+  items,
+}: {
+  items: AnalyticsForecast['forecast']['dailySeries']
+}) {
+  const width = Math.max(1100, items.length * 72)
+  const height = 320
+  const padding = { top: 30, right: 48, bottom: 56, left: 44 }
+  const chartWidth = width - padding.left - padding.right
+  const chartHeight = height - padding.top - padding.bottom
+  const maxValue = Math.max(
+    ...items.flatMap((item) => [
+      item.observed ?? 0,
+      item.expected ?? 0,
+      item.high ?? 0,
+    ]),
+    1,
+  )
+  const points = items.map((item, index) => ({
+    ...item,
+    x:
+      padding.left +
+      (items.length === 1 ? chartWidth / 2 : (index / (items.length - 1)) * chartWidth),
+    observedY:
+      item.observed === null
+        ? null
+        : padding.top +
+          chartHeight -
+          (item.observed / maxValue) * chartHeight,
+    expectedY:
+      item.expected === null
+        ? null
+        : padding.top +
+          chartHeight -
+          (item.expected / maxValue) * chartHeight,
+    lowY:
+      item.low === null
+        ? null
+        : padding.top + chartHeight - (item.low / maxValue) * chartHeight,
+    highY:
+      item.high === null
+        ? null
+        : padding.top + chartHeight - (item.high / maxValue) * chartHeight,
+  }))
+  const observedPoints = points.filter(
+    (point): point is typeof point & { observedY: number } =>
+      point.observedY !== null,
+  )
+  const forecastPoints = points.filter(
+    (point): point is typeof point & {
+      expectedY: number
+      lowY: number
+      highY: number
+    } =>
+      point.expectedY !== null && point.lowY !== null && point.highY !== null,
+  )
+  const lastObserved = observedPoints.at(-1)
+  const forecastLinePoints = [
+    ...(lastObserved
+      ? [{ x: lastObserved.x, expectedY: lastObserved.observedY }]
+      : []),
+    ...forecastPoints,
+  ]
+  const uncertaintyPoints = [
+    ...forecastPoints.map((point) => `${point.x},${point.highY}`),
+    ...[...forecastPoints]
+      .reverse()
+      .map((point) => `${point.x},${point.lowY}`),
+  ].join(' ')
+
+  return (
+    <Box>
+      <Flex justify="space-between" align="center" gap="3" wrap="wrap" mb="3">
+        <Box>
+          <Text color="gray.800" fontWeight="800">
+            Incident volume over time
+          </Text>
+          <Text color="gray.500" fontSize="sm">
+            Observed daily incidents followed by the next seven projected days.
+          </Text>
+        </Box>
+        <HStack gap="4" wrap="wrap">
+          <ChartLegend color="#475569" label="Observed" />
+          <ChartLegend color="#2563eb" label="Projected" />
+          <ChartLegend color="#bfdbfe" label="Likely range" />
+        </HStack>
+      </Flex>
+      <Box overflowX="auto">
+        <svg
+          aria-label="Observed and projected incidents over time"
+          role="img"
+          viewBox={`0 0 ${width} ${height}`}
+          width="100%"
+          height="320"
+          style={{ minWidth: `${width}px` }}
+        >
+          {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
+            const y = padding.top + chartHeight * ratio
+            return (
+              <g key={ratio}>
+                <line
+                  x1={padding.left}
+                  x2={width - padding.right}
+                  y1={y}
+                  y2={y}
+                  stroke="#e2e8f0"
+                />
+                <text
+                  x={padding.left - 8}
+                  y={y + 4}
+                  fill="#64748b"
+                  fontSize="11"
+                  textAnchor="end"
+                >
+                  {formatForecastCount(maxValue * (1 - ratio))}
+                </text>
+              </g>
+            )
+          })}
+          {uncertaintyPoints ? (
+            <polygon
+              fill="#dbeafe"
+              opacity="0.75"
+              points={uncertaintyPoints}
+            />
+          ) : null}
+          <polyline
+            fill="none"
+            points={observedPoints
+              .map((point) => `${point.x},${point.observedY}`)
+              .join(' ')}
+            stroke="#475569"
+            strokeLinejoin="round"
+            strokeWidth="3"
+          />
+          <polyline
+            fill="none"
+            points={forecastLinePoints
+              .map((point) => `${point.x},${point.expectedY}`)
+              .join(' ')}
+            stroke="#2563eb"
+            strokeDasharray="8 5"
+            strokeLinejoin="round"
+            strokeWidth="3"
+          />
+          {points.map((point, index) => {
+            const y = point.observedY ?? point.expectedY
+            if (y === null) return null
+            return (
+              <g key={`${point.date}:${point.kind}`}>
+                <circle
+                  cx={point.x}
+                  cy={y}
+                  fill={point.kind === 'observed' ? '#475569' : '#2563eb'}
+                  r="4"
+                  stroke="white"
+                  strokeWidth="2"
+                >
+                  <title>
+                    {formatTimelineDate(point.date)}:{' '}
+                    {point.kind === 'observed'
+                      ? `${point.observed} observed`
+                      : `${formatForecastCount(point.expected ?? 0)} projected (${point.low}-${point.high})`}
+                  </title>
+                </circle>
+                {index % 2 === 0 || point.kind === 'forecast' ? (
+                  <text
+                    x={point.x}
+                    y={height - 24}
+                    fill="#64748b"
+                    fontSize="10"
+                    textAnchor="middle"
+                  >
+                    {formatTimelineDate(point.date)}
+                  </text>
+                ) : null}
+              </g>
+            )
+          })}
+        </svg>
+      </Box>
+    </Box>
+  )
+}
+
+function ForecastMetric({
+  detail,
+  label,
+  value,
+}: {
+  detail: string
+  label: string
+  value: string
+}) {
+  return (
+    <Box borderWidth="1px" borderColor="gray.200" p="4">
+      <Text
+        color="gray.500"
+        fontSize="xs"
+        fontWeight="700"
+        textTransform="uppercase"
+      >
+        {label}
+      </Text>
+      <Text color="gray.900" fontSize="2xl" fontWeight="800" mt="2">
+        {value}
+      </Text>
+      <Text color="gray.500" fontSize="xs" mt="2">
+        {detail}
+      </Text>
+    </Box>
+  )
+}
+
+function ForecastDistribution({
+  items,
+  title,
+}: {
+  items: AnalyticsForecastDistributionItem[]
+  title: string
+}) {
+  const visibleItems = items.slice(0, 6)
+  const maxExpected = Math.max(
+    ...visibleItems.map((item) => item.expectedCount),
+    1,
+  )
+
+  return (
+    <Box minW="0">
+      <Text color="gray.800" fontWeight="800" mb="3">
+        {title}
+      </Text>
+      <Stack gap="3">
+        {visibleItems.map((item, index) => (
+          <Box key={item.key}>
+            <Flex justify="space-between" gap="3" mb="1">
+              <Text color="gray.700" fontSize="sm" fontWeight="700">
+                {formatLabel(item.key)}
+              </Text>
+              <Text color="gray.500" fontSize="sm">
+                {formatForecastCount(item.expectedCount)} (
+                {formatPercent(item.share)})
+              </Text>
+            </Flex>
+            <Box bg="gray.100" height="2">
+              <Box
+                bg={chartColors[index % chartColors.length]}
+                height="100%"
+                width={`${(item.expectedCount / maxExpected) * 100}%`}
+              />
+            </Box>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  )
+}
+
 function DistributionPanel({
   items,
   title,
@@ -421,7 +825,7 @@ function DistributionPanel({
   items: AnalyticsDistributionItem[]
   title: string
 }) {
-  const [view, setView] = useState<DistributionView>('bar')
+  const [view, setView] = useState<DistributionView>('doughnut')
   const maxCount = Math.max(...items.map((item) => item.count), 1)
   const hasData = items.some((item) => item.count > 0)
 
@@ -715,8 +1119,6 @@ function OrganisationPerformance({
 }: {
   overview: AnalyticsOverview
 }) {
-  const [view, setView] = useState<'chart' | 'table'>('chart')
-
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
       <Flex
@@ -736,103 +1138,8 @@ function OrganisationPerformance({
             Comparable workload metrics with log-derived response indicators.
           </Text>
         </Box>
-        <HStack gap="1">
-          <Button
-            aria-pressed={view === 'chart'}
-            bg={view === 'chart' ? 'blue.700' : 'white'}
-            color={view === 'chart' ? 'white' : 'gray.600'}
-            size="xs"
-            variant={view === 'chart' ? 'solid' : 'outline'}
-            onClick={() => setView('chart')}
-          >
-            <BarChart3 size={14} />
-            Workload
-          </Button>
-          <Button
-            aria-pressed={view === 'table'}
-            bg={view === 'table' ? 'blue.700' : 'white'}
-            color={view === 'table' ? 'white' : 'gray.600'}
-            size="xs"
-            variant={view === 'table' ? 'solid' : 'outline'}
-            onClick={() => setView('table')}
-          >
-            <Table2 size={14} />
-            Details
-          </Button>
-        </HStack>
       </Flex>
-      {view === 'chart' ? (
-        <OrganisationWorkloadChart organisations={overview.data.organisations} />
-      ) : (
-        <OrganisationPerformanceTable overview={overview} />
-      )}
-    </Box>
-  )
-}
-
-function OrganisationWorkloadChart({
-  organisations,
-}: {
-  organisations: AnalyticsOverview['data']['organisations']
-}) {
-  const maxValue = Math.max(
-    ...organisations.flatMap((organisation) => [
-      organisation.incidentsHandled,
-      organisation.activeWorkload,
-      organisation.completedAssignments,
-    ]),
-    1,
-  )
-
-  if (organisations.length === 0) {
-    return (
-      <Text color="gray.500" p="5">
-        No assigned organisations in this period.
-      </Text>
-    )
-  }
-
-  return (
-    <Box p="5" minW="640px">
-      <HStack gap="4" mb="5" wrap="wrap">
-        <ChartLegend color={chartColors[0]} label="Incidents handled" />
-        <ChartLegend color={chartColors[1]} label="Active workload" />
-        <ChartLegend color={chartColors[2]} label="Completed assignments" />
-      </HStack>
-      <Stack gap="5">
-        {organisations.map((organisation) => (
-          <Box key={organisation.organisationId}>
-            <Flex justify="space-between" gap="3" mb="2">
-              <Text color="gray.800" fontWeight="800">
-                {organisation.organisationName}
-              </Text>
-              <Text color="gray.500" fontSize="sm">
-                {formatPercent(organisation.completionRate)} completion
-              </Text>
-            </Flex>
-            <Stack gap="1">
-              {[
-                organisation.incidentsHandled,
-                organisation.activeWorkload,
-                organisation.completedAssignments,
-              ].map((value, index) => (
-                <Flex key={index} align="center" gap="3">
-                  <Box bg="gray.100" height="2" flex="1">
-                    <Box
-                      bg={chartColors[index]}
-                      height="100%"
-                      width={`${(value / maxValue) * 100}%`}
-                    />
-                  </Box>
-                  <Text color="gray.600" fontSize="xs" width="6" textAlign="end">
-                    {value}
-                  </Text>
-                </Flex>
-              ))}
-            </Stack>
-          </Box>
-        ))}
-      </Stack>
+      <OrganisationPerformanceTable overview={overview} />
     </Box>
   )
 }
@@ -971,4 +1278,23 @@ function formatDateTime(value: string) {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(new Date(value))
+}
+
+function formatShortDate(value: string) {
+  return new Intl.DateTimeFormat('en-SG', {
+    day: 'numeric',
+    month: 'short',
+  }).format(new Date(value))
+}
+
+function formatForecastCount(value: number) {
+  return value.toFixed(value < 10 && !Number.isInteger(value) ? 1 : 0)
+}
+
+function formatTimelineDate(value: string) {
+  return new Intl.DateTimeFormat('en-SG', {
+    day: 'numeric',
+    month: 'short',
+    timeZone: 'Asia/Singapore',
+  }).format(new Date(`${value}T00:00:00+08:00`))
 }

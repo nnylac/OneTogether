@@ -77,6 +77,7 @@ Demo login flows may still be mock-driven until real authentication is wired int
 
 The government analytics page is available at `/government/analytics`. It uses
 `GET /api/analytics/overview` for live multi-agency KPI, distribution and
-organisation performance data. The current visuals use dependency-free
-proportional bars; richer Recharts time-series and resource charts are planned
-for the next analytics phase.
+organisation performance data, and `GET /api/analytics/forecast` for an
+automatic seven-day simulation forecast. The dependency-free visuals include
+switchable bar and doughnut charts, workload comparisons, resolution metrics
+and recency-weighted incident projections with explicit uncertainty.

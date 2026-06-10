@@ -256,6 +256,7 @@ All routes use the backend global `/api` prefix.
 
 ```txt
 GET /api/analytics/overview
+GET /api/analytics/forecast
 GET /api/analytics/incidents
 GET /api/analytics/organisations
 GET /api/analytics/resources
@@ -317,17 +318,62 @@ Each response should include:
 
 The frontend should receive aggregated chart data rather than raw incidents.
 
+### Implemented: Simulation Forecast
+
+`GET /api/analytics/forecast` projects scenario-engine incident behavior over a
+future horizon. It uses the same filters and date range as the overview
+endpoint, plus an optional `days` value from 1 to 30. The default horizon is
+seven days.
+
+The first model is intentionally simple and explainable:
+
+1. Incidents receive exponentially decreasing weight with a 14-day half-life.
+2. Weighted incident volume is divided by the weighted history exposure to
+   estimate a current daily rate.
+3. The daily rate is multiplied by the forecast horizon.
+4. The expected total is distributed across future dates using smoothed,
+   recency-weighted weekday patterns.
+5. Incident type and derived region projections use their weighted historical
+   shares.
+6. The likely range is an approximate 95 percent Poisson interval.
+
+The response includes:
+
+- expected incidents and likely low/high range;
+- up to 14 observed daily values followed by the projected daily time series;
+- confidence, sample size and history duration;
+- highest projected incident type and region;
+- projected distributions by type and region;
+- model metadata and limitations.
+
+Confidence describes the amount of supporting simulation history, not a
+guarantee of forecast accuracy:
+
+- `very_low`: fewer than 10 incidents or 7 days;
+- `low`: fewer than 30 incidents or 21 days;
+- `medium`: fewer than 100 incidents or 60 days;
+- `high`: at least 100 incidents across at least 60 days.
+
+The forecast recalculates whenever the endpoint is requested, so newly ingested
+scenario incidents are included automatically. It does not require a trained ML
+model, a schema migration or seeded history.
+
+The dashboard must label this as a simulation forecast. It predicts patterns
+produced by the scenario engine and must not be represented as real-world
+Singapore emergency risk.
+
 ## Dashboard Sections
 
 1. Shared date, region, incident type, severity, status and organisation
    filters.
 2. Overview metric cards.
-3. Incident volume, type, region, severity and peak-period charts.
-4. Resolution-time trends.
-5. Organisation workload and inferred response metrics.
-6. SCDF dispatch and ETA analytics with explicit estimated/inferred labels.
-7. Resource utilisation, availability, demand and capacity pressure.
-8. Data-quality notes explaining unavailable or inferred metrics.
+3. Automatic simulation forecast with uncertainty and confidence.
+4. Incident volume, type, region, severity and peak-period charts.
+5. Resolution-time trends.
+6. Organisation workload and inferred response metrics.
+7. SCDF dispatch and ETA analytics with explicit estimated/inferred labels.
+8. Resource utilisation, availability, demand and capacity pressure.
+9. Data-quality notes explaining unavailable or inferred metrics.
 
 ## Next Analytics Phase
 
@@ -339,8 +385,8 @@ The planned next phase is:
    as SCDF ETA or hospital handoff measures.
 4. Add responsive time-series and utilisation charts with detailed tooltips
    when those backend datasets are available.
-5. Add the opt-in historical analytics seed and cleanup scripts described
-   below.
+5. Backtest the simulation forecast once enough generated history exists and
+   compare it with seasonal or count-regression models.
 
 ## Empty Data Behaviour
 

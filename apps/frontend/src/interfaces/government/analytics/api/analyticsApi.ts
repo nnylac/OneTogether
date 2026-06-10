@@ -70,9 +70,78 @@ export type AnalyticsOverview = {
   }
 }
 
+export type AnalyticsForecast = {
+  filters: AnalyticsOverview['filters']
+  generatedAt: string
+  forecast: {
+    horizonDays: number
+    periodStart: string
+    periodEnd: string
+    expectedIncidents: number
+    likelyRange: {
+      low: number
+      high: number
+    }
+    confidence: 'very_low' | 'low' | 'medium' | 'high'
+    sampleSize: number
+    historyDays: number
+    topIncidentType: string | null
+    topRegion: string | null
+    dailySeries: Array<{
+      date: string
+      observed: number | null
+      expected: number | null
+      low: number | null
+      high: number | null
+      kind: 'observed' | 'forecast'
+    }>
+    byType: AnalyticsForecastDistributionItem[]
+    byRegion: AnalyticsForecastDistributionItem[]
+  }
+  methodology: {
+    model: 'recency_weighted_rate'
+    recencyHalfLifeDays: number
+    interval: 'approximate_95_percent_poisson'
+    dataSource: 'simulated_incidents'
+    limitations: string[]
+  }
+}
+
+export type AnalyticsForecastDistributionItem = {
+  key: string
+  expectedCount: number
+  share: number
+}
+
 export async function fetchAnalyticsOverview(
   filters: AnalyticsOverviewFilters,
 ) {
+  const searchParams = getAnalyticsSearchParams(filters)
+  const response = await fetch(`/api/analytics/overview?${searchParams}`)
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response))
+  }
+
+  return (await response.json()) as AnalyticsOverview
+}
+
+export async function fetchAnalyticsForecast(
+  filters: AnalyticsOverviewFilters,
+  days = 7,
+) {
+  const searchParams = getAnalyticsSearchParams(filters)
+  searchParams.set('days', String(days))
+  const response = await fetch(`/api/analytics/forecast?${searchParams}`)
+
+  if (!response.ok) {
+    throw new Error(await getErrorMessage(response))
+  }
+
+  return (await response.json()) as AnalyticsForecast
+}
+
+function getAnalyticsSearchParams(filters: AnalyticsOverviewFilters) {
   const searchParams = new URLSearchParams()
 
   Object.entries(filters).forEach(([key, value]) => {
@@ -81,13 +150,7 @@ export async function fetchAnalyticsOverview(
     }
   })
 
-  const response = await fetch(`/api/analytics/overview?${searchParams}`)
-
-  if (!response.ok) {
-    throw new Error(await getErrorMessage(response))
-  }
-
-  return (await response.json()) as AnalyticsOverview
+  return searchParams
 }
 
 async function getErrorMessage(response: Response) {

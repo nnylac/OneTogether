@@ -62,7 +62,9 @@ export type GovernmentDashboardData = {
 }
 
 function dateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+  }).format(date)
 }
 
 function defaultAnalyticsFilters(): AnalyticsOverviewFilters {
