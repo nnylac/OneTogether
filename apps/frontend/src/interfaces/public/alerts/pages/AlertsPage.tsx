@@ -24,16 +24,32 @@ export function AlertsPage() {
   const [selectedAlertId, setSelectedAlertId] = useState<string | null>(null)
   const [activeFilter, setActiveFilter] = useState<AlertFilter>('all')
   const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
 
   async function loadAlerts({ showLoading = false } = {}) {
     if (showLoading) {
       setIsLoading(true)
     }
 
-    const nextAlerts = await fetchPublicAlerts()
-    setAlerts(nextAlerts)
-    setSelectedAlertId((currentId) => currentId ?? nextAlerts[0]?.id ?? null)
-    setIsLoading(false)
+    setErrorMessage(null)
+
+    try {
+      const nextAlerts = await fetchPublicAlerts()
+      setAlerts(nextAlerts)
+      setSelectedAlertId((currentId) => {
+        if (currentId && nextAlerts.some((alert) => alert.id === currentId)) {
+          return currentId
+        }
+
+        return nextAlerts[0]?.id ?? null
+      })
+    } catch {
+      setAlerts([])
+      setSelectedAlertId(null)
+      setErrorMessage('Unable to load official broadcasts right now.')
+    } finally {
+      setIsLoading(false)
+    }
   }
 
   useEffect(() => {
@@ -170,9 +186,19 @@ export function AlertsPage() {
             <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
               <Text color="gray.500">Loading official broadcasts...</Text>
             </Box>
+          ) : errorMessage ? (
+            <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
+              <Text color="red.600" fontWeight="700">
+                {errorMessage}
+              </Text>
+            </Box>
           ) : filteredAlerts.length === 0 ? (
             <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
-              <Text color="gray.500">No public alerts match this filter.</Text>
+              <Text color="gray.500">
+                {alerts.length === 0
+                  ? 'No public or zone broadcasts are currently published.'
+                  : 'No public alerts match this filter.'}
+              </Text>
             </Box>
           ) : (
             filteredAlerts.map((alert) => (

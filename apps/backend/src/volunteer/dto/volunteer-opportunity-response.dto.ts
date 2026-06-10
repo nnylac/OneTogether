@@ -30,6 +30,9 @@ export class VolunteerOpportunityResponseDto {
   @ApiPropertyOptional({ example: 'flood_relief' })
   opportunityType!: string | null;
 
+  @ApiProperty({ example: 'urgent' })
+  urgency!: string;
+
   @ApiPropertyOptional({ example: 'Tampines Community Hub' })
   location!: string | null;
 
@@ -41,6 +44,21 @@ export class VolunteerOpportunityResponseDto {
 
   @ApiProperty({ type: String, format: 'date-time', nullable: true })
   endAt!: Date | null;
+
+  @ApiProperty({ example: 30, nullable: true })
+  slotsTotal!: number | null;
+
+  @ApiProperty({ example: 18 })
+  slotsFilled!: number;
+
+  @ApiProperty({ example: 12, nullable: true })
+  slotsLeft!: number | null;
+
+  @ApiProperty({ example: 0.6, nullable: true })
+  slotProgress!: number | null;
+
+  @ApiProperty({ example: false })
+  requiresTraining!: boolean;
 
   @ApiProperty({ example: 'https://volunteer.example.sg/events/123' })
   signupUrl!: string;
@@ -73,10 +91,22 @@ export class VolunteerOpportunityResponseDto {
       title: opportunity.title,
       description: opportunity.description,
       opportunityType: opportunity.opportunity_type,
+      urgency: opportunity.urgency,
       location: opportunity.location,
       region: opportunity.region,
       startAt: opportunity.start_at,
       endAt: opportunity.end_at,
+      slotsTotal: opportunity.slots_total,
+      slotsFilled: opportunity.slots_filled,
+      slotsLeft:
+        opportunity.slots_total === null
+          ? null
+          : Math.max(opportunity.slots_total - opportunity.slots_filled, 0),
+      slotProgress:
+        opportunity.slots_total === null || opportunity.slots_total === 0
+          ? null
+          : opportunity.slots_filled / opportunity.slots_total,
+      requiresTraining: opportunity.requires_training,
       signupUrl: opportunity.signup_url,
       sourceUrl: opportunity.source_url,
       externalUpdatedAt: opportunity.external_updated_at,
