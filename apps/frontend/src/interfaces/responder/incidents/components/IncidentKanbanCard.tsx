@@ -14,8 +14,6 @@ import type { Incident, IncidentSeverity, IncidentStatus } from "../types";
 
 type IncidentKanbanCardProps = {
   incident: Incident;
-  isFromMyOrganisation: boolean;
-  isMyOrganisation: boolean;
 };
 
 const severityStyles: Record<
@@ -84,19 +82,11 @@ const statusStyles: Record<
 
 export function IncidentKanbanCard({
   incident,
-  isFromMyOrganisation,
-  isMyOrganisation,
 }: IncidentKanbanCardProps) {
-  const background = isMyOrganisation
-    ? "white"
-    : isFromMyOrganisation
-      ? "yellow.50"
-      : "white";
-
   return (
     <Box
-      bg={background}
-      borderColor={isMyOrganisation ? "yellow.300" : "gray.200"}
+      bg="white"
+      borderColor="gray.200"
       borderWidth="1px"
       p="4"
       transition="border-color 0.15s ease, box-shadow 0.15s ease"

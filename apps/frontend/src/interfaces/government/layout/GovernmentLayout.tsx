@@ -10,7 +10,6 @@ import {
   Grid2X2,
   Map,
   RadioTower,
-  Settings,
   Shield,
   Siren,
   AlarmClock
@@ -27,7 +26,6 @@ const navItems: ConsoleNavItem[] = [
   { label: 'Organisations', href: '/government/organisations', icon: Building2 },
   { label: 'Analytics', href: '/government/analytics', icon: BarChart3 },
   { label: 'Alerts', href: '/government/alerts', icon: AlarmClock},
-  { label: 'Settings', href: '/government/settings', icon: Settings },
 ]
 
 const sidebarTheme: ConsoleSidebarTheme = {

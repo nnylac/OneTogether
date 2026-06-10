@@ -6,18 +6,14 @@ export type IncidentKanbanColumnId = "reported" | "in_progress";
 
 type IncidentKanbanBoardProps = {
   incidents: Incident[];
-  isFromMyOrganisation: (incident: Incident) => boolean;
   isLoading: boolean;
-  isMyOrganisation: (incident: Incident) => boolean;
 };
 
 const columnOrder: IncidentKanbanColumnId[] = ["reported", "in_progress"];
 
 export function IncidentKanbanBoard({
   incidents,
-  isFromMyOrganisation,
   isLoading,
-  isMyOrganisation,
 }: IncidentKanbanBoardProps) {
   const groupedIncidents = groupIncidentsByColumn(incidents);
 
@@ -38,8 +34,6 @@ export function IncidentKanbanBoard({
               <IncidentKanbanColumn
                 columnId={columnId}
                 incidents={groupedIncidents[columnId]}
-                isFromMyOrganisation={isFromMyOrganisation}
-                isMyOrganisation={isMyOrganisation}
               />
             </Box>
           ))}

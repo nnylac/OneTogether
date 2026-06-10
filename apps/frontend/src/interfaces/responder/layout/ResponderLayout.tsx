@@ -1,4 +1,4 @@
-import { Bell, FolderOpen, Grid2X2, Map, Settings, Shield, Siren } from 'lucide-react'
+import { Bell, FolderOpen, Grid2X2, Map, Shield, Siren } from 'lucide-react'
 import {
   useCallback,
   useEffect,
@@ -20,7 +20,6 @@ const navItems: ConsoleNavItem[] = [
   { label: 'Map', href: '/responder/map', icon: Map },
   { label: 'Resources', href: '/responder/resources', icon: FolderOpen },
   { label: 'Notifications', href: '/responder/notifications', icon: Bell },
-  { label: 'Settings', href: '/responder/settings', icon: Settings },
 ]
 
 const sidebarTheme: ConsoleSidebarTheme = {

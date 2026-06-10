@@ -6,8 +6,6 @@ import type { IncidentKanbanColumnId } from "./IncidentKanbanBoard";
 type IncidentKanbanColumnProps = {
   columnId: IncidentKanbanColumnId;
   incidents: Incident[];
-  isFromMyOrganisation: (incident: Incident) => boolean;
-  isMyOrganisation: (incident: Incident) => boolean;
 };
 
 const statusStyles: Record<
@@ -27,8 +25,6 @@ const statusStyles: Record<
 export function IncidentKanbanColumn({
   columnId,
   incidents,
-  isFromMyOrganisation,
-  isMyOrganisation,
 }: IncidentKanbanColumnProps) {
   const styles = statusStyles[columnId];
 
@@ -74,8 +70,6 @@ export function IncidentKanbanColumn({
             <IncidentKanbanCard
               key={incident.id}
               incident={incident}
-              isFromMyOrganisation={isFromMyOrganisation(incident)}
-              isMyOrganisation={isMyOrganisation(incident)}
             />
           ))}
         </Stack>

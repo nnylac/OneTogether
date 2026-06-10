@@ -78,11 +78,6 @@ export function IncidentsPage() {
   const [page, setPage] = useState(1);
   const assignedOrganisationName =
     user?.organisations[0]?.orgName ?? getFallbackOrganisationName(user);
-  const ownershipContext = useMemo(
-    () => getOwnershipContext(user, assignedOrganisationName),
-    [assignedOrganisationName, user],
-  );
-
   useEffect(() => {
     let isMounted = true;
 
@@ -217,13 +212,7 @@ export function IncidentsPage() {
       ) : (
         <IncidentKanbanBoard
           incidents={sortedFilteredIncidents}
-          isFromMyOrganisation={(incident) =>
-            isFromMyOrganisationIncident(incident, ownershipContext)
-          }
           isLoading={isLoading}
-          isMyOrganisation={(incident) =>
-            isMyOrganisationIncident(incident, ownershipContext)
-          }
         />
       )}
 
@@ -428,76 +417,6 @@ function BodyCell({
       {children}
     </Box>
   );
-}
-
-type OwnershipContext = {
-  organisationIds: string[];
-  organisationNames: string[];
-};
-
-function getOwnershipContext(
-  user: AuthUser | null,
-  fallbackOrganisationName: string | null,
-): OwnershipContext {
-  const organisationIds = [
-    user?.userOrganisationId,
-    ...(user?.organisations.map((organisation) => organisation.id) ?? []),
-  ].filter((id): id is string => Boolean(id));
-  const organisationNames = [
-    fallbackOrganisationName,
-    ...(user?.organisations.map((organisation) => organisation.orgName) ?? []),
-  ].filter((name): name is string => Boolean(name));
-
-  return {
-    organisationIds: Array.from(new Set(organisationIds)),
-    organisationNames: Array.from(new Set(organisationNames.map(normalise))),
-  };
-}
-
-function isMyOrganisationIncident(
-  incident: Incident,
-  context: OwnershipContext,
-) {
-  const assignedOrgNames = (incident.assignedOrgs ?? []).map(normalise);
-  const assignedResourceOrganisationIds = (incident.resources ?? [])
-    .map((resource) => resource.organisationId)
-    .filter((id): id is string => Boolean(id));
-  const assignedResourceAgencyNames = (incident.resources ?? []).map((resource) =>
-    normalise(resource.agency),
-  );
-
-  return (
-    context.organisationNames.some(
-      (organisationName) =>
-        assignedOrgNames.includes(organisationName) ||
-        assignedResourceAgencyNames.includes(organisationName),
-    ) ||
-    context.organisationIds.some((organisationId) =>
-      assignedResourceOrganisationIds.includes(organisationId),
-    )
-  );
-}
-
-function isFromMyOrganisationIncident(
-  incident: Incident,
-  context: OwnershipContext,
-) {
-  const sourceOrganisation = getInferredSourceOrganisation(incident);
-
-  return Boolean(
-    sourceOrganisation &&
-      context.organisationNames.includes(normalise(sourceOrganisation)),
-  );
-}
-
-function getInferredSourceOrganisation(incident: Incident) {
-  // TODO: Replace this title-prefix inference when the API exposes source organisation.
-  const [prefix] = incident.title.split(/\s+-\s+/, 1);
-  return prefix?.trim() || null;
-}
-
-function normalise(value: string) {
-  return value.trim().toLowerCase();
 }
 
 function compareNewestFirst(left: Incident, right: Incident) {

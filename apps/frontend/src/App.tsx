@@ -14,7 +14,6 @@ import { GovernmentDashboardPage } from './interfaces/government/dashboard/pages
 import { GovernmentIncidentsPage } from './interfaces/government/incidents/pages/GovernmentIncidentsPage'
 import { GovernmentMapPage } from './interfaces/government/map/pages/GovernmentMapPage'
 import { GovernmentOrganisationsPage } from './interfaces/government/organisations/pages/GovernmentOrganisationsPage'
-import { GovernmentSettingsPage } from './interfaces/government/settings/pages/GovernmentSettingsPage'
 import { ResponderLayout } from './interfaces/responder/layout/ResponderLayout'
 import { DashboardPage } from './interfaces/responder/dashboard/pages/DashboardPage'
 import { IncidentRoomPage } from './interfaces/responder/incidents/pages/IncidentRoomPage'
@@ -22,7 +21,6 @@ import { IncidentsPage } from './interfaces/responder/incidents/pages/IncidentsP
 import { MapPage } from './interfaces/responder/map/pages/MapPage'
 import { NotificationsPage } from './interfaces/responder/notifications/pages/NotificationsPage'
 import { ResourcesPage } from './interfaces/responder/resources/pages/ResourcesPage'
-import { SettingsPage } from './interfaces/responder/settings/pages/SettingsPage'
 
 export default function App() {
   return (
@@ -64,7 +62,6 @@ export default function App() {
               />
               <Route path="analytics" element={<GovernmentAnalyticsPage />} />
               <Route path="alerts" element={<GovernmentAlertsPage />} />
-              <Route path="settings" element={<GovernmentSettingsPage />} />
             </Route>
           </Route>
           <Route element={<ProtectedRoute allowedRoles={['responder']} />}>
@@ -78,7 +75,6 @@ export default function App() {
               <Route path="map" element={<MapPage />} />
               <Route path="resources" element={<ResourcesPage />} />
               <Route path="notifications" element={<NotificationsPage />} />
-              <Route path="settings" element={<SettingsPage />} />
             </Route>
           </Route>
         </Routes>
