@@ -47,6 +47,9 @@ export function IncidentRoomPage() {
   const [reportError, setReportError] = useState<string | null>(null);
   const [reportIsGenerating, setReportIsGenerating] = useState(false);
   const [reportIsSaving, setReportIsSaving] = useState(false);
+  const [reportGeneratedBy, setReportGeneratedBy] = useState<
+    "ai" | "rules" | null
+  >(null);
   const roomSocketRef = useRef<Socket | null>(null);
   const pendingMessageRef = useRef<string | null>(null);
 
@@ -236,7 +239,8 @@ export function IncidentRoomPage() {
     try {
       setReportError(null);
       setReportIsGenerating(true);
-      await regenerateFinalAnalysis(incident.id);
+      const analysis = await regenerateFinalAnalysis(incident.id);
+      setReportGeneratedBy(analysis.generatedBy ?? null);
       const updated = await fetchIncident(incident.id);
       setIncident(updated);
       setReportDraft(createReportDraft(updated));
@@ -282,6 +286,7 @@ export function IncidentRoomPage() {
         incident={incident}
         messages={messages}
         reportError={reportError}
+        reportGeneratedBy={reportGeneratedBy}
         reportIsGenerating={reportIsGenerating}
         reportIsSaving={reportIsSaving}
         onDiscussionDraftChange={updateDiscussionDraft}

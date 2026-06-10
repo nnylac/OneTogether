@@ -13,6 +13,7 @@ import type { IncidentReportDraft, IncidentStatus } from "../types";
 type IncidentReportProps = {
   draft: IncidentReportDraft;
   error?: string | null;
+  generatedBy?: "ai" | "rules" | null;
   isGenerating: boolean;
   isSaving: boolean;
   onGenerate: () => void;
@@ -24,6 +25,7 @@ type IncidentReportProps = {
 export function IncidentReport({
   draft,
   error,
+  generatedBy,
   isGenerating,
   isSaving,
   onGenerate,
@@ -124,7 +126,7 @@ export function IncidentReport({
 
           {error && <Text color="red.600">{error}</Text>}
 
-          <Box display="flex" gap="3">
+          <Box alignItems="center" display="flex" flexWrap="wrap" gap="3">
             <Button type="submit" colorPalette="purple" loading={isSaving}>
               Save report
             </Button>
@@ -137,6 +139,16 @@ export function IncidentReport({
             >
               Regenerate analysis
             </Button>
+            {generatedBy === "ai" && (
+              <Text color="purple.600" fontSize="sm" fontWeight="600">
+                AI-generated draft — review before saving
+              </Text>
+            )}
+            {generatedBy === "rules" && (
+              <Text color="gray.500" fontSize="sm" fontWeight="600">
+                Rule-based draft (AI unavailable)
+              </Text>
+            )}
           </Box>
         </VStack>
       </VStack>

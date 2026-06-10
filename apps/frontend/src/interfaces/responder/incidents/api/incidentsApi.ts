@@ -94,7 +94,7 @@ export async function regenerateFinalAnalysis(id: string) {
       await getApiErrorMessage(response, "Unable to generate final analysis"),
     );
   }
-  return response.json();
+  return (await response.json()) as { generatedBy?: "ai" | "rules" | null };
 }
 
 export async function fetchOrganisations() {

@@ -88,6 +88,7 @@ jobs:
         env:
           COGNITO_USER_POOL_ID: ${{ secrets.COGNITO_USER_POOL_ID }}
           COGNITO_CLIENT_ID:    ${{ secrets.COGNITO_CLIENT_ID }}
+          OPENAI_API_KEY:       ${{ secrets.OPENAI_API_KEY }}
         run: |
           DB_SECRET=$(aws secretsmanager get-secret-value \
             --secret-id onetogether-production/database \
@@ -106,6 +107,7 @@ jobs:
             --from-literal=REDIS_URL="$REDIS_URL" \
             --from-literal=COGNITO_USER_POOL_ID="$COGNITO_USER_POOL_ID" \
             --from-literal=COGNITO_CLIENT_ID="$COGNITO_CLIENT_ID" \
+            --from-literal=OPENAI_API_KEY="$OPENAI_API_KEY" \
             --save-config --dry-run=client -o yaml | kubectl apply -f -
 
       # 9. Update ConfigMap with non-sensitive values

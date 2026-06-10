@@ -2,17 +2,11 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import type { AnalyticsOverviewQuery } from './analytics.controller';
-
-const regions = [
-  'Central',
-  'East',
-  'West',
-  'North',
-  'North-East',
-  'Unknown',
-] as const;
-
-type Region = (typeof regions)[number];
+import {
+  deriveRegion,
+  REGIONS as regions,
+  type Region,
+} from '../common/derive-region.util';
 
 type AnalyticsIncident = Prisma.incidentsGetPayload<{
   include: {
@@ -273,43 +267,7 @@ export class AnalyticsService {
     longitude: Prisma.Decimal | null;
     inc_location: string | null;
   }): Region {
-    if (incident.latitude !== null && incident.longitude !== null) {
-      const latitude = Number(incident.latitude);
-      const longitude = Number(incident.longitude);
-
-      if (latitude >= 1.39 && longitude < 103.87) return 'North';
-      if (latitude >= 1.35 && longitude >= 103.87) return 'North-East';
-      if (longitude >= 103.89) return 'East';
-      if (longitude <= 103.77) return 'West';
-      if (
-        latitude >= 1.25 &&
-        latitude <= 1.39 &&
-        longitude >= 103.77 &&
-        longitude < 103.89
-      ) {
-        return 'Central';
-      }
-    }
-
-    const location = incident.inc_location?.toLowerCase() ?? '';
-    const textRegions: Array<[Region, string[]]> = [
-      [
-        'North-East',
-        ['sengkang', 'punggol', 'hougang', 'serangoon', 'buangkok'],
-      ],
-      ['North', ['woodlands', 'sembawang', 'yishun', 'mandai']],
-      ['East', ['bedok', 'tampines', 'pasir ris', 'changi', 'paya lebar']],
-      ['West', ['jurong', 'clementi', 'bukit batok', 'choa chu kang', 'tuas']],
-      [
-        'Central',
-        ['orchard', 'marina', 'downtown', 'toa payoh', 'bishan', 'novena'],
-      ],
-    ];
-    return (
-      textRegions.find(([, keywords]) =>
-        keywords.some((keyword) => location.includes(keyword)),
-      )?.[0] ?? 'Unknown'
-    );
+    return deriveRegion(incident);
   }
 
   private parseFilters(query: AnalyticsOverviewQuery): ParsedFilters {

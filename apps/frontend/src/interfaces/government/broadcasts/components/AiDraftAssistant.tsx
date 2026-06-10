@@ -8,10 +8,16 @@ import {
 } from '../../../../components/chakra-ui'
 
 type AiDraftAssistantProps = {
+  isGenerating?: boolean
+  notice?: string | null
   onRegenerate: () => void
 }
 
-export function AiDraftAssistant({ onRegenerate }: AiDraftAssistantProps) {
+export function AiDraftAssistant({
+  isGenerating = false,
+  notice,
+  onRegenerate,
+}: AiDraftAssistantProps) {
   return (
     <Box bg="green.50" borderColor="green.200" borderWidth="1px" p="4">
       <Flex
@@ -27,14 +33,21 @@ export function AiDraftAssistant({ onRegenerate }: AiDraftAssistantProps) {
 
           <Text color="green.700" fontSize="sm" mt="1">
             Generate a suggested broadcast title and message based on the
-            selected audience, zone, and severity.
+            selected audience, zone, severity, and the live incident picture.
           </Text>
+
+          {notice && (
+            <Text color="orange.600" fontSize="sm" mt="1" fontWeight="600">
+              {notice}
+            </Text>
+          )}
         </Box>
 
         <Button
           alignSelf={{ base: 'flex-start', md: 'center' }}
           bg="green.600"
           color="white"
+          loading={isGenerating}
           size="sm"
           onClick={onRegenerate}
           _hover={{

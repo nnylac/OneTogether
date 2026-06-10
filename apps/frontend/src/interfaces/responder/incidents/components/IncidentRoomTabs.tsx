@@ -43,6 +43,7 @@ type IncidentRoomTabsProps = {
   incident: Incident;
   messages: ChatMessage[];
   reportError?: string | null;
+  reportGeneratedBy?: "ai" | "rules" | null;
   reportIsGenerating: boolean;
   reportIsSaving: boolean;
   onDiscussionDraftChange: (draft: string) => void;
@@ -60,6 +61,7 @@ export function IncidentRoomTabs({
   incident,
   messages,
   reportError,
+  reportGeneratedBy,
   reportIsGenerating,
   reportIsSaving,
   onDiscussionDraftChange,
@@ -125,6 +127,7 @@ export function IncidentRoomTabs({
           <IncidentReport
             draft={reportDraft}
             error={reportError}
+            generatedBy={reportGeneratedBy}
             isGenerating={reportIsGenerating}
             isSaving={reportIsSaving}
             onGenerate={onGenerateReport}

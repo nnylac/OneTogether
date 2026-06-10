@@ -18,6 +18,7 @@ import { PrismaModule } from './prisma/prisma.module';
 import { AnalyticsModule } from './analytics/analytics.module';
 import { GovernmentAlertsModule } from './government-alerts/government-alerts.module';
 import { CommunityEventsModule } from './community-events/community-events.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -38,6 +39,7 @@ import { CommunityEventsModule } from './community-events/community-events.modul
     AnalyticsModule,
     GovernmentAlertsModule,
     CommunityEventsModule,
+    AiModule,
   ],
   controllers: [AppController],
   providers: [AppService],
