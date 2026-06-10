@@ -5,6 +5,7 @@ import type {
 } from '../../../generated/prisma/client';
 
 export type NotificationWithRecipients = NotificationModel & {
+  metadata?: unknown;
   notification_recipients: NotificationRecipientModel[];
 };
 
@@ -65,6 +66,15 @@ export class NotificationResponseDto {
   @ApiPropertyOptional({ example: '20000000-0000-0000-0000-000000000001' })
   referenceId!: string | null;
 
+  @ApiPropertyOptional({
+    example: {
+      alertRuleId: '40000000-0000-0000-0000-000000000001',
+      currentValue: 13,
+      thresholdValue: 10,
+    },
+  })
+  metadata!: unknown;
+
   @ApiProperty({ type: String, format: 'date-time' })
   createdAt!: Date;
 
@@ -81,6 +91,7 @@ export class NotificationResponseDto {
       notificationType: notification.notification_type,
       referenceType: notification.reference_type,
       referenceId: notification.reference_id,
+      metadata: notification.metadata,
       createdAt: notification.created_at,
       recipients: notification.notification_recipients.map((recipient) =>
         NotificationRecipientResponseDto.fromModel(recipient),

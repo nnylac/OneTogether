@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient, type Prisma } from '../generated/prisma/client';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const connectionString = process.env.DATABASE_URL;
@@ -9,6 +9,139 @@ if (!connectionString) {
 
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
+
+type OrganisationContactGuide = {
+  orgName: string;
+  contactNumber: string | null;
+  contactChannel: string;
+  serviceSummary: string;
+  contactGuidance: string;
+};
+
+type SeedBroadcastAudience =
+  | { audience_type: 'public' }
+  | { audience_type: 'region'; region: string }
+  | { audience_type: 'organisation'; organisation_id: string };
+
+type SeedBroadcast = {
+  id: string;
+  title: string;
+  message: string;
+  severity: string;
+  createdAt: Date;
+  audiences: SeedBroadcastAudience[];
+};
+
+const organisationContactGuides: OrganisationContactGuide[] = [
+  {
+    orgName: 'SPF',
+    contactNumber: '999',
+    contactChannel: 'Emergency hotline',
+    serviceSummary:
+      'Police response for crime, public order, suspicious activity, and immediate security threats.',
+    contactGuidance:
+      'Call 999 for police emergencies or urgent security threats. For non-urgent matters, use SPF public reporting channels.',
+  },
+  {
+    orgName: 'SCDF',
+    contactNumber: '995',
+    contactChannel: 'Emergency hotline',
+    serviceSummary:
+      'Fire, rescue, ambulance, hazardous material, and emergency medical response.',
+    contactGuidance:
+      'Call 995 for life-threatening medical emergencies, fire, rescue, or hazardous material incidents.',
+  },
+  {
+    orgName: 'MOH',
+    contactNumber: '6325 9220',
+    contactChannel: 'General hotline',
+    serviceSummary:
+      'National health guidance, public health advisories, disease information, and healthcare policy support.',
+    contactGuidance:
+      'Contact MOH for general health guidance, disease advisories, and ministry-level healthcare enquiries.',
+  },
+  {
+    orgName: 'SGH',
+    contactNumber: '6222 3322',
+    contactChannel: 'Hospital hotline',
+    serviceSummary:
+      'Singapore General Hospital services including specialist care, appointments, and hospital enquiries.',
+    contactGuidance:
+      'Contact SGH for hospital services, appointment guidance, and patient-related enquiries.',
+  },
+  {
+    orgName: 'PUB',
+    contactNumber: '6521 6470',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'National water agency handling drainage, flood management, water supply, and sewerage issues.',
+    contactGuidance:
+      'Contact PUB for drainage issues, flooding, water supply disruptions, or sewerage-related matters.',
+  },
+  {
+    orgName: 'NEA',
+    contactNumber: '6225 5632',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Environmental public health, pollution, sanitation, hawker centre matters, and weather-related advisories.',
+    contactGuidance:
+      'Contact NEA for environmental health, pollution, cleanliness, vector, or weather advisory matters.',
+  },
+  {
+    orgName: 'LTA',
+    contactNumber: '6225 5582',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Land transport operations, road issues, public transport disruptions, and traffic management.',
+    contactGuidance:
+      'Contact LTA for road, traffic, and public transport service disruptions or transport infrastructure concerns.',
+  },
+  {
+    orgName: 'HDB',
+    contactNumber: '6225 5432',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Public housing estate matters, town living support, HDB flats, and residential property services.',
+    contactGuidance:
+      'Contact HDB for public housing, estate facilities, and flat-related enquiries.',
+  },
+  {
+    orgName: 'EMA',
+    contactNumber: '6835 8000',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Energy market, electricity and gas supply reliability, and power-sector coordination.',
+    contactGuidance:
+      'Contact EMA for electricity, gas, and power-sector matters. For immediate danger from electrical hazards, call emergency services.',
+  },
+  {
+    orgName: 'SINGHEALTH',
+    contactNumber: '6377 8791',
+    contactChannel: 'Healthcare cluster hotline',
+    serviceSummary:
+      'Public healthcare cluster covering hospitals, polyclinics, national specialty centres, and community care services.',
+    contactGuidance:
+      'Contact SingHealth for cluster healthcare services, appointments, and care navigation.',
+  },
+  {
+    orgName: 'NUHS',
+    contactNumber: '6908 2222',
+    contactChannel: 'Healthcare cluster hotline',
+    serviceSummary:
+      'Public healthcare cluster supporting hospital, national specialty, polyclinic, and academic health services.',
+    contactGuidance:
+      'Contact NUHS for cluster healthcare services, appointments, and care navigation.',
+  },
+  {
+    orgName: 'TOWN_COUNCIL',
+    contactNumber: null,
+    contactChannel: 'OneService App',
+    serviceSummary:
+      'Municipal estate support for neighbourhood maintenance, cleanliness, facilities, and local defects.',
+    contactGuidance:
+      'Use the OneService App for municipal estate issues such as cleanliness, lighting, defects, and neighbourhood maintenance.',
+  },
+];
 
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('base64url');
@@ -51,7 +184,9 @@ async function main() {
     create: { org_name: 'IMDA' },
   });
 
-  console.log('Organisations: SCDF, SPF, SGH, MOH, IMDA');
+  await seedOrganisationContactGuides();
+
+  console.log('Organisations: SCDF, SPF, SGH, MOH, IMDA, and public guides');
 
   // --- Citizen (role: user) ---
   const citizenUser = await prisma.users.upsert({
@@ -177,6 +312,14 @@ async function main() {
 
   console.log('User created:   gov      / gov      → /government');
 
+  await seedBroadcasts({
+    govUserId: govUser.id,
+    scdfOrganisationId: scdf.id,
+    spfOrganisationId: spf.id,
+  });
+
+  console.log('Broadcasts:     seeded published demo broadcasts');
+
   // --- Resource inventory ---
   // Mirrors the shape the agency simulators emit (apps/external/agencies/*/main.py)
   // so the responder Resources view has data without the Python sims running.
@@ -185,6 +328,144 @@ async function main() {
   await seedResources();
 
   console.log('\nSeed complete.');
+}
+
+async function seedOrganisationContactGuides() {
+  for (const guide of organisationContactGuides) {
+    const data = {
+      contact_number: guide.contactNumber,
+      contact_channel: guide.contactChannel,
+      service_summary: guide.serviceSummary,
+      contact_guidance: guide.contactGuidance,
+    };
+
+    await prisma.organisations.upsert({
+      where: { org_name: guide.orgName },
+      update: data,
+      create: {
+        org_name: guide.orgName,
+        ...data,
+      },
+    });
+  }
+}
+
+async function seedBroadcasts({
+  govUserId,
+  scdfOrganisationId,
+  spfOrganisationId,
+}: {
+  govUserId: string;
+  scdfOrganisationId: string;
+  spfOrganisationId: string;
+}) {
+  const demoBroadcasts: SeedBroadcast[] = [
+    {
+      id: '40000000-0000-0000-0000-000000000001',
+      title: 'Flood Alert - Orchard Area',
+      message:
+        'Heavy rainfall causing flash floods. Avoid low-lying areas. Seek higher ground if water levels rise.',
+      severity: 'critical',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'region', region: 'Central' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000002',
+      title: 'All Responders - Standby',
+      message:
+        'Multiple incidents reported across CBD. All units on standby for immediate deployment.',
+      severity: 'warning',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [
+        { audience_type: 'organisation', organisation_id: spfOrganisationId },
+        { audience_type: 'organisation', organisation_id: scdfOrganisationId },
+      ],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000003',
+      title: 'Public Safety Advisory',
+      message:
+        'Construction site accident at Marina Bay. Avoid the area. Emergency services are on scene.',
+      severity: 'advisory',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'public' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000004',
+      title: 'MRT Disruption Notice',
+      message:
+        'Power failure on North-South Line. Alternative bus services deployed. Check SMRT app for updates.',
+      severity: 'info',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'public' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000005',
+      title: 'Volunteer Call - Medical Support',
+      message:
+        'Multiple medical incidents requiring first aid support. Certified volunteers should report to nearest SCDF station.',
+      severity: 'warning',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [
+        { audience_type: 'organisation', organisation_id: scdfOrganisationId },
+      ],
+    },
+  ];
+
+  for (const broadcast of demoBroadcasts) {
+    await prisma.broadcasts.upsert({
+      where: { id: broadcast.id },
+      update: {
+        title: broadcast.title,
+        message: broadcast.message,
+        broadcast_type: 'emergency_advisory',
+        severity: broadcast.severity,
+        broadcast_status: 'published',
+        created_by_user_id: govUserId,
+        published_at: broadcast.createdAt,
+        archived_at: null,
+        created_at: broadcast.createdAt,
+        updated_at: broadcast.createdAt,
+      },
+      create: {
+        id: broadcast.id,
+        title: broadcast.title,
+        message: broadcast.message,
+        broadcast_type: 'emergency_advisory',
+        severity: broadcast.severity,
+        broadcast_status: 'published',
+        created_by_user_id: govUserId,
+        published_at: broadcast.createdAt,
+        created_at: broadcast.createdAt,
+        updated_at: broadcast.createdAt,
+      },
+    });
+
+    await prisma.broadcast_audiences.deleteMany({
+      where: { broadcast_id: broadcast.id },
+    });
+
+    await prisma.broadcast_audiences.createMany({
+      data: broadcast.audiences.map((audience) =>
+        toSeedBroadcastAudienceCreateManyInput(broadcast.id, audience),
+      ),
+    });
+  }
+}
+
+function toSeedBroadcastAudienceCreateManyInput(
+  broadcastId: string,
+  audience: SeedBroadcastAudience,
+): Prisma.broadcast_audiencesCreateManyInput {
+  return {
+    broadcast_id: broadcastId,
+    audience_type: audience.audience_type,
+    region: audience.audience_type === 'region' ? audience.region : undefined,
+    organisation_id:
+      audience.audience_type === 'organisation'
+        ? audience.organisation_id
+        : undefined,
+  };
 }
 
 type SeedResource = {

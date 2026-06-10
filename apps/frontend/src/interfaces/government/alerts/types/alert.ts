@@ -19,6 +19,7 @@ export type AlertMetricDefinition = {
   label: string
   description: string
   defaultUnit: AlertUnit
+  defaultThresholdValue: number
   currentValue: number
 }
 
@@ -32,7 +33,9 @@ export type GovernmentAlert = {
   unit: AlertUnit
   status: AlertStatus
   notificationMessage: string
+  isEnabled?: boolean
   createdAt: string
+  updatedAt?: string
 }
 
 export type NewAlertInput = {

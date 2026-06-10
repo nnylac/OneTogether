@@ -1,7 +1,7 @@
 import type { ElementType } from 'react'
 import {
-  Ambulance,
   AlertTriangle,
+  Ambulance,
   Building2,
   Car,
   CloudRain,
@@ -14,19 +14,15 @@ import {
   Wind,
   Zap,
 } from 'lucide-react'
-import type { IncidentSeverity, IncidentStatus } from '../incidents/types'
+import type {
+  IncidentSeverity,
+  IncidentStatus,
+} from '../../responder/incidents/types'
 import type { LabelBoxTone } from '../../../components/ui/LabelBox'
 
-/**
- * Shared map constants and visual helpers for the responder overview map.
- * Mirrors the Google Maps setup used by the single-incident `IncidentMap`
- * (same provider, map id, and Singapore framing) so the two views stay
- * visually consistent without coupling to that component's internals.
- */
 export const SINGAPORE_CENTRE = { lat: 1.3521, lng: 103.8198 }
 export const MAP_ID = 'DEMO_MAP_ID'
 
-/** Marker / accent colour for an incident's severity label. */
 export function severityColor(severity: IncidentSeverity | undefined): string {
   switch (severity) {
     case 'Critical':
@@ -40,7 +36,6 @@ export function severityColor(severity: IncidentSeverity | undefined): string {
   }
 }
 
-/** LabelBox tone used for severity chips in the stat rail and list. */
 export const severityTone: Record<IncidentSeverity, LabelBoxTone> = {
   Critical: 'red',
   High: 'orange',
@@ -61,11 +56,6 @@ export const statusTone: Record<IncidentStatus, LabelBoxTone> = {
 
 type TypeMeta = { icon: ElementType; label: string }
 
-/**
- * Canonical incident types emitted by the agency simulators (UPPERCASE_SNAKE) →
- * icon + human-readable label. This is the primary lookup; the keyword rules below
- * are only a fallback for free-text / unknown type strings.
- */
 const CANONICAL_TYPES: Record<string, TypeMeta> = {
   TRAFFIC_ACCIDENT: { icon: Car, label: 'Traffic accident' },
   BUILDING_FIRE: { icon: Flame, label: 'Building fire' },
@@ -92,7 +82,6 @@ const TYPE_RULES: Array<{ match: RegExp; icon: ElementType }> = [
   { match: /collapse|structural/, icon: Building2 },
 ]
 
-/** Icon + label for an incident type — canonical table first, keyword rules as fallback. */
 export function typeMeta(incidentType: string | undefined): TypeMeta {
   const raw = (incidentType ?? '').trim()
   const canonical = CANONICAL_TYPES[raw.toUpperCase()]
@@ -103,7 +92,6 @@ export function typeMeta(incidentType: string | undefined): TypeMeta {
   return { icon: rule?.icon ?? (value ? AlertTriangle : Siren), label: typeLabel(incidentType) }
 }
 
-/** Human-readable label for an incident type string ("TRAFFIC_ACCIDENT" → "Traffic accident"). */
 export function typeLabel(incidentType: string | undefined): string {
   const raw = (incidentType ?? '').trim()
   if (!raw) return 'Incident'
@@ -113,7 +101,7 @@ export function typeLabel(incidentType: string | undefined): string {
   return words.charAt(0).toUpperCase() + words.slice(1)
 }
 
-/** An incident is "active" while it has not been closed. */
 export function isActiveStatus(status: IncidentStatus): boolean {
   return status !== 'closed'
 }
+

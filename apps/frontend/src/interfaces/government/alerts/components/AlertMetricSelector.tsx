@@ -1,13 +1,14 @@
 import { Box, Select, Text } from '../../../../components/chakra-ui'
-import { alertMetricDefinitions } from '../data/sampleGovernmentAlerts'
-import type { AlertMetric } from '../types/alert'
+import type { AlertMetric, AlertMetricDefinition } from '../types/alert'
 
 type AlertMetricSelectorProps = {
+  metricDefinitions: AlertMetricDefinition[]
   selectedMetric: AlertMetric
   onSelectMetric: (metric: AlertMetric) => void
 }
 
 export function AlertMetricSelector({
+  metricDefinitions,
   selectedMetric,
   onSelectMetric,
 }: AlertMetricSelectorProps) {
@@ -23,7 +24,7 @@ export function AlertMetricSelector({
         value={selectedMetric}
         onChange={(event) => onSelectMetric(event.target.value as AlertMetric)}
       >
-        {alertMetricDefinitions.map((metric) => (
+        {metricDefinitions.map((metric) => (
           <option key={metric.value} value={metric.value}>
             {metric.label}
           </option>

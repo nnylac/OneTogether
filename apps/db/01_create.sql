@@ -13,7 +13,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TABLE organisations (
     id          UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    org_name    VARCHAR(50)  NOT NULL UNIQUE
+    org_name    VARCHAR(50)  NOT NULL UNIQUE,
+    contact_number   VARCHAR(40),
+    contact_channel  VARCHAR(80),
+    service_summary  TEXT,
+    contact_guidance TEXT
 );
 
 CREATE TABLE resources (
@@ -271,6 +275,38 @@ FOR EACH ROW EXECUTE FUNCTION set_updated_at();
 CREATE INDEX idx_volunteer_sources_active          ON volunteer_sources (is_active);
 CREATE INDEX idx_volunteer_sources_organisation_id ON volunteer_sources (organisation_id);
 
+CREATE TABLE community_events (
+    id               UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
+    title            VARCHAR(150) NOT NULL,
+    organiser_name   VARCHAR(120) NOT NULL,
+    category         VARCHAR(50)  NOT NULL,
+    description      TEXT,
+    location         TEXT,
+    region           VARCHAR(100),
+    start_at         TIMESTAMPTZ,
+    end_at           TIMESTAMPTZ,
+    capacity         INTEGER      CHECK (capacity IS NULL OR capacity >= 0),
+    registered_count INTEGER      NOT NULL DEFAULT 0 CHECK (registered_count >= 0),
+    is_free          BOOLEAN      NOT NULL DEFAULT TRUE,
+    signup_url       TEXT,
+    event_status     VARCHAR(30)  NOT NULL DEFAULT 'open'
+                     CHECK (event_status IN ('open', 'closed', 'cancelled', 'completed')),
+    created_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+    updated_at       TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
+
+    CHECK (
+        capacity IS NULL
+        OR registered_count <= capacity
+    )
+);
+CREATE TRIGGER trg_community_events_updated_at
+BEFORE UPDATE ON community_events
+FOR EACH ROW EXECUTE FUNCTION set_updated_at();
+CREATE INDEX idx_community_events_status    ON community_events (event_status);
+CREATE INDEX idx_community_events_region    ON community_events (region);
+CREATE INDEX idx_community_events_category  ON community_events (category);
+CREATE INDEX idx_community_events_start_at  ON community_events (start_at);
+
 CREATE TABLE volunteer_opportunities (
     id                  UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
     source_id           UUID         NOT NULL REFERENCES volunteer_sources (id) ON DELETE CASCADE,
@@ -278,10 +314,15 @@ CREATE TABLE volunteer_opportunities (
     title               VARCHAR(150) NOT NULL,
     description         TEXT,
     opportunity_type    VARCHAR(50),
+    urgency             VARCHAR(20)  NOT NULL DEFAULT 'normal'
+                        CHECK (urgency IN ('normal', 'urgent', 'critical')),
     location            TEXT,
     region              VARCHAR(100),
     start_at            TIMESTAMPTZ,
     end_at              TIMESTAMPTZ,
+    slots_total         INTEGER      CHECK (slots_total IS NULL OR slots_total >= 0),
+    slots_filled        INTEGER      NOT NULL DEFAULT 0 CHECK (slots_filled >= 0),
+    requires_training   BOOLEAN      NOT NULL DEFAULT FALSE,
     signup_url          TEXT         NOT NULL,
     source_url          TEXT,
     external_updated_at TIMESTAMPTZ,
@@ -289,7 +330,12 @@ CREATE TABLE volunteer_opportunities (
     created_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
     updated_at          TIMESTAMPTZ  NOT NULL DEFAULT NOW(),
 
-    UNIQUE (source_id, external_id)
+    UNIQUE (source_id, external_id),
+
+    CHECK (
+        slots_total IS NULL
+        OR slots_filled <= slots_total
+    )
 );
 CREATE TRIGGER trg_volunteer_opportunities_updated_at
 BEFORE UPDATE ON volunteer_opportunities
@@ -299,6 +345,7 @@ CREATE INDEX idx_volunteer_opportunities_status    ON volunteer_opportunities (o
 CREATE INDEX idx_volunteer_opportunities_region    ON volunteer_opportunities (region);
 CREATE INDEX idx_volunteer_opportunities_type      ON volunteer_opportunities (opportunity_type);
 CREATE INDEX idx_volunteer_opportunities_start_at  ON volunteer_opportunities (start_at);
+CREATE INDEX idx_volunteer_opportunities_urgency   ON volunteer_opportunities (urgency);
 
 CREATE TABLE accounts (
     id              UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
@@ -369,8 +416,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
-
 
 
 

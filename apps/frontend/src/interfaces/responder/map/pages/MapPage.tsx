@@ -1,13 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Box, Flex, Heading, Text } from '../../../../components/chakra-ui'
+import { useAuth } from '../../../auth/useAuth'
 import { BackToDashboardLink } from '../../components/BackToDashboardLink'
 import { fetchIncidents } from '../../incidents/api/incidentsApi'
 import type { Incident, IncidentSeverity } from '../../incidents/types'
-import { OverviewMap } from '../components/OverviewMap'
-import { OverviewIncidentList } from '../components/OverviewIncidentList'
-import { OverviewFilters } from '../components/OverviewFilters'
-import { ALL, defaultFilters } from '../filterState'
-import type { OverviewFilterState, OverviewView } from '../filterState'
+import { OverviewFilters } from '../../../shared/map/components/OverviewFilters'
+import { OverviewIncidentList } from '../../../shared/map/components/OverviewIncidentList'
+import { OverviewMap } from '../../../shared/map/components/OverviewMap'
+import { ALL, defaultFilters } from '../../../shared/map/filterState'
+import type { OverviewFilterState, OverviewView } from '../../../shared/map/filterState'
 
 const overviewPollingIntervalMs = 10000
 
@@ -41,19 +42,32 @@ function matchesChips(incident: Incident, filters: OverviewFilterState): boolean
 }
 
 export function MapPage() {
+  const { user } = useAuth()
   const [incidents, setIncidents] = useState<Incident[]>([])
   const [filters, setFilters] = useState<OverviewFilterState>(defaultFilters)
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
 
+  const organisationId = user?.userOrganisationId ?? user?.organisations[0]?.id ?? undefined
+
   useEffect(() => {
     let isMounted = true
 
     async function load(showLoading: boolean) {
       if (showLoading) setIsLoading(true)
+
+      if (!organisationId) {
+        if (isMounted) {
+          setIncidents([])
+          setError('No responder organisation is linked to this account.')
+          setIsLoading(false)
+        }
+        return
+      }
+
       try {
-        const nextIncidents = await fetchIncidents()
+        const nextIncidents = await fetchIncidents({ organisationId })
         if (!isMounted) return
         setIncidents(nextIncidents)
         setError(null)
@@ -70,7 +84,7 @@ export function MapPage() {
       isMounted = false
       window.clearInterval(pollingId)
     }
-  }, [])
+  }, [organisationId])
 
   const types = useMemo(() => distinct(incidents.map((incident) => incident.incidentType)), [incidents])
   const agencies = useMemo(
@@ -146,6 +160,8 @@ export function MapPage() {
             </Box>
           ) : (
             <OverviewMap
+              detailLink={(incident) => `/responder/incidents/${incident.id}/room`}
+              detailLinkLabel="Open incident room"
               incidents={filteredIncidents}
               selectedId={effectiveSelectedId}
               onSelect={setSelectedId}
@@ -174,6 +190,8 @@ export function MapPage() {
             onSelect={setSelectedId}
             view={filters.view}
             counts={viewCounts}
+            detailLink={(incident) => `/responder/incidents/${incident.id}/room`}
+            detailLinkLabel="Open incident room"
             onViewChange={(view) => setFilters((current) => ({ ...current, view }))}
           />
         </Flex>

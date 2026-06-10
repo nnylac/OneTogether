@@ -1,20 +1,5 @@
-import type { Incident } from '../incidents/types'
 import { SINGAPORE_CENTRE } from './mapShared'
-
-/**
- * Client-side fallback geolocation for the operations overview map.
- *
- * Incidents normally arrive with exact `lat`/`lng` from the ingestion pipeline,
- * but legacy rows, production data, or a simulator that omits `location.lat` can
- * leave them null — in which case they would silently vanish from the map. To keep
- * every incident visible (and the "plotted" stat honest), we resolve a usable
- * coordinate from the incident's free-text `location` against a static Singapore
- * gazetteer, falling back to the island centre as a last resort.
- *
- * This is intentionally pure, synchronous, and dependency-free (no external
- * geocoding API, no key, no network) so it is production-safe and deterministic:
- * the same incident always resolves to the same point across the 10s polls.
- */
+import type { OverviewIncident } from './types/overviewIncident'
 
 export type CoordinateSource = 'exact' | 'approximate'
 
@@ -26,11 +11,6 @@ export type ResolvedCoordinates = {
 
 type LatLng = { lat: number; lng: number }
 
-/**
- * Singapore planning areas / towns / notable landmarks → representative coordinates.
- * Keys are lowercase; matching is done by case-insensitive substring against the
- * incident location string, longest key first so "jurong island" beats "jurong".
- */
 const SINGAPORE_GAZETTEER: Record<string, LatLng> = {
   'jurong island': { lat: 1.2658, lng: 103.6953 },
   'jurong east': { lat: 1.3329, lng: 103.7421 },
@@ -69,8 +49,8 @@ const SINGAPORE_GAZETTEER: Record<string, LatLng> = {
   bishan: { lat: 1.3508, lng: 103.8485 },
   queenstown: { lat: 1.2946, lng: 103.806 },
   'marina bay': { lat: 1.2834, lng: 103.8607 },
-  'orchard': { lat: 1.3048, lng: 103.8318 },
-  'changi': { lat: 1.3644, lng: 103.9915 },
+  orchard: { lat: 1.3048, lng: 103.8318 },
+  changi: { lat: 1.3644, lng: 103.9915 },
   rochor: { lat: 1.3036, lng: 103.8523 },
   'river valley': { lat: 1.2935, lng: 103.8349 },
   central: { lat: 1.305, lng: 103.8317 },
@@ -80,7 +60,6 @@ const GAZETTEER_KEYS = Object.keys(SINGAPORE_GAZETTEER).sort(
   (a, b) => b.length - a.length,
 )
 
-/** Deterministic 32-bit hash of a string (FNV-1a style) used to seed jitter. */
 function hashString(value: string): number {
   let hash = 2166136261
   for (let index = 0; index < value.length; index += 1) {
@@ -90,16 +69,11 @@ function hashString(value: string): number {
   return hash >>> 0
 }
 
-/**
- * Small deterministic offset (±~250m) derived from the incident id so multiple
- * incidents in the same town do not stack on a single pixel, yet stay put across polls.
- */
 function jitterFor(seed: string): LatLng {
   const hash = hashString(seed)
-  // Two independent pseudo-random values in [-1, 1).
   const u = ((hash & 0xffff) / 0xffff) * 2 - 1
   const v = (((hash >>> 16) & 0xffff) / 0xffff) * 2 - 1
-  const radius = 0.0022 // ~250m in degrees at the equator
+  const radius = 0.0022
   return { lat: u * radius, lng: v * radius }
 }
 
@@ -114,14 +88,9 @@ function matchGazetteer(location: string | null | undefined): LatLng | null {
   return null
 }
 
-/**
- * Resolve a usable coordinate for any incident.
- *
- * 1. Native `lat`/`lng` → `exact`.
- * 2. Gazetteer match on the location string → `approximate` (with deterministic jitter).
- * 3. Singapore centre → `approximate` (with deterministic jitter).
- */
-export function resolveIncidentCoordinates(incident: Incident): ResolvedCoordinates {
+export function resolveIncidentCoordinates(
+  incident: OverviewIncident,
+): ResolvedCoordinates {
   if (typeof incident.lat === 'number' && typeof incident.lng === 'number') {
     return { lat: incident.lat, lng: incident.lng, source: 'exact' }
   }
@@ -134,3 +103,4 @@ export function resolveIncidentCoordinates(incident: Incident): ResolvedCoordina
     source: 'approximate',
   }
 }
+

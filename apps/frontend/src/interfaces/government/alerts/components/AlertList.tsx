@@ -50,7 +50,7 @@ export function AlertList({
           }}
         >
           <Icon as={RefreshCcw} />
-          Reset Mock Data
+          Refresh
         </Button>
       </Flex>
 

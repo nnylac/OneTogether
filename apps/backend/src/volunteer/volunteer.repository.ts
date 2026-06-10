@@ -10,6 +10,7 @@ export type FindVolunteerOpportunitiesFilters = {
   sourceId?: string;
   region?: string;
   opportunityType?: string;
+  urgency?: string;
   status?: string;
   search?: string;
   take?: number;
@@ -90,10 +91,14 @@ export class VolunteerRepository {
         title: data.title,
         description: data.description,
         opportunity_type: data.opportunity_type,
+        urgency: data.urgency,
         location: data.location,
         region: data.region,
         start_at: data.start_at,
         end_at: data.end_at,
+        slots_total: data.slots_total,
+        slots_filled: data.slots_filled,
+        requires_training: data.requires_training,
         signup_url: data.signup_url,
         source_url: data.source_url,
         external_updated_at: data.external_updated_at,
@@ -118,6 +123,10 @@ export class VolunteerRepository {
 
     if (filters.opportunityType) {
       where.opportunity_type = filters.opportunityType;
+    }
+
+    if (filters.urgency) {
+      where.urgency = filters.urgency;
     }
 
     if (filters.status) {
