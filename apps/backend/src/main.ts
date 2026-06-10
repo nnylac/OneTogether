@@ -5,6 +5,7 @@ import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { IncidentRoomService } from './incident-room/incident-room.service';
 import { registerIncidentRoomSocket } from './incident-room/incident-room.socket';
+import { setIncidentSocketServer } from './incident-room/socket-registry';
 
 config({ path: resolve(process.cwd(), '.env') });
 config({ path: resolve(process.cwd(), 'apps/backend/.env') });
@@ -42,7 +43,12 @@ async function bootstrap() {
     res.json({ status: 'ok', timestamp: new Date().toISOString() }),
   );
 
-  registerIncidentRoomSocket(app.getHttpServer(), app.get(IncidentRoomService));
+  setIncidentSocketServer(
+    registerIncidentRoomSocket(
+      app.getHttpServer(),
+      app.get(IncidentRoomService),
+    ),
+  );
 
   await app.listen(process.env.PORT ?? 3001);
 }
