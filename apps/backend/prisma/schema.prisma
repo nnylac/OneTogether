@@ -121,6 +121,10 @@ model messages {
 model organisations {
   id                  String                @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
   org_name            String                @unique @db.VarChar(50)
+  contact_number      String?               @db.VarChar(40)
+  contact_channel     String?               @db.VarChar(80)
+  service_summary     String?
+  contact_guidance    String?
   assigned_orgs       assigned_orgs[]
   broadcast_audiences broadcast_audiences[]
   resource_outlets    resource_outlets[]
