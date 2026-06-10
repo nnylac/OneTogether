@@ -92,9 +92,8 @@ export class AnalyticsService {
             (incident) => incident.severity === severity,
           ).length,
         })),
-        statusDistribution: this.groupIncidents(
-          filteredIncidents,
-          (incident) => incident.inc_status.trim().toUpperCase(),
+        statusDistribution: this.groupIncidents(filteredIncidents, (incident) =>
+          incident.inc_status.trim().toUpperCase(),
         ),
         organisations: this.getOrganisationMetrics(filteredIncidents),
       },
@@ -136,10 +135,8 @@ export class AnalyticsService {
         total === 0
           ? null
           : this.round(
-              incidents.reduce(
-                (sum, incident) => sum + incident.severity,
-                0,
-              ) / total,
+              incidents.reduce((sum, incident) => sum + incident.severity, 0) /
+                total,
             ),
       multiAgencyRate: this.rate(multiAgency, total),
       resolutionTimeMinutes: {
@@ -241,12 +238,14 @@ export class AnalyticsService {
   }
 
   private isActiveResponseLog(content: string) {
-    return /\bStatus:\s*(DISPATCHED|EN_ROUTE|IN_PROGRESS|ON_SCENE|TREATING|HANDOFF|MONITORING|RESOLVED|CLOSED)\b/i.test(
-      content,
-    ) ||
+    return (
+      /\bStatus:\s*(DISPATCHED|EN_ROUTE|IN_PROGRESS|ON_SCENE|TREATING|HANDOFF|MONITORING|RESOLVED|CLOSED)\b/i.test(
+        content,
+      ) ||
       /\b(dispatched|deployed|en route|on scene|arrived|response underway)\b/i.test(
         content,
-      );
+      )
+    );
   }
 
   private groupIncidents(
@@ -299,14 +298,8 @@ export class AnalyticsService {
         ['sengkang', 'punggol', 'hougang', 'serangoon', 'buangkok'],
       ],
       ['North', ['woodlands', 'sembawang', 'yishun', 'mandai']],
-      [
-        'East',
-        ['bedok', 'tampines', 'pasir ris', 'changi', 'paya lebar'],
-      ],
-      [
-        'West',
-        ['jurong', 'clementi', 'bukit batok', 'choa chu kang', 'tuas'],
-      ],
+      ['East', ['bedok', 'tampines', 'pasir ris', 'changi', 'paya lebar']],
+      ['West', ['jurong', 'clementi', 'bukit batok', 'choa chu kang', 'tuas']],
       [
         'Central',
         ['orchard', 'marina', 'downtown', 'toa payoh', 'bishan', 'novena'],
@@ -335,7 +328,9 @@ export class AnalyticsService {
     if (query.severity !== undefined) {
       severity = Number(query.severity);
       if (!Number.isInteger(severity) || severity < 1 || severity > 5) {
-        throw new BadRequestException('severity must be an integer from 1 to 5');
+        throw new BadRequestException(
+          'severity must be an integer from 1 to 5',
+        );
       }
     }
 

@@ -61,6 +61,8 @@ export type IncidentApiDto = {
   id: string;
   incidentCode: string;
   incidentType: string;
+  lat: number | null;
+  lng: number | null;
   location: string | null;
   logs?: IncidentLogApiDto[];
   report: string | null;

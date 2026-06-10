@@ -139,9 +139,7 @@ export class IncidentMiddlewareService {
       where: { id: incidentId },
       data: {
         inc_status: nextStatus,
-        resolved_at: allCompleted
-          ? this.sourceEventTime(message ?? {})
-          : null,
+        resolved_at: allCompleted ? this.sourceEventTime(message ?? {}) : null,
       },
     });
 
@@ -574,7 +572,9 @@ export class IncidentMiddlewareService {
     const currentIndex = order.indexOf(normalizedCurrent);
     const nextIndex = order.indexOf(nextStatus);
 
-    return nextIndex > currentIndex ? nextStatus : order[Math.max(0, currentIndex)];
+    return nextIndex > currentIndex
+      ? nextStatus
+      : order[Math.max(0, currentIndex)];
   }
 
   private sourceEventTime(message: RawAgencyMessage) {

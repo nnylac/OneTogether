@@ -50,11 +50,7 @@ export class ResourcesRepository {
           orderBy: [{ resource_category: 'asc' }, { resource_name: 'asc' }],
         },
       },
-      orderBy: [
-        { agency_id: 'asc' },
-        { region: 'asc' },
-        { name: 'asc' },
-      ],
+      orderBy: [{ agency_id: 'asc' }, { region: 'asc' }, { name: 'asc' }],
     });
   }
 
@@ -78,10 +74,7 @@ export class ResourcesRepository {
       include: {
         resource_outlets: true,
       },
-      orderBy: [
-        { resource_category: 'asc' },
-        { resource_name: 'asc' },
-      ],
+      orderBy: [{ resource_category: 'asc' }, { resource_name: 'asc' }],
     });
   }
 
