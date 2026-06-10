@@ -2,9 +2,12 @@ import { useEffect, useMemo, useState } from 'react'
 import type { ElementType, ReactNode } from 'react'
 import {
   Activity,
+  BarChart3,
   Building2,
   Clock3,
+  PieChart,
   Siren,
+  Table2,
   TriangleAlert,
 } from 'lucide-react'
 import {
@@ -34,6 +37,18 @@ const regions = [
   'North-East',
   'Unknown',
 ]
+
+const chartColors = [
+  '#2563eb',
+  '#0891b2',
+  '#7c3aed',
+  '#db2777',
+  '#ea580c',
+  '#65a30d',
+  '#475569',
+]
+
+type DistributionView = 'bar' | 'doughnut'
 
 function dateInputValue(date: Date) {
   return date.toISOString().slice(0, 10)
@@ -209,6 +224,8 @@ export function GovernmentAnalyticsPage() {
               }))}
             />
           </Box>
+
+          <ResolutionPerformance overview={overview} />
 
           <OrganisationPerformance overview={overview} />
 
@@ -404,18 +421,25 @@ function DistributionPanel({
   items: AnalyticsDistributionItem[]
   title: string
 }) {
+  const [view, setView] = useState<DistributionView>('bar')
   const maxCount = Math.max(...items.map((item) => item.count), 1)
+  const hasData = items.some((item) => item.count > 0)
 
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" p="5">
-      <Heading size="md" color="gray.900" mb="4">
-        {title}
-      </Heading>
-      <Stack gap="4">
-        {items.length === 0 ? (
-          <Text color="gray.500">No data for this period.</Text>
-        ) : (
-          items.map((item) => (
+      <Flex justify="space-between" align="center" gap="3" mb="4" wrap="wrap">
+        <Heading size="md" color="gray.900">
+          {title}
+        </Heading>
+        <ChartViewToggle view={view} onChange={setView} />
+      </Flex>
+      {!hasData ? (
+        <Text color="gray.500">No data for this period.</Text>
+      ) : view === 'doughnut' ? (
+        <DoughnutChart items={items} />
+      ) : (
+        <Stack gap="4">
+          {items.map((item, index) => (
             <Box key={item.key}>
               <Flex justify="space-between" gap="3" mb="1">
                 <Text color="gray.700" fontWeight="700">
@@ -427,15 +451,205 @@ function DistributionPanel({
               </Flex>
               <Box bg="gray.100" height="2">
                 <Box
-                  bg="blue.600"
+                  bg={chartColors[index % chartColors.length]}
                   height="100%"
                   width={`${(item.count / maxCount) * 100}%`}
                 />
               </Box>
             </Box>
-          ))
-        )}
+          ))}
+        </Stack>
+      )}
+    </Box>
+  )
+}
+
+function ChartViewToggle({
+  onChange,
+  view,
+}: {
+  onChange: (view: DistributionView) => void
+  view: DistributionView
+}) {
+  return (
+    <HStack gap="1">
+      <Button
+        aria-label="Show bar chart"
+        aria-pressed={view === 'bar'}
+        bg={view === 'bar' ? 'blue.700' : 'white'}
+        color={view === 'bar' ? 'white' : 'gray.600'}
+        size="xs"
+        variant={view === 'bar' ? 'solid' : 'outline'}
+        onClick={() => onChange('bar')}
+      >
+        <BarChart3 size={14} />
+        Bars
+      </Button>
+      <Button
+        aria-label="Show doughnut chart"
+        aria-pressed={view === 'doughnut'}
+        bg={view === 'doughnut' ? 'blue.700' : 'white'}
+        color={view === 'doughnut' ? 'white' : 'gray.600'}
+        size="xs"
+        variant={view === 'doughnut' ? 'solid' : 'outline'}
+        onClick={() => onChange('doughnut')}
+      >
+        <PieChart size={14} />
+        Doughnut
+      </Button>
+    </HStack>
+  )
+}
+
+function DoughnutChart({ items }: { items: AnalyticsDistributionItem[] }) {
+  const total = items.reduce((sum, item) => sum + item.count, 0)
+  const radius = 42
+  const circumference = 2 * Math.PI * radius
+
+  return (
+    <Flex
+      align={{ base: 'stretch', sm: 'center' }}
+      direction={{ base: 'column', sm: 'row' }}
+      gap="6"
+    >
+      <Box position="relative" width="180px" height="180px" mx="auto">
+        <svg
+          aria-label={`${total} incidents shown in a doughnut chart`}
+          role="img"
+          viewBox="0 0 100 100"
+          width="180"
+          height="180"
+        >
+          <circle
+            cx="50"
+            cy="50"
+            fill="none"
+            r={radius}
+            stroke="#e2e8f0"
+            strokeWidth="14"
+          />
+          {items.map((item, index) => {
+            const segmentLength = (item.count / total) * circumference
+            const segmentOffset =
+              (items
+                .slice(0, index)
+                .reduce((sum, previousItem) => sum + previousItem.count, 0) /
+                total) *
+              circumference
+
+            return (
+              <circle
+                key={item.key}
+                cx="50"
+                cy="50"
+                fill="none"
+                r={radius}
+                stroke={chartColors[index % chartColors.length]}
+                strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
+                strokeDashoffset={-segmentOffset}
+                strokeWidth="14"
+                transform="rotate(-90 50 50)"
+              >
+                <title>
+                  {formatLabel(item.key)}: {item.count} (
+                  {formatPercent(item.percentage)})
+                </title>
+              </circle>
+            )
+          })}
+        </svg>
+        <Flex
+          position="absolute"
+          inset="0"
+          align="center"
+          justify="center"
+          direction="column"
+          pointerEvents="none"
+        >
+          <Text color="gray.900" fontSize="2xl" fontWeight="800">
+            {total}
+          </Text>
+          <Text color="gray.500" fontSize="xs">
+            incidents
+          </Text>
+        </Flex>
+      </Box>
+      <Stack gap="2" flex="1">
+        {items.map((item, index) => (
+          <Flex key={item.key} justify="space-between" gap="3">
+            <HStack gap="2">
+              <Box
+                bg={chartColors[index % chartColors.length]}
+                width="3"
+                height="3"
+                flexShrink="0"
+              />
+              <Text color="gray.700" fontSize="sm" fontWeight="700">
+                {formatLabel(item.key)}
+              </Text>
+            </HStack>
+            <Text color="gray.500" fontSize="sm">
+              {item.count} ({formatPercent(item.percentage)})
+            </Text>
+          </Flex>
+        ))}
       </Stack>
+    </Flex>
+  )
+}
+
+function ResolutionPerformance({ overview }: { overview: AnalyticsOverview }) {
+  const resolution = overview.data.totals.resolutionTimeMinutes
+  const metrics = [
+    { label: 'Average', value: resolution.average },
+    { label: 'Median', value: resolution.median },
+    { label: 'P90', value: resolution.p90 },
+  ]
+  const maxValue = Math.max(
+    ...metrics.map((metric) => metric.value ?? 0),
+    1,
+  )
+
+  return (
+    <Box bg="white" borderWidth="1px" borderColor="gray.200" p="5">
+      <Flex justify="space-between" align="start" gap="4" wrap="wrap" mb="5">
+        <Box>
+          <Heading size="md" color="gray.900">
+            Resolution performance
+          </Heading>
+          <Text color="gray.500" fontSize="sm" mt="1">
+            Time from incident creation to resolution for closed incidents.
+          </Text>
+        </Box>
+        <LabelBox tone="green">Direct timestamps</LabelBox>
+      </Flex>
+      {metrics.every((metric) => metric.value === null) ? (
+        <Text color="gray.500">
+          No resolved incidents are available for this period.
+        </Text>
+      ) : (
+        <Stack gap="4">
+          {metrics.map((metric, index) => (
+            <Box key={metric.label}>
+              <Flex justify="space-between" gap="3" mb="1">
+                <Text color="gray.700" fontWeight="700">
+                  {metric.label}
+                </Text>
+                <Text color="gray.600" fontSize="sm">
+                  {formatMinutes(metric.value)}
+                </Text>
+              </Flex>
+              <Box bg="gray.100" height="3">
+                <Box
+                  bg={chartColors[index]}
+                  height="100%"
+                  width={`${((metric.value ?? 0) / maxValue) * 100}%`}
+                />
+              </Box>
+            </Box>
+          ))}
+        </Stack>
+      )}
     </Box>
   )
 }
@@ -445,52 +659,178 @@ function OrganisationPerformance({
 }: {
   overview: AnalyticsOverview
 }) {
+  const [view, setView] = useState<'chart' | 'table'>('chart')
+
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-      <Box p="5" borderBottomWidth="1px" borderColor="gray.100">
-        <Heading size="md" color="gray.900">
-          Organisation performance
-        </Heading>
-        <Text color="gray.500" fontSize="sm" mt="1">
-          Comparable workload metrics with log-derived response indicators.
-        </Text>
-      </Box>
-      <Box minW="900px">
-        <PerformanceRow
-          values={[
-            'Organisation',
-            'Handled',
-            'Active',
-            'Completed',
-            'Completion',
-            'First update',
-            'Active response',
-          ]}
-          isHeader
-        />
-        {overview.data.organisations.length === 0 ? (
-          <Text color="gray.500" p="5">
-            No assigned organisations in this period.
+      <Flex
+        p="5"
+        borderBottomWidth="1px"
+        borderColor="gray.100"
+        justify="space-between"
+        align="start"
+        gap="4"
+        wrap="wrap"
+      >
+        <Box>
+          <Heading size="md" color="gray.900">
+            Organisation performance
+          </Heading>
+          <Text color="gray.500" fontSize="sm" mt="1">
+            Comparable workload metrics with log-derived response indicators.
           </Text>
-        ) : (
-          overview.data.organisations.map((organisation) => (
-            <PerformanceRow
-              key={organisation.organisationId}
-              values={[
-                organisation.organisationName,
+        </Box>
+        <HStack gap="1">
+          <Button
+            aria-pressed={view === 'chart'}
+            bg={view === 'chart' ? 'blue.700' : 'white'}
+            color={view === 'chart' ? 'white' : 'gray.600'}
+            size="xs"
+            variant={view === 'chart' ? 'solid' : 'outline'}
+            onClick={() => setView('chart')}
+          >
+            <BarChart3 size={14} />
+            Workload
+          </Button>
+          <Button
+            aria-pressed={view === 'table'}
+            bg={view === 'table' ? 'blue.700' : 'white'}
+            color={view === 'table' ? 'white' : 'gray.600'}
+            size="xs"
+            variant={view === 'table' ? 'solid' : 'outline'}
+            onClick={() => setView('table')}
+          >
+            <Table2 size={14} />
+            Details
+          </Button>
+        </HStack>
+      </Flex>
+      {view === 'chart' ? (
+        <OrganisationWorkloadChart organisations={overview.data.organisations} />
+      ) : (
+        <OrganisationPerformanceTable overview={overview} />
+      )}
+    </Box>
+  )
+}
+
+function OrganisationWorkloadChart({
+  organisations,
+}: {
+  organisations: AnalyticsOverview['data']['organisations']
+}) {
+  const maxValue = Math.max(
+    ...organisations.flatMap((organisation) => [
+      organisation.incidentsHandled,
+      organisation.activeWorkload,
+      organisation.completedAssignments,
+    ]),
+    1,
+  )
+
+  if (organisations.length === 0) {
+    return (
+      <Text color="gray.500" p="5">
+        No assigned organisations in this period.
+      </Text>
+    )
+  }
+
+  return (
+    <Box p="5" minW="640px">
+      <HStack gap="4" mb="5" wrap="wrap">
+        <ChartLegend color={chartColors[0]} label="Incidents handled" />
+        <ChartLegend color={chartColors[1]} label="Active workload" />
+        <ChartLegend color={chartColors[2]} label="Completed assignments" />
+      </HStack>
+      <Stack gap="5">
+        {organisations.map((organisation) => (
+          <Box key={organisation.organisationId}>
+            <Flex justify="space-between" gap="3" mb="2">
+              <Text color="gray.800" fontWeight="800">
+                {organisation.organisationName}
+              </Text>
+              <Text color="gray.500" fontSize="sm">
+                {formatPercent(organisation.completionRate)} completion
+              </Text>
+            </Flex>
+            <Stack gap="1">
+              {[
                 organisation.incidentsHandled,
                 organisation.activeWorkload,
                 organisation.completedAssignments,
-                formatPercent(organisation.completionRate),
-                formatMinutes(organisation.averageFirstUpdateMinutes),
-                formatMinutes(
-                  organisation.averageFirstActiveResponseMinutes,
-                ),
-              ]}
-            />
-          ))
-        )}
-      </Box>
+              ].map((value, index) => (
+                <Flex key={index} align="center" gap="3">
+                  <Box bg="gray.100" height="2" flex="1">
+                    <Box
+                      bg={chartColors[index]}
+                      height="100%"
+                      width={`${(value / maxValue) * 100}%`}
+                    />
+                  </Box>
+                  <Text color="gray.600" fontSize="xs" width="6" textAlign="end">
+                    {value}
+                  </Text>
+                </Flex>
+              ))}
+            </Stack>
+          </Box>
+        ))}
+      </Stack>
+    </Box>
+  )
+}
+
+function ChartLegend({ color, label }: { color: string; label: string }) {
+  return (
+    <HStack gap="2">
+      <Box bg={color} width="3" height="3" />
+      <Text color="gray.600" fontSize="sm">
+        {label}
+      </Text>
+    </HStack>
+  )
+}
+
+function OrganisationPerformanceTable({
+  overview,
+}: {
+  overview: AnalyticsOverview
+}) {
+  return (
+    <Box minW="900px">
+      <PerformanceRow
+        values={[
+          'Organisation',
+          'Handled',
+          'Active',
+          'Completed',
+          'Completion',
+          'First update',
+          'Active response',
+        ]}
+        isHeader
+      />
+      {overview.data.organisations.length === 0 ? (
+        <Text color="gray.500" p="5">
+          No assigned organisations in this period.
+        </Text>
+      ) : (
+        overview.data.organisations.map((organisation) => (
+          <PerformanceRow
+            key={organisation.organisationId}
+            values={[
+              organisation.organisationName,
+              organisation.incidentsHandled,
+              organisation.activeWorkload,
+              organisation.completedAssignments,
+              formatPercent(organisation.completionRate),
+              formatMinutes(organisation.averageFirstUpdateMinutes),
+              formatMinutes(organisation.averageFirstActiveResponseMinutes),
+            ]}
+          />
+        ))
+      )}
     </Box>
   )
 }
