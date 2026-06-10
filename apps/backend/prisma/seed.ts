@@ -466,6 +466,22 @@ async function seedCommunityEvents() {
       is_free: false,
       signup_url: 'https://onetogether.sg/community/first-aid-training',
     },
+    {
+      id: '51000000-0000-0000-0000-000000000004',
+      title: 'Neighbourhood Emergency Response (CERT) Volunteer Sign-up',
+      organiser_name: 'SCDF Community Emergency Response Team',
+      category: 'volunteer',
+      description:
+        'Join your neighbourhood CERT to support evacuation, first response, and welfare checks during emergencies. Includes orientation and hands-on drills. Tags: CERT, volunteering, response.',
+      location: 'Tampines North Community Club',
+      region: 'East',
+      start_at: new Date('2026-07-05T09:00:00+08:00'),
+      end_at: new Date('2026-07-05T13:00:00+08:00'),
+      capacity: 80,
+      registered_count: 31,
+      is_free: true,
+      signup_url: 'https://onetogether.sg/community/cert-volunteer-signup',
+    },
   ];
 
   for (const event of demoEvents) {

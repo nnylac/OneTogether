@@ -1,7 +1,8 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import {
   BookOpen,
+  CheckCircle2,
   Clock,
   HandHeart,
   Heart,
@@ -42,13 +43,86 @@ const categoryTone: Record<string, { bg: string; color: string; icon: typeof Shi
   volunteer: { bg: 'green.50', color: 'green.700', icon: HandHeart },
 }
 
+const REGISTRATIONS_STORAGE_KEY = 'onetogether.community.registrations'
+
+function readRegisteredIds(): Set<string> {
+  if (typeof window === 'undefined') {
+    return new Set()
+  }
+
+  try {
+    const raw = window.localStorage.getItem(REGISTRATIONS_STORAGE_KEY)
+    const parsed = raw ? (JSON.parse(raw) as unknown) : []
+
+    return new Set(Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [])
+  } catch {
+    return new Set()
+  }
+}
+
+function persistRegisteredIds(ids: Set<string>) {
+  if (typeof window === 'undefined') {
+    return
+  }
+
+  try {
+    window.localStorage.setItem(REGISTRATIONS_STORAGE_KEY, JSON.stringify([...ids]))
+  } catch {
+    // Best-effort persistence only; ignore storage failures (e.g. private mode).
+  }
+}
+
+type Availability = 'open' | 'full' | 'closed'
+
+function getAvailability(event: CommunityEvent, isRegistered: boolean): Availability {
+  if (event.status === 'closed') {
+    return 'closed'
+  }
+
+  // A registered citizen always sees the open/success state for their own card.
+  if (!isRegistered && event.spotsLeft === 0) {
+    return 'full'
+  }
+
+  return 'open'
+}
+
 export function CommunityPage() {
   const [events, setEvents] = useState<CommunityEvent[]>([])
   const [isLoading, setIsLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState<string | null>(null)
+  const [registeredIds, setRegisteredIds] = useState<Set<string>>(() => readRegisteredIds())
   const [searchParams, setSearchParams] = useSearchParams()
   const categoryParam = searchParams.get('category')
   const activeFilter = isCommunityFilter(categoryParam) ? categoryParam : 'all'
+
+  const registerForEvent = useCallback((eventId: string) => {
+    setRegisteredIds((current) => {
+      if (current.has(eventId)) {
+        return current
+      }
+
+      const next = new Set(current)
+      next.add(eventId)
+      persistRegisteredIds(next)
+
+      return next
+    })
+  }, [])
+
+  const unregisterForEvent = useCallback((eventId: string) => {
+    setRegisteredIds((current) => {
+      if (!current.has(eventId)) {
+        return current
+      }
+
+      const next = new Set(current)
+      next.delete(eventId)
+      persistRegisteredIds(next)
+
+      return next
+    })
+  }, [])
 
   async function loadEvents() {
     setIsLoading(true)
@@ -155,7 +229,13 @@ export function CommunityPage() {
           gridTemplateColumns={{ base: '1fr', xl: 'repeat(2, minmax(0, 1fr))' }}
         >
           {filteredEvents.map((event) => (
-            <CommunityEventCard key={event.id} event={event} />
+            <CommunityEventCard
+              key={event.id}
+              event={event}
+              isRegistered={registeredIds.has(event.id)}
+              onRegister={registerForEvent}
+              onUnregister={unregisterForEvent}
+            />
           ))}
         </Box>
       )}
@@ -163,13 +243,34 @@ export function CommunityPage() {
   )
 }
 
-function CommunityEventCard({ event }: { event: CommunityEvent }) {
+function CommunityEventCard({
+  event,
+  isRegistered,
+  onRegister,
+  onUnregister,
+}: {
+  event: CommunityEvent
+  isRegistered: boolean
+  onRegister: (eventId: string) => void
+  onUnregister: (eventId: string) => void
+}) {
   const descriptionParts = getEventDescriptionParts(event.description)
   const tone = categoryTone[event.category] ?? {
     bg: 'gray.100',
     color: 'gray.700',
     icon: Users,
   }
+
+  const availability = getAvailability(event, isRegistered)
+
+  // Optimistic count: reflect this citizen's own registration immediately.
+  const registeredCount = event.registeredCount + (isRegistered ? 1 : 0)
+  const spotsLeft =
+    event.spotsLeft === null ? null : Math.max(event.spotsLeft - (isRegistered ? 1 : 0), 0)
+  const spotsLabel =
+    event.capacity === null
+      ? 'Open registration'
+      : `${spotsLeft} of ${event.capacity} spots left`
 
   return (
     <Stack bg="white" borderColor="gray.200" borderWidth="1px" gap="4" p="5">
@@ -203,6 +304,13 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
           <Icon as={Clock} boxSize="4" />
           <Text>{formatDateRange(event.startAt, event.endAt)}</Text>
         </HStack>
+        <HStack gap="2">
+          <Icon as={Users} boxSize="4" />
+          <Text>
+            {spotsLabel}
+            {event.capacity !== null && ` · ${registeredCount} registered`}
+          </Text>
+        </HStack>
       </Stack>
 
       <HStack gap="2" wrap="wrap">
@@ -220,7 +328,73 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
           </Badge>
         )}
       </HStack>
+
+      <RegistrationButton
+        availability={availability}
+        isRegistered={isRegistered}
+        onRegister={() => onRegister(event.id)}
+        onUnregister={() => onUnregister(event.id)}
+      />
     </Stack>
+  )
+}
+
+function RegistrationButton({
+  availability,
+  isRegistered,
+  onRegister,
+  onUnregister,
+}: {
+  availability: Availability
+  isRegistered: boolean
+  onRegister: () => void
+  onUnregister: () => void
+}) {
+  if (isRegistered) {
+    return (
+      <Button
+        bg="green.50"
+        borderColor="green.200"
+        borderWidth="1px"
+        color="green.700"
+        mt="1"
+        w="full"
+        onClick={onUnregister}
+        _hover={{ bg: 'green.100' }}
+      >
+        <Icon as={CheckCircle2} />
+        Interest Registered
+      </Button>
+    )
+  }
+
+  if (availability === 'full' || availability === 'closed') {
+    return (
+      <Button
+        bg="gray.100"
+        color="gray.500"
+        disabled
+        mt="1"
+        w="full"
+        _disabled={{ bg: 'gray.100', color: 'gray.500', opacity: 1, cursor: 'not-allowed' }}
+      >
+        {availability === 'full' ? 'Event Full' : 'Registration Closed'}
+      </Button>
+    )
+  }
+
+  return (
+    <Button
+      bg="blue.950"
+      color="white"
+      mt="1"
+      w="full"
+      onClick={onRegister}
+      _hover={{ bg: 'blue.900' }}
+    >
+      <Icon as={HandHeart} />
+      Register Interest
+    </Button>
   )
 }
 
