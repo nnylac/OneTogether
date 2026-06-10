@@ -1,14 +1,16 @@
-import type { ChangeEvent } from 'react'
+import type { ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
 import { Box, Button, Flex, HStack, Icon, Text, VStack } from '../../../../components/chakra-ui'
-import { ALL, defaultFilters } from '../filterState'
+import type { IncidentSeverity } from '../../incidents/types'
+import { severityColor, typeLabel } from '../mapShared'
+import { ALL, clearChipFilters, hasActiveChipFilters } from '../filterState'
 import type { OverviewFilterState } from '../filterState'
 
 type OverviewFiltersProps = {
   filters: OverviewFilterState
   types: string[]
   agencies: string[]
-  statuses: string[]
+  severities: string[]
   onChange: (next: OverviewFilterState) => void
   resultCount: number
 }
@@ -17,12 +19,11 @@ export function OverviewFilters({
   filters,
   types,
   agencies,
-  statuses,
+  severities,
   onChange,
   resultCount,
 }: OverviewFiltersProps) {
-  const isFiltered =
-    filters.type !== ALL || filters.agency !== ALL || filters.status !== ALL
+  const isFiltered = hasActiveChipFilters(filters)
 
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" p="4">
@@ -40,7 +41,7 @@ export function OverviewFilters({
               variant="ghost"
               color="gray.600"
               _hover={{ bg: 'gray.100' }}
-              onClick={() => onChange(defaultFilters)}
+              onClick={() => onChange(clearChipFilters(filters))}
             >
               <Icon as={RotateCcw} boxSize="3.5" />
               Reset
@@ -50,68 +51,100 @@ export function OverviewFilters({
       </Flex>
 
       <VStack gap="3" align="stretch">
-        <FilterSelect
+        <ChipRow
+          label="Severity"
+          value={filters.severity}
+          options={severities}
+          dotColor={(option) => severityColor(option as IncidentSeverity)}
+          onChange={(value) => onChange({ ...filters, severity: value })}
+        />
+        <ChipRow
           label="Type"
           value={filters.type}
           options={types}
+          formatOption={(option) => typeLabel(option)}
           onChange={(value) => onChange({ ...filters, type: value })}
         />
-        <FilterSelect
+        <ChipRow
           label="Agency"
           value={filters.agency}
           options={agencies}
           onChange={(value) => onChange({ ...filters, agency: value })}
-        />
-        <FilterSelect
-          label="Status"
-          value={filters.status}
-          options={statuses}
-          formatOption={(value) => value.replace(/_/g, ' ')}
-          onChange={(value) => onChange({ ...filters, status: value })}
         />
       </VStack>
     </Box>
   )
 }
 
-type FilterSelectProps = {
+type ChipRowProps = {
   label: string
   value: string
   options: string[]
   onChange: (value: string) => void
   formatOption?: (value: string) => string
+  dotColor?: (value: string) => string
 }
 
-function FilterSelect({ label, value, options, onChange, formatOption }: FilterSelectProps) {
+function ChipRow({ label, value, options, onChange, formatOption, dotColor }: ChipRowProps) {
   return (
     <Box>
       <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="0.04em" mb="1.5">
         {label}
       </Text>
-      <select
-        value={value}
-        onChange={(event: ChangeEvent<HTMLSelectElement>) => onChange(event.target.value)}
-        style={{
-          width: '100%',
-          height: '2.5rem',
-          padding: '0 0.75rem',
-          background: 'white',
-          border: '1px solid #d1d5db',
-          borderRadius: '0.375rem',
-          color: '#1f2937',
-          fontSize: '0.875rem',
-          fontWeight: 600,
-          cursor: 'pointer',
-          textTransform: label === 'Status' ? 'capitalize' : 'none',
-        }}
-      >
-        <option value={ALL}>All {label.toLowerCase()}s</option>
+      <Flex gap="1.5" wrap="wrap">
+        <Chip selected={value === ALL} onClick={() => onChange(ALL)}>
+          All
+        </Chip>
         {options.map((option) => (
-          <option key={option} value={option}>
+          <Chip
+            key={option}
+            selected={value === option}
+            dotColor={dotColor?.(option)}
+            onClick={() => onChange(value === option ? ALL : option)}
+          >
             {formatOption ? formatOption(option) : option}
-          </option>
+          </Chip>
         ))}
-      </select>
+      </Flex>
+    </Box>
+  )
+}
+
+function Chip({
+  children,
+  selected,
+  dotColor,
+  onClick,
+}: {
+  children: ReactNode
+  selected: boolean
+  dotColor?: string
+  onClick: () => void
+}) {
+  return (
+    <Box
+      as="button"
+      onClick={onClick}
+      display="inline-flex"
+      alignItems="center"
+      gap="1.5"
+      px="2.5"
+      py="1"
+      borderRadius="full"
+      borderWidth="1px"
+      cursor="pointer"
+      fontSize="xs"
+      fontWeight="600"
+      transition="all 0.1s ease"
+      bg={selected ? 'gray.900' : 'white'}
+      color={selected ? 'white' : 'gray.700'}
+      borderColor={selected ? 'gray.900' : 'gray.200'}
+      _hover={{ borderColor: selected ? 'gray.900' : 'gray.400' }}
+    >
+      {dotColor && (
+        <Box width="8px" height="8px" borderRadius="full" bg={dotColor} flexShrink="0" />
+      )}
+      {children}
     </Box>
   )
 }

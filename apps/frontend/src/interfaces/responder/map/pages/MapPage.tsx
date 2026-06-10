@@ -2,31 +2,46 @@ import { useEffect, useMemo, useState } from 'react'
 import { Box, Flex, Heading, Stack, Text } from '../../../../components/chakra-ui'
 import { BackToDashboardLink } from '../../components/BackToDashboardLink'
 import { fetchIncidents } from '../../incidents/api/incidentsApi'
-import type { Incident } from '../../incidents/types'
+import type { Incident, IncidentSeverity } from '../../incidents/types'
 import { fetchResourceSummary } from '../../resources/api/resourcesApi'
 import type { ResourceSummary } from '../../resources/api/resourcesApi'
 import { OverviewMap } from '../components/OverviewMap'
 import { OverviewStatRail } from '../components/OverviewStatRail'
 import { OverviewIncidentList } from '../components/OverviewIncidentList'
 import { OverviewFilters } from '../components/OverviewFilters'
+import { OverviewResourcePanel } from '../components/OverviewResourcePanel'
 import { ALL, defaultFilters } from '../filterState'
-import type { OverviewFilterState } from '../filterState'
+import type { OverviewFilterState, OverviewView } from '../filterState'
 
 const overviewPollingIntervalMs = 10000
+
+const SEVERITY_ORDER: IncidentSeverity[] = ['Critical', 'High', 'Medium', 'Low']
 
 function distinct(values: Array<string | undefined>): string[] {
   return Array.from(new Set(values.filter((value): value is string => Boolean(value)))).sort()
 }
 
-function applyFilters(incidents: Incident[], filters: OverviewFilterState): Incident[] {
-  return incidents.filter((incident) => {
-    if (filters.type !== ALL && incident.incidentType !== filters.type) return false
-    if (filters.status !== ALL && incident.status !== filters.status) return false
-    if (filters.agency !== ALL && !(incident.assignedOrgs ?? []).includes(filters.agency)) {
-      return false
-    }
-    return true
-  })
+/** True when an incident belongs to the given view tab (status gate only). */
+function matchesView(incident: Incident, view: OverviewView): boolean {
+  switch (view) {
+    case 'history':
+      return incident.status === 'closed'
+    case 'critical':
+      return incident.status !== 'closed' && incident.isCritical
+    case 'active':
+    default:
+      return incident.status !== 'closed'
+  }
+}
+
+/** True when an incident passes the chip filters (type / agency / severity). */
+function matchesChips(incident: Incident, filters: OverviewFilterState): boolean {
+  if (filters.type !== ALL && incident.incidentType !== filters.type) return false
+  if (filters.severity !== ALL && incident.severity !== filters.severity) return false
+  if (filters.agency !== ALL && !(incident.assignedOrgs ?? []).includes(filters.agency)) {
+    return false
+  }
+  return true
 }
 
 export function MapPage() {
@@ -58,7 +73,7 @@ export function MapPage() {
         const summary = await fetchResourceSummary()
         if (isMounted) setResourceSummary(summary)
       } catch {
-        /* leave the resource tile in its graceful "unavailable" state */
+        /* leave the resource panel in its graceful "unavailable" state */
       }
     }
 
@@ -75,10 +90,25 @@ export function MapPage() {
     () => distinct(incidents.flatMap((incident) => incident.assignedOrgs ?? [])),
     [incidents],
   )
-  const statuses = useMemo(() => distinct(incidents.map((incident) => incident.status)), [incidents])
+  const severities = useMemo(() => {
+    const present = new Set(incidents.map((incident) => incident.severity))
+    return SEVERITY_ORDER.filter((severity) => present.has(severity))
+  }, [incidents])
+
+  const viewCounts = useMemo(
+    () => ({
+      active: incidents.filter((incident) => matchesView(incident, 'active')).length,
+      critical: incidents.filter((incident) => matchesView(incident, 'critical')).length,
+      history: incidents.filter((incident) => matchesView(incident, 'history')).length,
+    }),
+    [incidents],
+  )
 
   const filteredIncidents = useMemo(
-    () => applyFilters(incidents, filters),
+    () =>
+      incidents.filter(
+        (incident) => matchesView(incident, filters.view) && matchesChips(incident, filters),
+      ),
     [incidents, filters],
   )
 
@@ -117,7 +147,7 @@ export function MapPage() {
         </Box>
       )}
 
-      <OverviewStatRail incidents={incidents} resourceSummary={resourceSummary} />
+      <OverviewStatRail incidents={incidents} />
 
       <Flex gap="4" direction={{ base: 'column', xl: 'row' }} align="stretch">
         <Box
@@ -147,13 +177,12 @@ export function MapPage() {
           flex={{ base: 'none', xl: '1' }}
           minW="0"
           maxW={{ base: 'none', xl: '380px' }}
-          height={{ base: 'auto', xl: '640px' }}
         >
           <OverviewFilters
             filters={filters}
             types={types}
             agencies={agencies}
-            statuses={statuses}
+            severities={severities}
             onChange={setFilters}
             resultCount={filteredIncidents.length}
           />
@@ -161,7 +190,11 @@ export function MapPage() {
             incidents={filteredIncidents}
             selectedId={effectiveSelectedId}
             onSelect={setSelectedId}
+            view={filters.view}
+            counts={viewCounts}
+            onViewChange={(view) => setFilters((current) => ({ ...current, view }))}
           />
+          <OverviewResourcePanel summary={resourceSummary} />
         </Flex>
       </Flex>
     </Stack>

@@ -1,25 +1,24 @@
 import { useMemo } from 'react'
 import type { ReactNode } from 'react'
-import { AlertTriangle, Activity, MapPin, Package } from 'lucide-react'
+import { AlertTriangle, Activity, MapPin } from 'lucide-react'
 import { Box, Flex, HStack, Icon, Text, VStack } from '../../../../components/chakra-ui'
 import type { Incident, IncidentSeverity } from '../../incidents/types'
-import type { ResourceSummary } from '../../resources/api/resourcesApi'
+import { resolveIncidentCoordinates } from '../geocode'
 import { isActiveStatus, severityColor } from '../mapShared'
 
 type OverviewStatRailProps = {
   incidents: Incident[]
-  resourceSummary: ResourceSummary | null
 }
 
 const SEVERITY_ORDER: IncidentSeverity[] = ['Critical', 'High', 'Medium', 'Low']
 
-export function OverviewStatRail({ incidents, resourceSummary }: OverviewStatRailProps) {
+export function OverviewStatRail({ incidents }: OverviewStatRailProps) {
   const stats = useMemo(() => {
     const total = incidents.length
     const active = incidents.filter((incident) => isActiveStatus(incident.status)).length
     const critical = incidents.filter((incident) => incident.isCritical).length
-    const unplotted = incidents.filter(
-      (incident) => typeof incident.lat !== 'number' || typeof incident.lng !== 'number',
+    const approximate = incidents.filter(
+      (incident) => resolveIncidentCoordinates(incident).source === 'approximate',
     ).length
 
     const bySeverity = SEVERITY_ORDER.map((severity) => ({
@@ -27,10 +26,8 @@ export function OverviewStatRail({ incidents, resourceSummary }: OverviewStatRai
       count: incidents.filter((incident) => incident.severity === severity).length,
     }))
 
-    return { total, active, critical, unplotted, bySeverity }
+    return { total, active, critical, approximate, bySeverity }
   }, [incidents])
-
-  const resourceTile = resourceSummary?.totals
 
   return (
     <StatGrid>
@@ -53,10 +50,15 @@ export function OverviewStatRail({ incidents, resourceSummary }: OverviewStatRai
         icon={MapPin}
         accent="#7c3aed"
         label="Plotted on map"
-        value={stats.total - stats.unplotted}
-        detail={stats.unplotted > 0 ? `${stats.unplotted} without coordinates` : 'all geolocated'}
+        value={stats.total}
+        detail={
+          stats.total === 0
+            ? 'no incidents'
+            : stats.approximate > 0
+              ? `${stats.approximate} approximate location${stats.approximate === 1 ? '' : 's'}`
+              : 'all exact coordinates'
+        }
       />
-      <ResourceCard totals={resourceTile} lastSyncedAt={resourceSummary?.lastSyncedAt ?? null} />
     </StatGrid>
   )
 }
@@ -69,7 +71,7 @@ function StatGrid({ children }: { children: ReactNode }) {
       gridTemplateColumns={{
         base: '1fr',
         sm: 'repeat(2, 1fr)',
-        xl: 'repeat(5, 1fr)',
+        xl: 'repeat(4, 1fr)',
       }}
     >
       {children}
@@ -140,55 +142,6 @@ function SeverityCard({
           </Flex>
         ))}
       </VStack>
-    </Box>
-  )
-}
-
-function ResourceCard({
-  totals,
-  lastSyncedAt,
-}: {
-  totals: ResourceSummary['totals'] | undefined
-  lastSyncedAt: string | null
-}) {
-  return (
-    <Box bg="white" borderWidth="1px" borderColor="gray.200" p="4">
-      <HStack gap="2" align="center">
-        <Box
-          bg="#0d948814"
-          color="#0d9488"
-          borderRadius="md"
-          width="9"
-          height="9"
-          display="flex"
-          alignItems="center"
-          justifyContent="center"
-        >
-          <Icon as={Package} boxSize="5" />
-        </Box>
-        <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="0.04em">
-          Resources deployed
-        </Text>
-      </HStack>
-      {totals ? (
-        <>
-          <Text fontSize="3xl" fontWeight="800" color="gray.900" mt="2" lineHeight="1">
-            {totals.deployed}
-          </Text>
-          <Text fontSize="xs" color="gray.500" mt="1">
-            {totals.available} available of {totals.total} units
-          </Text>
-        </>
-      ) : (
-        <Text fontSize="sm" color="gray.400" mt="3">
-          Resource feed unavailable
-        </Text>
-      )}
-      {lastSyncedAt && (
-        <Text fontSize="2xs" color="gray.400" mt="1">
-          synced {new Date(lastSyncedAt).toLocaleTimeString('en-SG', { hour: '2-digit', minute: '2-digit' })}
-        </Text>
-      )}
     </Box>
   )
 }

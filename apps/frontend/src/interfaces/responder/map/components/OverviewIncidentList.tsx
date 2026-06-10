@@ -3,39 +3,77 @@ import { Link } from 'react-router-dom'
 import { Box, Flex, HStack, Icon, Text, VStack } from '../../../../components/chakra-ui'
 import { LabelBox } from '../../../../components/ui/LabelBox'
 import type { Incident } from '../../incidents/types'
-import { severityColor, severityTone, statusTone } from '../mapShared'
+import { resolveIncidentCoordinates } from '../geocode'
+import { severityColor, severityTone, statusTone, typeMeta } from '../mapShared'
+import type { OverviewView } from '../filterState'
+
+type ViewCounts = Record<OverviewView, number>
 
 type OverviewIncidentListProps = {
   incidents: Incident[]
   selectedId: string | null
   onSelect: (id: string | null) => void
+  view: OverviewView
+  counts: ViewCounts
+  onViewChange: (view: OverviewView) => void
 }
+
+const TABS: Array<{ key: OverviewView; label: string }> = [
+  { key: 'active', label: 'Active' },
+  { key: 'critical', label: 'Critical' },
+  { key: 'history', label: 'History' },
+]
 
 export function OverviewIncidentList({
   incidents,
   selectedId,
   onSelect,
+  view,
+  counts,
+  onViewChange,
 }: OverviewIncidentListProps) {
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" display="flex" flexDirection="column" minH="0" flex="1">
-      <Flex
-        align="center"
-        justify="space-between"
-        px="4"
-        py="3"
-        borderBottomWidth="1px"
-        borderColor="gray.200"
-        bg="gray.50"
-      >
-        <Text fontSize="sm" fontWeight="700" color="gray.800">
-          Incident feed
-        </Text>
-        <Text fontSize="xs" color="gray.500">
-          {incidents.length} shown
-        </Text>
+      <Flex borderBottomWidth="1px" borderColor="gray.200" bg="gray.50">
+        {TABS.map((tab) => {
+          const isActive = tab.key === view
+          return (
+            <Box
+              key={tab.key}
+              as="button"
+              flex="1"
+              px="3"
+              py="2.5"
+              cursor="pointer"
+              borderBottomWidth="2px"
+              borderColor={isActive ? 'purple.500' : 'transparent'}
+              bg={isActive ? 'white' : 'transparent'}
+              onClick={() => onViewChange(tab.key)}
+              _hover={{ bg: isActive ? 'white' : 'gray.100' }}
+            >
+              <HStack gap="1.5" justify="center">
+                <Text fontSize="sm" fontWeight="700" color={isActive ? 'gray.900' : 'gray.500'}>
+                  {tab.label}
+                </Text>
+                <Box
+                  px="1.5"
+                  borderRadius="full"
+                  bg={isActive ? 'purple.100' : 'gray.200'}
+                  color={isActive ? 'purple.700' : 'gray.600'}
+                  fontSize="2xs"
+                  fontWeight="700"
+                  minW="5"
+                  textAlign="center"
+                >
+                  {counts[tab.key]}
+                </Box>
+              </HStack>
+            </Box>
+          )
+        })}
       </Flex>
 
-      <Box overflowY="auto" flex="1" minH="0" maxH={{ base: '420px', xl: 'none' }}>
+      <Box overflowY="auto" flex="1" minH="0" maxH={{ base: '420px', xl: '460px' }}>
         {incidents.length === 0 ? (
           <Box px="4" py="8">
             <Text color="gray.500" fontSize="sm" textAlign="center">
@@ -45,8 +83,9 @@ export function OverviewIncidentList({
         ) : (
           incidents.map((incident) => {
             const isSelected = incident.id === selectedId
-            const isPlotted =
-              typeof incident.lat === 'number' && typeof incident.lng === 'number'
+            const { source } = resolveIncidentCoordinates(incident)
+            const isApproximate = source === 'approximate'
+            const { icon: TypeIcon } = typeMeta(incident.incidentType)
             return (
               <Box
                 key={incident.id}
@@ -73,13 +112,19 @@ export function OverviewIncidentList({
               >
                 <Flex align="start" gap="3">
                   <Box
-                    mt="1"
-                    width="10px"
-                    height="10px"
-                    borderRadius="full"
+                    mt="0.5"
+                    width="28px"
+                    height="28px"
+                    borderRadius="md"
                     bg={severityColor(incident.severity)}
+                    color="white"
+                    display="flex"
+                    alignItems="center"
+                    justifyContent="center"
                     flexShrink="0"
-                  />
+                  >
+                    <Icon as={TypeIcon} boxSize="4" />
+                  </Box>
                   <VStack gap="1" align="stretch" flex="1" minW="0">
                     <Flex align="center" justify="space-between" gap="2">
                       <Text
@@ -98,9 +143,10 @@ export function OverviewIncidentList({
                     </Flex>
 
                     <HStack gap="1.5" align="center" color="gray.500" fontSize="xs">
-                      {!isPlotted && <Icon as={MapPinOff} boxSize="3.5" color="orange.400" />}
+                      {isApproximate && <Icon as={MapPinOff} boxSize="3.5" color="orange.400" />}
                       <Text overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
                         {incident.location || 'Location unknown'}
+                        {isApproximate ? ' (approx)' : ''}
                       </Text>
                     </HStack>
 
