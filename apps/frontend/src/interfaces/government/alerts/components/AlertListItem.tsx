@@ -54,6 +54,7 @@ export function AlertListItem({
   const hasValidEditedValue = numericEditedValue !== null
   const hasThresholdChanged =
     hasValidEditedValue && numericEditedValue !== alert.thresholdValue
+  const isTriggered = alert.status === 'Critical'
 
   function handleStartEdit() {
     setEditedThresholdValue(alert.thresholdValue.toString())
@@ -108,7 +109,21 @@ export function AlertListItem({
 
   return (
     <>
-      <Box borderTopColor="gray.100" borderTopWidth="1px" px="4" py="4">
+      <Box
+        bg={isTriggered ? 'rgba(254, 226, 226, 0.55)' : 'white'}
+        borderColor={isTriggered ? 'red.300' : 'gray.100'}
+        borderTopWidth={isTriggered ? '0' : '1px'}
+        borderWidth={isTriggered ? '1px' : undefined}
+        mx={isTriggered ? '3' : undefined}
+        mb={isTriggered ? '3' : undefined}
+        px="4"
+        py="4"
+        transition="background-color 0.16s ease, border-color 0.16s ease"
+        _hover={{
+          bg: isTriggered ? 'red.50' : 'gray.50',
+          borderColor: isTriggered ? 'red.300' : 'gray.200',
+        }}
+      >
         <Box
           display="grid"
           gap="4"
