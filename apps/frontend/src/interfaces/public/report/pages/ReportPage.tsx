@@ -12,15 +12,11 @@ import {
   Text,
 } from '../../../../components/chakra-ui'
 import { fetchOrganisationGuides } from '../api/organisationGuidesApi'
-import { EmergencyNotice } from '../components/EmergencyNotice'
-import { HotlineQuickCards } from '../components/HotlineQuickCards'
 import { OrganisationGuideCard } from '../components/OrganisationGuideCard'
-import { OrganisationGuideDetail } from '../components/OrganisationGuideDetail'
 import type { OrganisationGuide } from '../types/organisationGuide'
 
 export function ReportPage() {
   const [guides, setGuides] = useState<OrganisationGuide[]>([])
-  const [selectedGuideId, setSelectedGuideId] = useState<string | null>(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [isLoading, setIsLoading] = useState(true)
 
@@ -31,7 +27,6 @@ export function ReportPage() {
 
     const nextGuides = await fetchOrganisationGuides()
     setGuides(nextGuides)
-    setSelectedGuideId((currentId) => currentId ?? nextGuides[0]?.id ?? null)
     setIsLoading(false)
   }
 
@@ -61,16 +56,6 @@ export function ReportPage() {
       return searchableText.includes(normalizedSearch)
     })
   }, [guides, searchTerm])
-
-  const selectedGuide =
-    guides.find((guide) => guide.id === selectedGuideId) ??
-    filteredGuides[0] ??
-    guides[0] ??
-    null
-
-  function handleSelectGuide(guide: OrganisationGuide) {
-    setSelectedGuideId(guide.id)
-  }
 
   return (
     <Stack gap="6" maxW="1440px" mx="auto">
@@ -107,10 +92,6 @@ export function ReportPage() {
           Refresh
         </Button>
       </Flex>
-
-      <EmergencyNotice />
-
-      <HotlineQuickCards />
 
       <Flex
         align={{ base: 'stretch', lg: 'center' }}
@@ -155,35 +136,26 @@ export function ReportPage() {
 
       <Box
         display="grid"
-        gap="5"
-        gridTemplateColumns={{ base: '1fr', xl: 'minmax(0, 1fr) 420px' }}
+        gap="3"
+        gridTemplateColumns={{
+          base: '1fr',
+          lg: 'repeat(2, minmax(0, 1fr))',
+          xl: 'repeat(3, minmax(0, 1fr))',
+        }}
       >
-        <Box
-          display="grid"
-          gap="3"
-          gridTemplateColumns={{ base: '1fr', lg: 'repeat(2, minmax(0, 1fr))' }}
-        >
-          {isLoading ? (
-            <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
-              <Text color="gray.500">Loading organisation guides...</Text>
-            </Box>
-          ) : filteredGuides.length === 0 ? (
-            <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
-              <Text color="gray.500">No organisation guides match this search.</Text>
-            </Box>
-          ) : (
-            filteredGuides.map((guide) => (
-              <OrganisationGuideCard
-                key={guide.id}
-                guide={guide}
-                isSelected={selectedGuide?.id === guide.id}
-                onSelect={handleSelectGuide}
-              />
-            ))
-          )}
-        </Box>
-
-        {selectedGuide && <OrganisationGuideDetail guide={selectedGuide} />}
+        {isLoading ? (
+          <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
+            <Text color="gray.500">Loading organisation guides...</Text>
+          </Box>
+        ) : filteredGuides.length === 0 ? (
+          <Box bg="white" borderColor="gray.200" borderWidth="1px" p="6">
+            <Text color="gray.500">No organisation guides match this search.</Text>
+          </Box>
+        ) : (
+          filteredGuides.map((guide) => (
+            <OrganisationGuideCard key={guide.id} guide={guide} />
+          ))
+        )}
       </Box>
     </Stack>
   )

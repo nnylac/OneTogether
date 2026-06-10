@@ -28,20 +28,15 @@ const allowedSeverities = new Set<PublicAlertSeverity>([
 ])
 
 export async function fetchPublicAlerts(): Promise<PublicAlert[]> {
-  try {
-    const response = await fetch('/api/broadcasts?status=published')
+  const response = await fetch('/api/broadcasts?status=published')
 
-    if (!response.ok) {
-      throw new Error('Unable to load broadcasts')
-    }
-
-    const broadcasts = (await response.json()) as BroadcastApiDto[]
-    const publicAlerts = broadcasts.flatMap(mapBroadcastToPublicAlerts)
-
-    return publicAlerts.length > 0 ? publicAlerts : samplePublicAlerts
-  } catch {
-    return samplePublicAlerts
+  if (!response.ok) {
+    throw new Error('Unable to load broadcasts')
   }
+
+  const broadcasts = (await response.json()) as BroadcastApiDto[]
+
+  return broadcasts.flatMap(mapBroadcastToPublicAlerts)
 }
 
 function mapBroadcastToPublicAlerts(broadcast: BroadcastApiDto): PublicAlert[] {

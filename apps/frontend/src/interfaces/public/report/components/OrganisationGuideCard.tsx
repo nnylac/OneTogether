@@ -15,15 +15,9 @@ import {
 
 type OrganisationGuideCardProps = {
   guide: OrganisationGuide
-  isSelected: boolean
-  onSelect: (guide: OrganisationGuide) => void
 }
 
-export function OrganisationGuideCard({
-  guide,
-  isSelected,
-  onSelect,
-}: OrganisationGuideCardProps) {
+export function OrganisationGuideCard({ guide }: OrganisationGuideCardProps) {
   const tone = getOrganisationTone(guide.orgName)
   const contact = guide.contactNumber ?? guide.contactChannel ?? 'Guide'
 
@@ -31,23 +25,13 @@ export function OrganisationGuideCard({
     <Flex
       as="article"
       bg="white"
-      borderColor={isSelected ? tone.border : 'gray.200'}
+      borderColor="gray.200"
       borderLeftColor={tone.color}
       borderLeftWidth="4px"
       borderWidth="1px"
-      boxShadow={isSelected ? '0 8px 20px rgba(15, 23, 42, 0.08)' : 'none'}
       gap="4"
       p="4"
-      role="button"
-      tabIndex={0}
       transition="all 0.15s ease"
-      onClick={() => onSelect(guide)}
-      onKeyDown={(event) => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault()
-          onSelect(guide)
-        }
-      }}
       _hover={{ borderColor: tone.border, boxShadow: '0 8px 20px rgba(15, 23, 42, 0.08)' }}
     >
       <Flex align="center" bg={tone.bg} color={tone.color} flexShrink="0" h="12" justify="center" w="12">
