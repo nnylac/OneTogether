@@ -140,7 +140,9 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
 
   private async pollResources() {
     if (this.isPolling) {
-      this.logger.warn('Skipping resource poll because a previous poll is still running');
+      this.logger.warn(
+        'Skipping resource poll because a previous poll is still running',
+      );
       return;
     }
 
@@ -174,7 +176,9 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
     return {
       lastSyncedAt: this.latestDate([
         ...inventory.map((resource) => resource.last_synced_at),
-        ...inventory.map((resource) => resource.resource_outlets.last_synced_at),
+        ...inventory.map(
+          (resource) => resource.resource_outlets.last_synced_at,
+        ),
       ]),
       totals,
       byAgency: this.groupTotals(
@@ -185,8 +189,9 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
         inventory,
         (resource) => resource.resource_category,
       ),
-      criticalOutlets: this.groupInventoryByOutlet(inventory)
-        .filter((outlet) => outlet.status === 'critical'),
+      criticalOutlets: this.groupInventoryByOutlet(inventory).filter(
+        (outlet) => outlet.status === 'critical',
+      ),
     };
   }
 
@@ -286,7 +291,10 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
 
   private validateOutlet(outlet: ExternalResourceOutlet, index: number) {
     const label = `outlets[${index}]`;
-    this.validateRequiredString(outlet.externalOutletId, `${label}.externalOutletId`);
+    this.validateRequiredString(
+      outlet.externalOutletId,
+      `${label}.externalOutletId`,
+    );
     this.validateRequiredString(outlet.name, `${label}.name`);
     this.validateRequiredString(outlet.type, `${label}.type`);
 
@@ -301,8 +309,14 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
       region: this.normalizeOptionalString(outlet.region),
       address: this.normalizeOptionalString(outlet.address),
       location: {
-        lat: this.parseOptionalNumber(outlet.location?.lat, `${label}.location.lat`),
-        lng: this.parseOptionalNumber(outlet.location?.lng, `${label}.location.lng`),
+        lat: this.parseOptionalNumber(
+          outlet.location?.lat,
+          `${label}.location.lat`,
+        ),
+        lng: this.parseOptionalNumber(
+          outlet.location?.lng,
+          `${label}.location.lng`,
+        ),
       },
       resources: outlet.resources.map((resource, resourceIndex) =>
         this.validateResource(resource, `${label}.resources[${resourceIndex}]`),
@@ -327,7 +341,10 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
       available: this.parseCount(resource.available, `${label}.available`),
       deployed: this.parseCount(resource.deployed, `${label}.deployed`),
       reserved: this.parseCount(resource.reserved, `${label}.reserved`),
-      maintenance: this.parseCount(resource.maintenance, `${label}.maintenance`),
+      maintenance: this.parseCount(
+        resource.maintenance,
+        `${label}.maintenance`,
+      ),
     };
   }
 
@@ -514,10 +531,7 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
   private getPollingIntervalMs() {
     const configuredInterval = Number(process.env.RESOURCE_SYNC_INTERVAL_MS);
 
-    if (
-      Number.isInteger(configuredInterval) &&
-      configuredInterval >= 10_000
-    ) {
+    if (Number.isInteger(configuredInterval) && configuredInterval >= 10_000) {
       return configuredInterval;
     }
 
@@ -549,10 +563,7 @@ export class ResourcesService implements OnModuleInit, OnModuleDestroy {
     return parsed;
   }
 
-  private parseOptionalNumber(
-    value: number | null | undefined,
-    field: string,
-  ) {
+  private parseOptionalNumber(value: number | null | undefined, field: string) {
     if (value === null || value === undefined) {
       return null;
     }

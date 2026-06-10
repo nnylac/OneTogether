@@ -108,9 +108,7 @@ describe('IncidentMiddlewareService canonical identity', () => {
           .mockResolvedValue([{ status: 'COMPLETED' }, { status: 'ON SCENE' }]),
       },
       incidents: {
-        findUnique: jest
-          .fn()
-          .mockResolvedValue({ inc_status: 'STABILISING' }),
+        findUnique: jest.fn().mockResolvedValue({ inc_status: 'STABILISING' }),
         update,
       },
     };

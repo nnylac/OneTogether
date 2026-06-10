@@ -287,6 +287,8 @@ export class IncidentsService {
       status: this.normaliseIncidentStatus(incident.inc_status),
       description: incident.inc_description,
       location: incident.inc_location,
+      lat: incident.latitude == null ? null : Number(incident.latitude),
+      lng: incident.longitude == null ? null : Number(incident.longitude),
       report: incident.report,
       createdAt: incident.created_at,
       updatedAt: incident.updated_at,

@@ -204,6 +204,8 @@ function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
     incidentCode: apiIncident.incidentCode,
     incidentType: apiIncident.incidentType,
     isCritical: isCriticalIncident(severity),
+    lat: apiIncident.lat,
+    lng: apiIncident.lng,
     location: apiIncident.location ?? "",
     logs: apiIncident.logs?.map(mapIncidentLogFromApi),
     report: apiIncident.report,

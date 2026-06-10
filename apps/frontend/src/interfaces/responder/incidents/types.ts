@@ -44,6 +44,8 @@ export type Incident = {
   id: string;
   title: string;
   location: string;
+  lat?: number | null;
+  lng?: number | null;
   description: string;
   logs?: IncidentLogEntry[];
   report?: string | null;

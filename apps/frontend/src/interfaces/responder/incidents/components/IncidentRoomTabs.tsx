@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import type { ElementType, FormEvent } from "react";
 import {
   ClipboardList,
@@ -70,12 +70,8 @@ export function IncidentRoomTabs({
   reportDraft,
 }: IncidentRoomTabsProps) {
   const [activeTab, setActiveTab] = useState<RoomTab>("discussion");
-  const [resources, setResources] = useState(incident.resources ?? []);
+  const resources = incident.resources ?? [];
   const logEntries = incident.logs ?? [];
-
-  useEffect(() => {
-    setResources(incident.resources ?? []);
-  }, [incident.id, incident.resources]);
 
   return (
     <IncidentRoomCard>
