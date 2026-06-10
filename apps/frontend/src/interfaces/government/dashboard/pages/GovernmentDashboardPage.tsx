@@ -3,6 +3,7 @@ import { DashboardAlertList } from '../components/DashboardAlertList'
 import { DashboardHeader } from '../components/DashboardHeader'
 import { DashboardNotice } from '../components/DashboardNotice'
 import { DashboardSummaryGrid } from '../components/DashboardSummaryGrid'
+import { SituationSummaryPanel } from '../components/SituationSummaryPanel'
 import { IncidentsByTypeSummary } from '../components/IncidentsByTypeSummary'
 import { SeverityDistributionChart } from '../components/SeverityDistributionChart'
 import { useGovernmentDashboard } from '../hooks/useGovernmentDashboard'
@@ -32,6 +33,7 @@ export function GovernmentDashboardPage() {
       {data && (
         <>
           <DashboardAlertList alerts={activeAlerts} />
+          <SituationSummaryPanel />
           <DashboardSummaryGrid metrics={summaryMetrics} />
 
           <Box

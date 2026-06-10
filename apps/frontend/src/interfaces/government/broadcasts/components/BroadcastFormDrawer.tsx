@@ -11,6 +11,12 @@ import {
   Textarea,
 } from '../../../../components/chakra-ui'
 import { AiDraftAssistant } from './AiDraftAssistant'
+import { BroadcastTranslationPanel } from './BroadcastTranslationPanel'
+import {
+  requestAiBroadcastDraft,
+  requestBroadcastTranslations,
+  type BroadcastTranslations,
+} from '../api/aiBroadcastApi'
 import { BroadcastAudienceSelector } from './BroadcastAudienceSelector'
 import { BroadcastResponderOrganisationSelector } from './BroadcastResponderOrganisationSelector'
 import { BroadcastSeveritySelector } from './BroadcastSeveritySelector'
@@ -92,6 +98,12 @@ export function BroadcastFormDrawer({
 }: BroadcastFormDrawerProps) {
   const [form, setForm] = useState<NewBroadcastInput>(initialFormState)
   const [isPublishing, setIsPublishing] = useState(false)
+  const [isDrafting, setIsDrafting] = useState(false)
+  const [draftNotice, setDraftNotice] = useState<string | null>(null)
+  const [isTranslating, setIsTranslating] = useState(false)
+  const [translations, setTranslations] =
+    useState<BroadcastTranslations | null>(null)
+  const [translationError, setTranslationError] = useState<string | null>(null)
 
   function updateForm<Key extends keyof NewBroadcastInput>(
     key: Key,
@@ -134,14 +146,54 @@ export function BroadcastFormDrawer({
     [],
   )
 
-  function handleRegenerateDraft() {
-    const generatedDraft = getGeneratedDraft(form)
+  async function handleRegenerateDraft() {
+    setIsDrafting(true)
+    setDraftNotice(null)
+    setTranslations(null)
 
-    setForm((currentForm) => ({
-      ...currentForm,
-      title: generatedDraft.title,
-      message: generatedDraft.message,
-    }))
+    try {
+      const aiDraft = await requestAiBroadcastDraft(form)
+      setForm((currentForm) => ({
+        ...currentForm,
+        title: aiDraft.title,
+        message: aiDraft.message,
+      }))
+    } catch {
+      // Backend AI is unavailable — keep the original client-side template
+      // so the assistant always produces a usable draft.
+      const generatedDraft = getGeneratedDraft(form)
+      setForm((currentForm) => ({
+        ...currentForm,
+        title: generatedDraft.title,
+        message: generatedDraft.message,
+      }))
+      setDraftNotice('Showing template draft (AI unavailable).')
+    } finally {
+      setIsDrafting(false)
+    }
+  }
+
+  async function handleTranslate() {
+    if (!form.title.trim() || !form.message.trim()) {
+      return
+    }
+
+    setIsTranslating(true)
+    setTranslationError(null)
+
+    try {
+      setTranslations(
+        await requestBroadcastTranslations({
+          title: form.title,
+          message: form.message,
+        }),
+      )
+    } catch {
+      setTranslations(null)
+      setTranslationError('Translation unavailable. Try again later.')
+    } finally {
+      setIsTranslating(false)
+    }
   }
 
   async function handlePublish() {
@@ -159,13 +211,21 @@ export function BroadcastFormDrawer({
     try {
       await onPublish(form)
       setForm(initialFormState)
+      resetAiState()
     } finally {
       setIsPublishing(false)
     }
   }
 
+  function resetAiState() {
+    setDraftNotice(null)
+    setTranslations(null)
+    setTranslationError(null)
+  }
+
   function handleCancel() {
     setForm(initialFormState)
+    resetAiState()
     onClose()
   }
 
@@ -228,7 +288,11 @@ export function BroadcastFormDrawer({
           }
         />
 
-        <AiDraftAssistant onRegenerate={handleRegenerateDraft} />
+        <AiDraftAssistant
+          isGenerating={isDrafting}
+          notice={draftNotice}
+          onRegenerate={() => void handleRegenerateDraft()}
+        />
 
         <Box>
           <Text color="gray.700" fontSize="sm" fontWeight="800" mb="2">
@@ -259,7 +323,26 @@ export function BroadcastFormDrawer({
           />
         </Box>
 
+        {translationError && (
+          <Text color="orange.600" fontSize="sm" fontWeight="600">
+            {translationError}
+          </Text>
+        )}
+
+        {translations && <BroadcastTranslationPanel translations={translations} />}
+
         <HStack justify="flex-end" gap="3">
+          <Button
+            disabled={
+              isTranslating || !form.title.trim() || !form.message.trim()
+            }
+            loading={isTranslating}
+            variant="outline"
+            onClick={() => void handleTranslate()}
+          >
+            Translate (EN/中文/MS/TA)
+          </Button>
+
           <Button variant="outline" onClick={handleCancel}>
             Cancel
           </Button>

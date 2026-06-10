@@ -1,4 +1,7 @@
 import { IncidentAnalysisService } from './incident-analysis.service';
+import { AiUnavailableError } from '../ai/ai.service';
+
+const disabledAi = { isEnabled: false } as never;
 
 describe('IncidentAnalysisService', () => {
   it.each([
@@ -13,7 +16,7 @@ describe('IncidentAnalysisService', () => {
     ['HAZE', 'haze'],
     ['CIVIL_DISTURBANCE', 'civil disturbance'],
   ])('classifies authoritative incident type %s', (incidentType, category) => {
-    const service = new IncidentAnalysisService({} as never);
+    const service = new IncidentAnalysisService({} as never, disabledAi);
 
     const result = service.classifyIncident(incidentType, 2);
 
@@ -27,7 +30,7 @@ describe('IncidentAnalysisService', () => {
     'Child suffering a serious allergic reaction',
     'Person experiencing severe breathing difficulty',
   ])('treats critical medical evidence as severity 5: %s', (description) => {
-    const service = new IncidentAnalysisService({} as never);
+    const service = new IncidentAnalysisService({} as never, disabledAi);
 
     const result = service.classifyIncident(
       `MEDICAL_EMERGENCY ${description}`,
@@ -44,7 +47,7 @@ describe('IncidentAnalysisService', () => {
   });
 
   it('classifies explicit emergency evidence deterministically', () => {
-    const service = new IncidentAnalysisService({} as never);
+    const service = new IncidentAnalysisService({} as never, disabledAi);
 
     const result = service.classifyIncident(
       'Building fire with visible flames. Two fire engines deployed. Residents evacuated.',
@@ -102,16 +105,20 @@ describe('IncidentAnalysisService', () => {
         ...data,
       }),
     );
-    const service = new IncidentAnalysisService({
-      incidents: {
-        findUnique: jest.fn().mockResolvedValue(incident),
-        update,
-      },
-    } as never);
+    const service = new IncidentAnalysisService(
+      {
+        incidents: {
+          findUnique: jest.fn().mockResolvedValue(incident),
+          update,
+        },
+      } as never,
+      disabledAi,
+    );
 
     const result = await service.generateFinalAnalysis('incident-1');
 
     expect(result.analysisStatus).toBe('COMPLETED');
+    expect(result.generatedBy).toBe('rules');
     expect(result.executiveSummary).toContain('Building fire');
     expect(result.responsePlan).toContain('fire engines deployed');
     expect(result.entities).toContain('SCDF');
@@ -125,27 +132,161 @@ describe('IncidentAnalysisService', () => {
     );
   });
 
+  it('persists the AI report when the AI service succeeds', async () => {
+    const incident = {
+      id: 'incident-1',
+      title: 'Building fire',
+      incident_type: 'BUILDING_FIRE',
+      severity: 4,
+      inc_status: 'CLOSED',
+      inc_location: 'Test Road',
+      inc_description: null,
+      category: 'fire',
+      urgency: 'high',
+      created_at: new Date('2026-06-09T00:00:00Z'),
+      resolved_at: new Date('2026-06-09T02:00:00Z'),
+      analysis_status: 'NOT_STARTED',
+      analysis_finalized_at: null,
+      logs: [],
+      assigned_orgs: [],
+      incident_sources: [],
+    };
+    const update = jest.fn().mockImplementation(({ data }) =>
+      Promise.resolve({ ...incident, ...data }),
+    );
+    const completeJson = jest.fn().mockResolvedValue({
+      executive_summary: 'AI summary.',
+      response_plan: 'AI response plan.',
+      entities: 'AI entities.',
+    });
+    const service = new IncidentAnalysisService(
+      {
+        incidents: {
+          findUnique: jest.fn().mockResolvedValue(incident),
+          update,
+        },
+      } as never,
+      { isEnabled: true, completeJson } as never,
+    );
+
+    const result = await service.generateFinalAnalysis('incident-1');
+
+    expect(result.generatedBy).toBe('ai');
+    expect(result.executiveSummary).toBe('AI summary.');
+    expect(completeJson).toHaveBeenCalledTimes(1);
+    expect(update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({
+          executive_summary: 'AI summary.',
+          report: 'AI response plan.',
+        }),
+      }),
+    );
+  });
+
+  it('falls back to the rule-based report when the AI service fails', async () => {
+    const incident = {
+      id: 'incident-1',
+      title: 'Building fire',
+      incident_type: 'BUILDING_FIRE',
+      severity: 4,
+      inc_status: 'CLOSED',
+      inc_location: 'Test Road',
+      inc_description: null,
+      category: 'fire',
+      urgency: 'high',
+      created_at: new Date('2026-06-09T00:00:00Z'),
+      resolved_at: null,
+      analysis_status: 'NOT_STARTED',
+      analysis_finalized_at: null,
+      logs: [],
+      assigned_orgs: [],
+      incident_sources: [],
+    };
+    const update = jest.fn().mockImplementation(({ data }) =>
+      Promise.resolve({ ...incident, ...data }),
+    );
+    const completeJson = jest
+      .fn()
+      .mockRejectedValue(new AiUnavailableError('quota'));
+    const service = new IncidentAnalysisService(
+      {
+        incidents: {
+          findUnique: jest.fn().mockResolvedValue(incident),
+          update,
+        },
+      } as never,
+      { isEnabled: true, completeJson } as never,
+    );
+
+    const result = await service.generateFinalAnalysis('incident-1');
+
+    expect(result.generatedBy).toBe('rules');
+    expect(result.analysisStatus).toBe('COMPLETED');
+    expect(result.executiveSummary).toContain('Building fire');
+  });
+
+  it('never calls the AI service when useAi is false', async () => {
+    const incident = {
+      id: 'incident-1',
+      title: 'Building fire',
+      incident_type: 'BUILDING_FIRE',
+      severity: 4,
+      inc_status: 'CLOSED',
+      inc_location: 'Test Road',
+      analysis_status: 'NOT_STARTED',
+      analysis_finalized_at: null,
+      logs: [],
+      assigned_orgs: [],
+      incident_sources: [],
+    };
+    const completeJson = jest.fn();
+    const service = new IncidentAnalysisService(
+      {
+        incidents: {
+          findUnique: jest.fn().mockResolvedValue(incident),
+          update: jest
+            .fn()
+            .mockImplementation(({ data }) =>
+              Promise.resolve({ ...incident, ...data }),
+            ),
+        },
+      } as never,
+      { isEnabled: true, completeJson } as never,
+    );
+
+    const result = await service.generateFinalAnalysis('incident-1', true, {
+      useAi: false,
+    });
+
+    expect(result.generatedBy).toBe('rules');
+    expect(completeJson).not.toHaveBeenCalled();
+  });
+
   it('updates analysis fields from the complete incident timeline', async () => {
     const update = jest.fn().mockResolvedValue({});
-    const service = new IncidentAnalysisService({
-      incidents: {
-        findUnique: jest.fn().mockResolvedValue({
-          id: 'incident-1',
-          title: 'Emergency response',
-          inc_description: 'Patient unresponsive',
-          inc_location: 'Test Road',
-          severity: 2,
-          logs: [
-            {
-              created_at: new Date(),
-              content:
-                'SCDF update. Priority: P1. Update: CPR administered. Patient stabilised.',
-            },
-          ],
-        }),
-        update,
-      },
-    } as never);
+    const service = new IncidentAnalysisService(
+      {
+        incidents: {
+          findUnique: jest.fn().mockResolvedValue({
+            id: 'incident-1',
+            title: 'Emergency response',
+            inc_description: 'Patient unresponsive',
+            inc_location: 'Test Road',
+            severity: 2,
+            logs: [
+              {
+                created_at: new Date(),
+                content:
+                  'SCDF update. Priority: P1. Update: CPR administered. Patient stabilised.',
+              },
+            ],
+          }),
+          update,
+        },
+      } as never,
+      disabledAi,
+    );
 
     const result = await service.analyzeIncidentTimeline('incident-1');
 

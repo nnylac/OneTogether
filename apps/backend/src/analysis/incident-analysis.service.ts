@@ -1,10 +1,12 @@
 import {
   BadRequestException,
   Injectable,
+  Logger,
   NotFoundException,
   OnApplicationBootstrap,
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { AiService } from '../ai/ai.service';
 
 export type IncidentClassification = {
   category: string;
@@ -207,7 +209,12 @@ const HOSPITALS = ['SGH', 'NUH', 'CGH', 'NTFGH', 'SKH', 'KKH'];
 
 @Injectable()
 export class IncidentAnalysisService implements OnApplicationBootstrap {
-  constructor(private readonly prisma: PrismaService) {}
+  private readonly logger = new Logger(IncidentAnalysisService.name);
+
+  constructor(
+    private readonly prisma: PrismaService,
+    private readonly aiService: AiService,
+  ) {}
 
   async onApplicationBootstrap() {
     const incidents = await this.prisma.incidents.findMany({
@@ -224,7 +231,9 @@ export class IncidentAnalysisService implements OnApplicationBootstrap {
         incident.inc_status === 'CLOSED' &&
         incident.analysis_status !== 'COMPLETED'
       ) {
-        await this.generateFinalAnalysis(incident.id, true);
+        // Boot-time backfill loops every closed incident — keep it on the
+        // free rules path so a pod restart never fires N OpenAI calls.
+        await this.generateFinalAnalysis(incident.id, true, { useAi: false });
       }
     }
   }
@@ -343,7 +352,11 @@ export class IncidentAnalysisService implements OnApplicationBootstrap {
     return this.toFinalAnalysisDto(incident);
   }
 
-  async generateFinalAnalysis(incidentId: string, force = false) {
+  async generateFinalAnalysis(
+    incidentId: string,
+    force = false,
+    options: { useAi?: boolean } = {},
+  ) {
     const incident = await this.prisma.incidents.findUnique({
       where: { id: incidentId },
       include: {
@@ -370,21 +383,47 @@ export class IncidentAnalysisService implements OnApplicationBootstrap {
       incident.analysis_status === 'COMPLETED' &&
       incident.analysis_finalized_at
     ) {
-      return this.toFinalAnalysisDto(incident);
+      return { ...this.toFinalAnalysisDto(incident), generatedBy: null };
     }
 
     const agencies = incident.assigned_orgs.map(
       (assignment) => assignment.organisations.org_name,
     );
     const logs = incident.logs.map((log) => log.content);
-    const result = this.buildFinalReport({
+    const input = {
       title: incident.title,
       incidentType: incident.incident_type,
       severity: incident.severity,
       location: incident.inc_location,
       agencies,
       logs,
-    });
+    };
+
+    let result: {
+      executive_summary: string;
+      response_plan: string;
+      entities: string;
+    } | null = null;
+    let generatedBy: 'ai' | 'rules' = 'rules';
+    if (options.useAi !== false && this.aiService.isEnabled) {
+      try {
+        result = await this.generateAiFinalReport({
+          ...input,
+          description: incident.inc_description,
+          category: incident.category,
+          urgency: incident.urgency,
+          createdAt: incident.created_at,
+          resolvedAt: incident.resolved_at,
+        });
+        generatedBy = 'ai';
+      } catch (error) {
+        this.logger.warn(
+          `AI final report failed for ${incidentId}; using rule-based report: ${String(error)}`,
+        );
+      }
+    }
+    result ??= this.buildFinalReport(input);
+
     const updated = await this.prisma.incidents.update({
       where: { id: incidentId },
       data: {
@@ -397,7 +436,71 @@ export class IncidentAnalysisService implements OnApplicationBootstrap {
       },
     });
 
-    return this.toFinalAnalysisDto(updated);
+    return { ...this.toFinalAnalysisDto(updated), generatedBy };
+  }
+
+  private async generateAiFinalReport(input: {
+    title: string;
+    incidentType: string;
+    severity: number;
+    location: string | null;
+    agencies: string[];
+    logs: string[];
+    description: string | null;
+    category: string | null;
+    urgency: string | null;
+    createdAt: Date;
+    resolvedAt: Date | null;
+  }): Promise<{
+    executive_summary: string;
+    response_plan: string;
+    entities: string;
+  }> {
+    // Cap the prompt size: most recent 100 logs, each trimmed to 400 chars.
+    const logs = input.logs.slice(-100).map((log) => log.slice(0, 400));
+
+    return this.aiService.completeJson({
+      schemaName: 'incident_final_report',
+      schema: {
+        type: 'object',
+        additionalProperties: false,
+        required: ['executive_summary', 'response_plan', 'entities'],
+        properties: {
+          executive_summary: { type: 'string' },
+          response_plan: { type: 'string' },
+          entities: { type: 'string' },
+        },
+      },
+      maxOutputTokens: 1200,
+      temperature: 0.3,
+      system: [
+        'You are an emergency operations after-action report writer for',
+        "Singapore's OneTogether national coordination platform. Write",
+        'factual, professional prose grounded ONLY in the supplied incident',
+        'record and timeline logs. Never invent casualties, resources, or',
+        'agencies that are not present in the data. Use British/Singapore',
+        'English.',
+        '- executive_summary: 3-5 sentences covering what happened, where,',
+        '  the final severity, and how the incident concluded.',
+        '- response_plan: one paragraph narrating the actual response',
+        '  chronology from the logs.',
+        '- entities: one readable paragraph covering the organisations,',
+        '  location, casualties, resources, and hospitals mentioned.',
+      ].join(' '),
+      user: JSON.stringify({
+        title: input.title,
+        type: input.incidentType,
+        severity: input.severity,
+        category: input.category,
+        urgency: input.urgency,
+        location: input.location,
+        description: input.description?.slice(0, 1000) ?? null,
+        agencies: input.agencies,
+        openedAt: input.createdAt.toISOString(),
+        resolvedAt: input.resolvedAt?.toISOString() ?? null,
+        logs,
+      }),
+    });
   }
 
   private buildFinalReport(input: {

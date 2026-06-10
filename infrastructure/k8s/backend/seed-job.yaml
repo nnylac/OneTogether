@@ -239,7 +239,7 @@ spec:
     spec:
       containers:
         - name: seed
-          image: 461802173878.dkr.ecr.ap-southeast-1.amazonaws.com/onetogether-production-backend:cf7871cc3bd3c1e9a09c5c061ca1d6e54b1b9648
+          image: 461802173878.dkr.ecr.ap-southeast-1.amazonaws.com/onetogether-production-backend:latest
           workingDir: /app/apps/backend
           command: ["sh", "-c"]
           args:

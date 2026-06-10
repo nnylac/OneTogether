@@ -58,6 +58,8 @@ describe('IncidentMiddlewareService canonical identity', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
     const normalized: NormalizedIncidentTicket = {
       agencyId: 'SCDF',
@@ -119,6 +121,8 @@ describe('IncidentMiddlewareService canonical identity', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const status = await (
@@ -159,6 +163,8 @@ describe('IncidentMiddlewareService canonical identity', () => {
       {} as never,
       {} as never,
       {} as never,
+      {} as never,
+      {} as never,
     );
 
     const status = await (
@@ -193,6 +199,8 @@ describe('IncidentMiddlewareService canonical identity', () => {
       {} as never,
       { analyzeIncidentTimeline } as never,
       {} as never,
+      {} as never,
+      { enqueue: jest.fn() } as never,
     );
 
     await (
@@ -217,6 +225,7 @@ describe('IncidentMiddlewareService canonical identity', () => {
     };
     const service = new IncidentMiddlewareService(
       prisma as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,
@@ -254,6 +263,8 @@ describe('IncidentMiddlewareService canonical identity', () => {
     const create = jest.fn().mockResolvedValue({});
     const service = new IncidentMiddlewareService(
       { logs: { create } } as never,
+      {} as never,
+      {} as never,
       {} as never,
       {} as never,
       {} as never,

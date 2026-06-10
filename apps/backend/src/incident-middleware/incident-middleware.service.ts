@@ -10,6 +10,7 @@ import {
 import { SemanticIncidentAnalyzerService } from './semantic-incident-analyzer.service';
 import { IncidentAnalysisService } from '../analysis/incident-analysis.service';
 import { NotificationsService } from '../notifications/notifications.service';
+import { ClassificationRefinementService } from '../analysis/classification-refinement.service';
 
 @Injectable()
 export class IncidentMiddlewareService {
@@ -22,6 +23,7 @@ export class IncidentMiddlewareService {
     private readonly analysisService: IncidentAnalysisService,
     private readonly resourceExtractor: IncidentResourceExtractorService,
     private readonly notificationsService: NotificationsService,
+    private readonly refinement: ClassificationRefinementService,
   ) {}
 
   async ingest(message: RawAgencyMessage) {
@@ -151,6 +153,9 @@ export class IncidentMiddlewareService {
   private async applyAutomatedAnalysis(incidentId: string) {
     try {
       await this.analysisService.analyzeIncidentTimeline(incidentId);
+      // Non-blocking AI refinement of the keyword triage; no-op when
+      // AI_CLASSIFICATION_ENABLED is off, silent fallback on AI failure.
+      this.refinement.enqueue(incidentId);
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Automated classification failed: ${message}`);
