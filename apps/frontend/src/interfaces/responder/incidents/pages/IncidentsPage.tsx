@@ -16,31 +16,35 @@ import {
 import { BackToDashboardLink } from "../../components/BackToDashboardLink";
 import { useAuth } from "../../../auth/useAuth";
 import { fetchIncidents, fetchOrganisations } from "../api/incidentsApi";
+import { IncidentKanbanBoard } from "../components/IncidentKanbanBoard";
 import { IncidentStatusBadge } from "../components/IncidentStatusBadge";
 import type { AuthUser } from "../../../auth/types";
 import type { Incident } from "../types";
 
-type IncidentFilter = "all" | "active" | "critical";
+type IncidentFilter = "active" | "resolved";
 
-const pageSize = 6;
 const incidentPollingIntervalMs = 5000;
+const pageSize = 6;
 
 const filterLabels: Record<IncidentFilter, string> = {
-  all: "All incidents",
   active: "Active",
-  critical: "Critical",
+  resolved: "Resolved",
 };
 
 function getFilteredIncidents(filter: IncidentFilter, incidents: Incident[]) {
   if (filter === "active") {
-    return incidents.filter((incident) => incident.status !== "closed");
+    return incidents.filter((incident) => !isResolvedIncident(incident));
   }
 
-  if (filter === "critical") {
-    return incidents.filter((incident) => incident.isCritical);
+  if (filter === "resolved") {
+    return incidents.filter(isResolvedIncident);
   }
 
   return incidents;
+}
+
+function isResolvedIncident(incident: Incident) {
+  return incident.status === "resolved" || incident.status === "closed";
 }
 
 function getFallbackOrganisationName(user: AuthUser | null) {
@@ -69,11 +73,15 @@ export function IncidentsPage() {
   const { user } = useAuth();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [error, setError] = useState<string | null>(null);
-  const [filter, setFilter] = useState<IncidentFilter>("all");
+  const [filter, setFilter] = useState<IncidentFilter>("active");
   const [isLoading, setIsLoading] = useState(true);
   const [page, setPage] = useState(1);
   const assignedOrganisationName =
     user?.organisations[0]?.orgName ?? getFallbackOrganisationName(user);
+  const ownershipContext = useMemo(
+    () => getOwnershipContext(user, assignedOrganisationName),
+    [assignedOrganisationName, user],
+  );
 
   useEffect(() => {
     let isMounted = true;
@@ -125,21 +133,24 @@ export function IncidentsPage() {
     };
   }, [assignedOrganisationName]);
 
-  const filteredIncidents = useMemo(
+  const statusFilteredIncidents = useMemo(
     () => getFilteredIncidents(filter, incidents),
     [filter, incidents],
   );
-  const pageCount = Math.max(Math.ceil(filteredIncidents.length / pageSize), 1);
+  const sortedFilteredIncidents = useMemo(
+    () => [...statusFilteredIncidents].sort(compareNewestFirst),
+    [statusFilteredIncidents],
+  );
+  const pageCount = Math.max(Math.ceil(sortedFilteredIncidents.length / pageSize), 1);
   const pageStart = (page - 1) * pageSize;
-  const visibleIncidents = filteredIncidents.slice(
+  const visibleResolvedIncidents = sortedFilteredIncidents.slice(
     pageStart,
     pageStart + pageSize,
   );
 
   const counts = {
-    all: incidents.length,
-    active: incidents.filter((incident) => incident.status !== "closed").length,
-    critical: incidents.filter((incident) => incident.isCritical).length,
+    active: incidents.filter((incident) => !isResolvedIncident(incident)).length,
+    resolved: incidents.filter(isResolvedIncident).length,
   };
 
   function selectFilter(nextFilter: IncidentFilter) {
@@ -198,154 +209,180 @@ export function IncidentsPage() {
         </Box>
       )}
 
-      <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
-        <Box
-          as="table"
-          width="100%"
-          borderCollapse="collapse"
-          tableLayout="fixed"
-          minW="900px"
-        >
-          <Box as="colgroup">
-            <Box as="col" width="51%" />
-            <Box as="col" width="16%" />
-            <Box as="col" width="18%" />
-            <Box as="col" width="15%" />
-          </Box>
+      {filter === "resolved" ? (
+        <ResolvedIncidentArchive
+          incidents={visibleResolvedIncidents}
+          isLoading={isLoading}
+        />
+      ) : (
+        <IncidentKanbanBoard
+          incidents={sortedFilteredIncidents}
+          isFromMyOrganisation={(incident) =>
+            isFromMyOrganisationIncident(incident, ownershipContext)
+          }
+          isLoading={isLoading}
+          isMyOrganisation={(incident) =>
+            isMyOrganisationIncident(incident, ownershipContext)
+          }
+        />
+      )}
 
-          <Box as="thead" bg="gray.50">
-            <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
-              <HeaderCell>Incident</HeaderCell>
-              <HeaderCell textAlign="center">Status</HeaderCell>
-              <HeaderCell>Date</HeaderCell>
-              <HeaderCell textAlign="right">Open room</HeaderCell>
-            </Box>
-          </Box>
-
-          <Box as="tbody">
-            {isLoading && (
-              <Box as="tr">
-                <td colSpan={4}>
-                  <Box px="5" py="6">
-                    <Text color="gray.500">Loading incidents...</Text>
-                  </Box>
-                </td>
-              </Box>
-            )}
-
-            {!isLoading && visibleIncidents.length === 0 && (
-              <Box as="tr">
-                <td colSpan={4}>
-                  <Box px="5" py="6">
-                    <Text color="gray.500">No incidents found.</Text>
-                  </Box>
-                </td>
-              </Box>
-            )}
-
-            {!isLoading &&
-              visibleIncidents.map((incident) => (
-                <Box
-                  key={incident.id}
-                  as="tr"
-                  borderBottomWidth="1px"
-                  borderColor="gray.100"
-                  _hover={{ bg: "gray.50" }}
-                >
-                  <BodyCell>
-                    <VStack gap="1" align="stretch">
-                      <Text color="gray.900" fontSize="lg" fontWeight="700">
-                        {incident.title}
-                      </Text>
-                      <Text color="gray.500" fontSize="sm" fontWeight="700">
-                        {incident.location}
-                      </Text>
-                      <Text
-                        color="gray.500"
-                        display="-webkit-box"
-                        fontSize="sm"
-                        overflow="hidden"
-                        style={{
-                          WebkitBoxOrient: "vertical",
-                          WebkitLineClamp: 2,
-                        }}
-                      >
-                        {incident.description}
-                      </Text>
-                    </VStack>
-                  </BodyCell>
-
-                  <BodyCell textAlign="center">
-                    <IncidentStatusBadge status={incident.status} />
-                  </BodyCell>
-
-                  <BodyCell>
-                    <Text color="gray.600">{incident.date}</Text>
-                  </BodyCell>
-
-                  <BodyCell textAlign="right">
-                    <Button
-                      asChild
-                      bg="gray.900"
-                      color="white"
-                      minW="28"
-                      _hover={{ bg: "gray.800" }}
-                    >
-                      <Link to={`/responder/incidents/${incident.id}/room`}>
-                        <Icon as={ExternalLink} />
-                        Open room
-                      </Link>
-                    </Button>
-                  </BodyCell>
-                </Box>
-              ))}
-          </Box>
-        </Box>
-      </Box>
-
-      <Flex
-        justify="space-between"
-        align="center"
-        gap="4"
-        direction={{ base: "column", md: "row" }}
-      >
+      <Flex justify="space-between" align="center" gap="4" wrap="wrap">
         <Text color="gray.500" fontSize="sm">
-          Showing {filteredIncidents.length === 0 ? 0 : pageStart + 1}-
-          {Math.min(pageStart + pageSize, filteredIncidents.length)} of{" "}
-          {filteredIncidents.length} incidents
+          Showing {sortedFilteredIncidents.length} of {incidents.length} incidents
         </Text>
+        {filter === "resolved" ? (
+          <HStack gap="2">
+            <Button
+              variant="outline"
+              borderColor="gray.300"
+              disabled={page === 1}
+              onClick={() =>
+                setPage((currentPage) => Math.max(currentPage - 1, 1))
+              }
+            >
+              <Icon as={ChevronLeft} />
+              Previous
+            </Button>
 
-        <HStack gap="2">
-          <Button
-            variant="outline"
-            borderColor="gray.300"
-            disabled={page === 1}
-            onClick={() =>
-              setPage((currentPage) => Math.max(currentPage - 1, 1))
-            }
-          >
-            <Icon as={ChevronLeft} />
-            Previous
-          </Button>
+            <Text color="gray.700" fontWeight="700" minW="16" textAlign="center">
+              {page} / {pageCount}
+            </Text>
 
-          <Text color="gray.700" fontWeight="700" minW="16" textAlign="center">
-            {page} / {pageCount}
+            <Button
+              variant="outline"
+              borderColor="gray.300"
+              disabled={page === pageCount}
+              onClick={() =>
+                setPage((currentPage) => Math.min(currentPage + 1, pageCount))
+              }
+            >
+              Next
+              <Icon as={ChevronRight} />
+            </Button>
+          </HStack>
+        ) : (
+          <Text color="gray.400" fontSize="xs">
+            Active tickets are grouped into Reported and In Progress.
           </Text>
-
-          <Button
-            variant="outline"
-            borderColor="gray.300"
-            disabled={page === pageCount}
-            onClick={() =>
-              setPage((currentPage) => Math.min(currentPage + 1, pageCount))
-            }
-          >
-            Next
-            <Icon as={ChevronRight} />
-          </Button>
-        </HStack>
+        )}
       </Flex>
     </Stack>
+  );
+}
+
+function ResolvedIncidentArchive({
+  incidents,
+  isLoading,
+}: {
+  incidents: Incident[];
+  isLoading: boolean;
+}) {
+  return (
+    <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
+      <Box
+        as="table"
+        width="100%"
+        borderCollapse="collapse"
+        tableLayout="fixed"
+        minW="900px"
+      >
+        <Box as="colgroup">
+          <Box as="col" width="51%" />
+          <Box as="col" width="16%" />
+          <Box as="col" width="18%" />
+          <Box as="col" width="15%" />
+        </Box>
+
+        <Box as="thead" bg="gray.50">
+          <Box as="tr" borderBottomWidth="1px" borderColor="gray.200">
+            <HeaderCell>Incident</HeaderCell>
+            <HeaderCell textAlign="center">Status</HeaderCell>
+            <HeaderCell>Date</HeaderCell>
+            <HeaderCell textAlign="right">Open room</HeaderCell>
+          </Box>
+        </Box>
+
+        <Box as="tbody">
+          {isLoading && (
+            <Box as="tr">
+              <td colSpan={4}>
+                <Box px="5" py="6">
+                  <Text color="gray.500">Loading incidents...</Text>
+                </Box>
+              </td>
+            </Box>
+          )}
+
+          {!isLoading && incidents.length === 0 && (
+            <Box as="tr">
+              <td colSpan={4}>
+                <Box px="5" py="6">
+                  <Text color="gray.500">No resolved incidents found.</Text>
+                </Box>
+              </td>
+            </Box>
+          )}
+
+          {!isLoading &&
+            incidents.map((incident) => (
+              <Box
+                key={incident.id}
+                as="tr"
+                borderBottomWidth="1px"
+                borderColor="gray.100"
+                _hover={{ bg: "gray.50" }}
+              >
+                <BodyCell>
+                  <VStack gap="1" align="stretch">
+                    <Text color="gray.900" fontSize="lg" fontWeight="700">
+                      {incident.title}
+                    </Text>
+                    <Text color="gray.500" fontSize="sm" fontWeight="700">
+                      {incident.location}
+                    </Text>
+                    <Text
+                      color="gray.500"
+                      display="-webkit-box"
+                      fontSize="sm"
+                      overflow="hidden"
+                      style={{
+                        WebkitBoxOrient: "vertical",
+                        WebkitLineClamp: 2,
+                      }}
+                    >
+                      {incident.description}
+                    </Text>
+                  </VStack>
+                </BodyCell>
+
+                <BodyCell textAlign="center">
+                  <IncidentStatusBadge status={incident.status} />
+                </BodyCell>
+
+                <BodyCell>
+                  <Text color="gray.600">{incident.updatedAt ?? incident.date}</Text>
+                </BodyCell>
+
+                <BodyCell textAlign="right">
+                  <Button
+                    asChild
+                    bg="gray.900"
+                    color="white"
+                    minW="28"
+                    _hover={{ bg: "gray.800" }}
+                  >
+                    <Link to={`/responder/incidents/${incident.id}/room`}>
+                      <Icon as={ExternalLink} />
+                      Open room
+                    </Link>
+                  </Button>
+                </BodyCell>
+              </Box>
+            ))}
+        </Box>
+      </Box>
+    </Box>
   );
 }
 
@@ -391,4 +428,86 @@ function BodyCell({
       {children}
     </Box>
   );
+}
+
+type OwnershipContext = {
+  organisationIds: string[];
+  organisationNames: string[];
+};
+
+function getOwnershipContext(
+  user: AuthUser | null,
+  fallbackOrganisationName: string | null,
+): OwnershipContext {
+  const organisationIds = [
+    user?.userOrganisationId,
+    ...(user?.organisations.map((organisation) => organisation.id) ?? []),
+  ].filter((id): id is string => Boolean(id));
+  const organisationNames = [
+    fallbackOrganisationName,
+    ...(user?.organisations.map((organisation) => organisation.orgName) ?? []),
+  ].filter((name): name is string => Boolean(name));
+
+  return {
+    organisationIds: Array.from(new Set(organisationIds)),
+    organisationNames: Array.from(new Set(organisationNames.map(normalise))),
+  };
+}
+
+function isMyOrganisationIncident(
+  incident: Incident,
+  context: OwnershipContext,
+) {
+  const assignedOrgNames = (incident.assignedOrgs ?? []).map(normalise);
+  const assignedResourceOrganisationIds = (incident.resources ?? [])
+    .map((resource) => resource.organisationId)
+    .filter((id): id is string => Boolean(id));
+  const assignedResourceAgencyNames = (incident.resources ?? []).map((resource) =>
+    normalise(resource.agency),
+  );
+
+  return (
+    context.organisationNames.some(
+      (organisationName) =>
+        assignedOrgNames.includes(organisationName) ||
+        assignedResourceAgencyNames.includes(organisationName),
+    ) ||
+    context.organisationIds.some((organisationId) =>
+      assignedResourceOrganisationIds.includes(organisationId),
+    )
+  );
+}
+
+function isFromMyOrganisationIncident(
+  incident: Incident,
+  context: OwnershipContext,
+) {
+  const sourceOrganisation = getInferredSourceOrganisation(incident);
+
+  return Boolean(
+    sourceOrganisation &&
+      context.organisationNames.includes(normalise(sourceOrganisation)),
+  );
+}
+
+function getInferredSourceOrganisation(incident: Incident) {
+  // TODO: Replace this title-prefix inference when the API exposes source organisation.
+  const [prefix] = incident.title.split(/\s+-\s+/, 1);
+  return prefix?.trim() || null;
+}
+
+function normalise(value: string) {
+  return value.trim().toLowerCase();
+}
+
+function compareNewestFirst(left: Incident, right: Incident) {
+  return getIncidentTime(right) - getIncidentTime(left);
+}
+
+function getIncidentTime(incident: Incident) {
+  const timestamp = Date.parse(
+    incident.updatedAtRaw ?? incident.createdAtRaw ?? incident.updatedAt ?? "",
+  );
+
+  return Number.isFinite(timestamp) ? timestamp : 0;
 }

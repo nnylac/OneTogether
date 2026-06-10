@@ -32,6 +32,7 @@ export type Incident = {
     };
   };
   createdAt?: string;
+  createdAtRaw?: string;
   discussions?: Array<{
     createdAt: string;
     id: string;
@@ -58,6 +59,7 @@ export type Incident = {
   }>;
   status: IncidentStatus;
   updatedAt?: string;
+  updatedAtRaw?: string;
   zone?: string;
   isCritical: boolean;
   date: string;

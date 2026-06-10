@@ -198,6 +198,7 @@ function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
     assignedOrgs: apiIncident.assignedOrgs,
     confidenceScore: apiIncident.confidenceScore ?? undefined,
     createdAt: formatIncidentDate(apiIncident.createdAt),
+    createdAtRaw: apiIncident.createdAt,
     date: formatIncidentDate(apiIncident.createdAt),
     description: apiIncident.description ?? "",
     id: apiIncident.id,
@@ -230,6 +231,7 @@ function mapIncidentFromApi(apiIncident: IncidentApiDto): Incident {
     status: getIncidentStatus(apiIncident.status),
     title: apiIncident.title,
     updatedAt: formatIncidentDate(apiIncident.updatedAt),
+    updatedAtRaw: apiIncident.updatedAt,
   };
 }
 
