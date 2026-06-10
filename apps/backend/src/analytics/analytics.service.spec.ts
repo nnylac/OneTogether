@@ -236,6 +236,37 @@ describe('AnalyticsService', () => {
     );
   });
 
+  it('smooths weekday patterns when forecast history is sparse', async () => {
+    const createdAt = new Date('2026-06-10T02:00:00.000Z');
+    const service = new AnalyticsService({
+      incidents: {
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 4 }, () => ({
+            incident_type: 'MEDICAL_EMERGENCY',
+            inc_location: 'Central',
+            latitude: null,
+            longitude: null,
+            created_at: createdAt,
+          })),
+        ),
+      },
+    } as never);
+
+    const result = await service.findForecast({
+      from: '2026-05-12T00:00:00.000+08:00',
+      to: '2026-06-11T23:59:59.999+08:00',
+      days: '7',
+    });
+    const dailyExpected = result.forecast.dailySeries
+      .slice(-7)
+      .map((item) => item.expected ?? 0);
+
+    expect(result.forecast.expectedIncidents).toBeGreaterThan(0);
+    expect(Math.max(...dailyExpected)).toBeLessThan(
+      Math.min(...dailyExpected) * 4,
+    );
+  });
+
   it('rejects an invalid forecast horizon', async () => {
     const service = new AnalyticsService({} as never);
 

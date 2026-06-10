@@ -81,6 +81,22 @@ spec:
                 secretKeyRef:
                   name: onetogether-secrets
                   key: COGNITO_CLIENT_ID
+            # OpenAI-backed AI features (final reports, broadcast drafting,
+            # situation summary). Absence of the key disables AI gracefully —
+            # every feature falls back to its rule-based behaviour.
+            - name: OPENAI_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: onetogether-secrets
+                  key: OPENAI_API_KEY
+            - name: OPENAI_MODEL
+              value: "gpt-4o-mini"
+            - name: AI_FEATURES_ENABLED
+              value: "true"
+            # Off by default: classification refinement runs on the unbounded
+            # simulator event stream. Flip to "true" to enable.
+            - name: AI_CLASSIFICATION_ENABLED
+              value: "false"
             - name: SQS_INCIDENT_QUEUE_URL
               valueFrom:
                 configMapKeyRef:

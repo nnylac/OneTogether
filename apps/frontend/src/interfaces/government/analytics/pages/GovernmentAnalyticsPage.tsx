@@ -7,7 +7,6 @@ import {
   Clock3,
   PieChart,
   Siren,
-  Table2,
   TrendingUp,
   TriangleAlert,
 } from 'lucide-react'
@@ -55,7 +54,9 @@ const chartColors = [
 type DistributionView = 'bar' | 'doughnut'
 
 function dateInputValue(date: Date) {
-  return date.toISOString().slice(0, 10)
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone: 'Asia/Singapore',
+  }).format(date)
 }
 
 function initialFilters(): AnalyticsOverviewFilters {
@@ -432,6 +433,7 @@ function MetricCard({
 
 function SimulationForecast({ forecast }: { forecast: AnalyticsForecast }) {
   const data = forecast.forecast
+  const hasEnoughData = data.sampleSize >= 10 && data.historyDays >= 7
   const confidenceTone =
     data.confidence === 'high'
       ? 'green'
@@ -509,10 +511,23 @@ function SimulationForecast({ forecast }: { forecast: AnalyticsForecast }) {
           />
         </Box>
 
-        {data.sampleSize === 0 ? (
-          <Text color="gray.500" mt="5">
-            No simulated incidents are available in the selected history window.
-          </Text>
+        {!hasEnoughData ? (
+          <Box
+            bg="red.50"
+            borderWidth="1px"
+            borderColor="red.200"
+            p="4"
+            mt="5"
+          >
+            <Text color="red.700" fontWeight="800">
+              Not enough data to show a reliable forecast
+            </Text>
+            <Text color="red.600" fontSize="sm" mt="1">
+              At least 10 incidents across 7 days are required. The selected
+              period currently contains {data.sampleSize} incidents across{' '}
+              {data.historyDays} days.
+            </Text>
+          </Box>
         ) : (
           <>
             <Box mt="6">
@@ -550,9 +565,9 @@ function ForecastTimeSeries({
 }: {
   items: AnalyticsForecast['forecast']['dailySeries']
 }) {
-  const width = 900
+  const width = Math.max(1100, items.length * 72)
   const height = 320
-  const padding = { top: 30, right: 24, bottom: 56, left: 44 }
+  const padding = { top: 30, right: 48, bottom: 56, left: 44 }
   const chartWidth = width - padding.left - padding.right
   const chartHeight = height - padding.top - padding.bottom
   const maxValue = Math.max(
@@ -639,7 +654,7 @@ function ForecastTimeSeries({
           viewBox={`0 0 ${width} ${height}`}
           width="100%"
           height="320"
-          style={{ minWidth: '720px' }}
+          style={{ minWidth: `${width}px` }}
         >
           {[0, 0.25, 0.5, 0.75, 1].map((ratio) => {
             const y = padding.top + chartHeight * ratio
@@ -1048,8 +1063,6 @@ function OrganisationPerformance({
 }: {
   overview: AnalyticsOverview
 }) {
-  const [view, setView] = useState<'chart' | 'table'>('chart')
-
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" overflowX="auto">
       <Flex
@@ -1069,103 +1082,8 @@ function OrganisationPerformance({
             Comparable workload metrics with log-derived response indicators.
           </Text>
         </Box>
-        <HStack gap="1">
-          <Button
-            aria-pressed={view === 'chart'}
-            bg={view === 'chart' ? 'blue.700' : 'white'}
-            color={view === 'chart' ? 'white' : 'gray.600'}
-            size="xs"
-            variant={view === 'chart' ? 'solid' : 'outline'}
-            onClick={() => setView('chart')}
-          >
-            <BarChart3 size={14} />
-            Workload
-          </Button>
-          <Button
-            aria-pressed={view === 'table'}
-            bg={view === 'table' ? 'blue.700' : 'white'}
-            color={view === 'table' ? 'white' : 'gray.600'}
-            size="xs"
-            variant={view === 'table' ? 'solid' : 'outline'}
-            onClick={() => setView('table')}
-          >
-            <Table2 size={14} />
-            Details
-          </Button>
-        </HStack>
       </Flex>
-      {view === 'chart' ? (
-        <OrganisationWorkloadChart organisations={overview.data.organisations} />
-      ) : (
-        <OrganisationPerformanceTable overview={overview} />
-      )}
-    </Box>
-  )
-}
-
-function OrganisationWorkloadChart({
-  organisations,
-}: {
-  organisations: AnalyticsOverview['data']['organisations']
-}) {
-  const maxValue = Math.max(
-    ...organisations.flatMap((organisation) => [
-      organisation.incidentsHandled,
-      organisation.activeWorkload,
-      organisation.completedAssignments,
-    ]),
-    1,
-  )
-
-  if (organisations.length === 0) {
-    return (
-      <Text color="gray.500" p="5">
-        No assigned organisations in this period.
-      </Text>
-    )
-  }
-
-  return (
-    <Box p="5" minW="640px">
-      <HStack gap="4" mb="5" wrap="wrap">
-        <ChartLegend color={chartColors[0]} label="Incidents handled" />
-        <ChartLegend color={chartColors[1]} label="Active workload" />
-        <ChartLegend color={chartColors[2]} label="Completed assignments" />
-      </HStack>
-      <Stack gap="5">
-        {organisations.map((organisation) => (
-          <Box key={organisation.organisationId}>
-            <Flex justify="space-between" gap="3" mb="2">
-              <Text color="gray.800" fontWeight="800">
-                {organisation.organisationName}
-              </Text>
-              <Text color="gray.500" fontSize="sm">
-                {formatPercent(organisation.completionRate)} completion
-              </Text>
-            </Flex>
-            <Stack gap="1">
-              {[
-                organisation.incidentsHandled,
-                organisation.activeWorkload,
-                organisation.completedAssignments,
-              ].map((value, index) => (
-                <Flex key={index} align="center" gap="3">
-                  <Box bg="gray.100" height="2" flex="1">
-                    <Box
-                      bg={chartColors[index]}
-                      height="100%"
-                      width={`${(value / maxValue) * 100}%`}
-                    />
-                  </Box>
-                  <Text color="gray.600" fontSize="xs" width="6" textAlign="end">
-                    {value}
-                  </Text>
-                </Flex>
-              ))}
-            </Stack>
-          </Box>
-        ))}
-      </Stack>
+      <OrganisationPerformanceTable overview={overview} />
     </Box>
   )
 }
