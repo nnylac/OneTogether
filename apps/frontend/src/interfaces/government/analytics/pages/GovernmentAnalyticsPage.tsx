@@ -906,9 +906,12 @@ function ChartViewToggle({
 }
 
 function DoughnutChart({ items }: { items: AnalyticsDistributionItem[] }) {
+  const [hoveredIndex, setHoveredIndex] = useState<number | null>(null)
   const total = items.reduce((sum, item) => sum + item.count, 0)
   const radius = 42
   const circumference = 2 * Math.PI * radius
+  const hoveredItem =
+    hoveredIndex === null ? null : items[hoveredIndex] ?? null
 
   return (
     <Flex
@@ -944,15 +947,30 @@ function DoughnutChart({ items }: { items: AnalyticsDistributionItem[] }) {
             return (
               <circle
                 key={item.key}
+                aria-label={`${formatLabel(item.key)}: ${item.count} incidents`}
+                cursor="pointer"
                 cx="50"
                 cy="50"
                 fill="none"
+                opacity={
+                  hoveredIndex === null || hoveredIndex === index ? 1 : 0.45
+                }
                 r={radius}
-                stroke={chartColors[index % chartColors.length]}
+                stroke={
+                  hoveredIndex === null || hoveredIndex === index
+                    ? chartColors[index % chartColors.length]
+                    : '#cbd5e1'
+                }
                 strokeDasharray={`${segmentLength} ${circumference - segmentLength}`}
                 strokeDashoffset={-segmentOffset}
-                strokeWidth="14"
+                strokeLinecap="butt"
+                strokeWidth={hoveredIndex === index ? '16' : '14'}
+                tabIndex={0}
                 transform="rotate(-90 50 50)"
+                onBlur={() => setHoveredIndex(null)}
+                onFocus={() => setHoveredIndex(index)}
+                onMouseEnter={() => setHoveredIndex(index)}
+                onMouseLeave={() => setHoveredIndex(null)}
               >
                 <title>
                   {formatLabel(item.key)}: {item.count} (
@@ -962,6 +980,33 @@ function DoughnutChart({ items }: { items: AnalyticsDistributionItem[] }) {
             )
           })}
         </svg>
+
+        {hoveredItem && (
+          <Box
+            position="absolute"
+            top="-2"
+            left="50%"
+            transform="translate(-50%, -100%)"
+            bg="gray.900"
+            color="white"
+            minW="36"
+            px="3"
+            py="2"
+            pointerEvents="none"
+            boxShadow="md"
+            zIndex="1"
+          >
+            <Text fontSize="sm" fontWeight="800" lineClamp="1">
+              {formatLabel(hoveredItem.key)}
+            </Text>
+            <Text color="gray.200" fontSize="xs">
+              {hoveredItem.count} incident
+              {hoveredItem.count === 1 ? '' : 's'} ·{' '}
+              {formatPercent(hoveredItem.percentage)}
+            </Text>
+          </Box>
+        )}
+
         <Flex
           position="absolute"
           inset="0"
@@ -980,10 +1025,21 @@ function DoughnutChart({ items }: { items: AnalyticsDistributionItem[] }) {
       </Box>
       <Stack gap="2" flex="1">
         {items.map((item, index) => (
-          <Flex key={item.key} justify="space-between" gap="3">
+          <Flex
+            key={item.key}
+            justify="space-between"
+            gap="3"
+            opacity={hoveredIndex === null || hoveredIndex === index ? 1 : 0.45}
+            onMouseEnter={() => setHoveredIndex(index)}
+            onMouseLeave={() => setHoveredIndex(null)}
+          >
             <HStack gap="2">
               <Box
-                bg={chartColors[index % chartColors.length]}
+                bg={
+                  hoveredIndex === null || hoveredIndex === index
+                    ? chartColors[index % chartColors.length]
+                    : 'gray.300'
+                }
                 width="3"
                 height="3"
                 flexShrink="0"

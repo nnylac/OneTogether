@@ -16,17 +16,38 @@ export type DashboardBroadcastDto = {
 
 export type DashboardVolunteerOpportunityDto = {
   id: string
+  slotsFilled: number
+  slotsLeft: number | null
+  slotsTotal: number | null
   status: string
 }
 
+export type DashboardResourceTotalsDto = {
+  available: number
+  total: number
+}
+
 export type DashboardResourceSummaryDto = {
-  totals: {
-    total: number
-    available: number
+  totals: DashboardResourceTotalsDto & {
     deployed: number
     reserved: number
     maintenance: number
   }
+}
+
+export type DashboardResourceOutletDto = {
+  agencyId: string
+  id: string
+  name: string
+  sourceSystemId: string
+  type: string
+  resources: Array<{
+    available: number
+    category: string
+    name: string
+    total: number
+  }>
+  totals: DashboardResourceTotalsDto
 }
 
 export type GovernmentDashboardData = {
@@ -35,6 +56,7 @@ export type GovernmentDashboardData = {
   broadcasts: DashboardBroadcastDto[]
   generatedAt: string
   incidents: IncidentApiDto[]
+  resourceOutlets: DashboardResourceOutletDto[]
   resources: DashboardResourceSummaryDto | null
   volunteerOpportunities: DashboardVolunteerOpportunityDto[]
 }
@@ -61,6 +83,7 @@ export async function fetchGovernmentDashboardData() {
     analytics,
     broadcasts,
     incidents,
+    resourceOutlets,
     resources,
     volunteerOpportunities,
   ] = await Promise.all([
@@ -68,6 +91,7 @@ export async function fetchGovernmentDashboardData() {
     fetchAnalyticsOverview(defaultAnalyticsFilters()),
     fetchBroadcasts(),
     fetchIncidents(),
+    fetchResourceOutlets().catch(() => []),
     fetchResourceSummary().catch(() => null),
     fetchVolunteerOpportunities().catch(() => []),
   ])
@@ -78,6 +102,7 @@ export async function fetchGovernmentDashboardData() {
     broadcasts,
     generatedAt: new Date().toISOString(),
     incidents,
+    resourceOutlets,
     resources,
     volunteerOpportunities,
   } satisfies GovernmentDashboardData
@@ -113,6 +138,16 @@ async function fetchResourceSummary() {
   return (await response.json()) as DashboardResourceSummaryDto
 }
 
+async function fetchResourceOutlets() {
+  const response = await fetch('/api/resources/outlets')
+
+  if (!response.ok) {
+    throw new Error('Unable to load resource outlets')
+  }
+
+  return (await response.json()) as DashboardResourceOutletDto[]
+}
+
 async function fetchVolunteerOpportunities() {
   const response = await fetch('/api/volunteer/opportunities?status=open')
 
@@ -122,4 +157,3 @@ async function fetchVolunteerOpportunities() {
 
   return (await response.json()) as DashboardVolunteerOpportunityDto[]
 }
-

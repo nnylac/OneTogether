@@ -1,8 +1,8 @@
 import { Box, Flex, Stack, Text } from '../../../../components/chakra-ui'
-import type { AnalyticsDistributionItem } from '../../analytics/api/analyticsApi'
+import type { DashboardDistributionItem } from '../utils/dashboardMetrics'
 
 type IncidentsByTypeSummaryProps = {
-  incidentsByType: AnalyticsDistributionItem[]
+  incidentsByType: DashboardDistributionItem[]
 }
 
 const barColors = ['#ef4444', '#f59e0b', '#f97316', '#2563eb', '#22a77a', '#64748b']

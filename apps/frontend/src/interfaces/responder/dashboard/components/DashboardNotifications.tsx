@@ -19,25 +19,31 @@ export function DashboardNotifications({ notifications }: DashboardNotifications
       </Card.Header>
 
       <Card.Body>
-        <Stack gap="0">
-          {notifications.map((notification) => (
-            <Stack
-              key={notification.id}
-              borderBottomColor="gray.100"
-              borderBottomWidth="1px"
-              gap="1"
-              py="4"
-              _last={{ borderBottomWidth: '0' }}
-            >
-              <Text color="gray.900" fontWeight="700">
-                {notification.title}
-              </Text>
-              <Text color="gray.500" fontSize="sm">
-                {notification.time}
-              </Text>
-            </Stack>
-          ))}
-        </Stack>
+        {notifications.length === 0 ? (
+          <Text color="gray.500" fontSize="sm">
+            No backend notifications found for your organisation.
+          </Text>
+        ) : (
+          <Stack gap="0">
+            {notifications.map((notification) => (
+              <Stack
+                key={notification.id}
+                borderBottomColor="gray.100"
+                borderBottomWidth="1px"
+                gap="1"
+                py="4"
+                _last={{ borderBottomWidth: '0' }}
+              >
+                <Text color="gray.900" fontWeight="700">
+                  {notification.title}
+                </Text>
+                <Text color="gray.500" fontSize="sm">
+                  {notification.time}
+                </Text>
+              </Stack>
+            ))}
+          </Stack>
+        )}
       </Card.Body>
     </Card.Root>
   )
