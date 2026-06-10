@@ -119,3 +119,4 @@ VALUES
         'Notify flood response leads when flood reports exceed twelve active reports.'
     )
 ON CONFLICT (id) DO NOTHING;
+
