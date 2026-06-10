@@ -22,4 +22,3 @@ export class UpdateGovernmentAlertRuleDto {
   @ApiPropertyOptional({ example: true })
   isEnabled?: boolean;
 }
-

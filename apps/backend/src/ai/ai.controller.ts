@@ -54,9 +54,7 @@ export class AiController {
   }
 
   @Post('translate')
-  async translateBroadcast(
-    @Body() body: { title?: string; message?: string },
-  ) {
+  async translateBroadcast(@Body() body: { title?: string; message?: string }) {
     if (!body.title?.trim() || !body.message?.trim()) {
       throw new BadRequestException('title and message are required');
     }
@@ -78,8 +76,6 @@ export class AiController {
   async situationSummary(@Query('refresh') refresh?: string) {
     // Always 200 — the service returns a deterministic fallback payload when
     // AI is unavailable so the government dashboard never breaks.
-    return this.situationSummaryService.getSituationSummary(
-      refresh === 'true',
-    );
+    return this.situationSummaryService.getSituationSummary(refresh === 'true');
   }
 }

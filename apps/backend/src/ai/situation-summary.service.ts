@@ -26,8 +26,10 @@ export class SituationSummaryService {
   private readonly logger = new Logger(SituationSummaryService.name);
   // Per-pod cache: with multiple replicas each pod keeps its own copy, which
   // is acceptable for a 5-minute advisory briefing in this prototype.
-  private cache: { expiresAt: number; payload: SituationSummaryPayload } | null =
-    null;
+  private cache: {
+    expiresAt: number;
+    payload: SituationSummaryPayload;
+  } | null = null;
 
   constructor(
     private readonly prisma: PrismaService,
@@ -89,8 +91,8 @@ export class SituationSummaryService {
 
     let payload: SituationSummaryPayload;
     try {
-      const sections = await this.aiService.completeJson<SituationSummarySections>(
-        {
+      const sections =
+        await this.aiService.completeJson<SituationSummarySections>({
           schemaName: 'situation_summary',
           schema: {
             type: 'object',
@@ -119,8 +121,7 @@ export class SituationSummaryService {
             'sections to 3-6 short paragraphs in total.',
           ].join(' '),
           user: JSON.stringify(aggregate),
-        },
-      );
+        });
       payload = {
         generatedAt: new Date().toISOString(),
         source: 'ai',

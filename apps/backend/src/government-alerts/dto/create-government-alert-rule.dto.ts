@@ -32,4 +32,3 @@ export class CreateGovernmentAlertRuleDto {
   })
   notificationMessage!: string;
 }
-

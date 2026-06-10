@@ -305,11 +305,7 @@ export class GovernmentAlertsService {
       condition: row.condition,
       unit: row.unit,
       status: row.is_enabled
-        ? this.calculateAlertStatus(
-            currentValue,
-            thresholdValue,
-            row.condition,
-          )
+        ? this.calculateAlertStatus(currentValue, thresholdValue, row.condition)
         : 'Normal',
       notificationMessage: row.notification_message,
       isEnabled: row.is_enabled,
@@ -473,11 +469,15 @@ export class GovernmentAlertsService {
     if (['Normal', 'Warning', 'Critical'].includes(normalized)) {
       return normalized as AlertStatus;
     }
-    throw new BadRequestException('status must be Normal, Warning, or Critical');
+    throw new BadRequestException(
+      'status must be Normal, Warning, or Critical',
+    );
   }
 
   private toMetric(value: string): AlertMetric {
-    if (alertMetricDefinitions.some((definition) => definition.value === value)) {
+    if (
+      alertMetricDefinitions.some((definition) => definition.value === value)
+    ) {
       return value as AlertMetric;
     }
     throw new BadRequestException('Invalid alert metric');

@@ -151,9 +151,11 @@ describe('IncidentAnalysisService', () => {
       assigned_orgs: [],
       incident_sources: [],
     };
-    const update = jest.fn().mockImplementation(({ data }) =>
-      Promise.resolve({ ...incident, ...data }),
-    );
+    const update = jest
+      .fn()
+      .mockImplementation(({ data }) =>
+        Promise.resolve({ ...incident, ...data }),
+      );
     const completeJson = jest.fn().mockResolvedValue({
       executive_summary: 'AI summary.',
       response_plan: 'AI response plan.',
@@ -203,9 +205,11 @@ describe('IncidentAnalysisService', () => {
       assigned_orgs: [],
       incident_sources: [],
     };
-    const update = jest.fn().mockImplementation(({ data }) =>
-      Promise.resolve({ ...incident, ...data }),
-    );
+    const update = jest
+      .fn()
+      .mockImplementation(({ data }) =>
+        Promise.resolve({ ...incident, ...data }),
+      );
     const completeJson = jest
       .fn()
       .mockRejectedValue(new AiUnavailableError('quota'));

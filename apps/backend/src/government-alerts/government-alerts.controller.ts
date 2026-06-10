@@ -69,4 +69,3 @@ export class GovernmentAlertsController {
     return this.governmentAlertsService.delete(id);
   }
 }
-

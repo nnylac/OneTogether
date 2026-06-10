@@ -154,9 +154,7 @@ export class ClassificationRefinementService {
         reportedSeverity: incident.severity,
         location: incident.inc_location,
         description: incident.inc_description?.slice(0, 1000) ?? null,
-        logs: incident.logs
-          .map((log) => log.content.slice(0, 400))
-          .reverse(),
+        logs: incident.logs.map((log) => log.content.slice(0, 400)).reverse(),
       }),
     });
 

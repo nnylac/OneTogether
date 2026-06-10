@@ -240,7 +240,7 @@ export function LoginPage() {
                 Login
               </Heading>
               <Text color="#67809b" fontSize="sm" mt="1">
-                Use demo access to open a role-based interface.
+                Sign in with your account credentials.
               </Text>
             </Box>
 
@@ -296,39 +296,6 @@ export function LoginPage() {
                 </Button>
               </Stack>
             </form>
-            <Box>
-              <Text fontSize="md" fontWeight="900">
-                Demo Accounts
-              </Text>
-              <br />
-                <Text fontSize="sm" fontWeight="900">
-                  Citizen Login
-                </Text>
-                <Text color="#67809b" fontSize="sm" mt="1">
-                  Username: citizen
-                  <br />
-                  Password: citizen
-                </Text>
-                <br /><hr />
-                <Text fontSize="sm" fontWeight="900">
-                  Responder Login
-                </Text>
-                <Text color="#67809b" fontSize="sm" mt="1">
-                  Username: responder
-                  <br />
-                  Password: responder
-                </Text>
-                <br /><hr />
-                <Text fontSize="sm" fontWeight="900">
-                  Government Login
-                </Text>
-                <Text color="#67809b" fontSize="sm" mt="1">
-                  Username: gov
-                  <br />
-                  Password: gov
-                </Text>
-                <br /><hr />
-            </Box>
           </Stack>
         </Box>
       </Flex>

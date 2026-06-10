@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { AiService } from './ai.service';
-import { deriveRegion, REGIONS, type Region } from '../common/derive-region.util';
+import {
+  deriveRegion,
+  REGIONS,
+  type Region,
+} from '../common/derive-region.util';
 
 export type BroadcastDraftRequest = {
   audience: 'Public' | 'Responders' | 'Zone';
@@ -82,7 +86,7 @@ export class AiBroadcastService {
       temperature: 0.4,
       system: [
         'You draft official government emergency broadcasts for Singapore',
-        "residents on the OneTogether platform. Reference the actual active",
+        'residents on the OneTogether platform. Reference the actual active',
         'situation (incident types and areas) without naming victims or',
         'speculating beyond the data. Give clear protective actions',
         'appropriate to the severity level. Title must be at most 120',

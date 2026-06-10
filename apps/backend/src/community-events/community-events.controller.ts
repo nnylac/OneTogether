@@ -7,7 +7,9 @@ import { CommunityEventResponseDto } from './dto/community-event-response.dto';
 @ApiTags('community-events')
 @Controller('community-events')
 export class CommunityEventsController {
-  constructor(private readonly communityEventsService: CommunityEventsService) {}
+  constructor(
+    private readonly communityEventsService: CommunityEventsService,
+  ) {}
 
   @Get()
   @ApiOperation({ summary: 'List open public community events' })

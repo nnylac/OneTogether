@@ -60,4 +60,3 @@ export class GovernmentAlertRuleResponseDto {
   @ApiProperty({ type: String, format: 'date-time' })
   updatedAt!: Date;
 }
-

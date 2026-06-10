@@ -11,4 +11,3 @@ import { GovernmentAlertsService } from './government-alerts.service';
   exports: [GovernmentAlertsService],
 })
 export class GovernmentAlertsModule {}
-

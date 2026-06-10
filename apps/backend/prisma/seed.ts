@@ -143,6 +143,9 @@ const organisationContactGuides: OrganisationContactGuide[] = [
   },
 ];
 
+// Shared easy password for all demo accounts (demo/testing only).
+const DEMO_PASSWORD = 'password123';
+
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('base64url');
   const iterations = 210000;
@@ -166,7 +169,7 @@ async function main() {
     create: { org_name: 'SPF' },
   });
 
-  await prisma.organisations.upsert({
+  const sgh = await prisma.organisations.upsert({
     where: { org_name: 'SGH' },
     update: {},
     create: { org_name: 'SGH' },
@@ -189,51 +192,53 @@ async function main() {
   console.log('Organisations: SCDF, SPF, SGH, MOH, IMDA, and public guides');
 
   // --- Citizen (role: user) ---
+  const citizenFields = {
+    email: 'citizen@onetogether.sg',
+    first_name: 'Demo',
+    last_name: 'Citizen',
+    role: 'user',
+    is_verified: true,
+  };
   const citizenUser = await prisma.users.upsert({
     where: { username: 'citizen' },
-    update: {},
-    create: {
-      username: 'citizen',
-      email: 'citizen@demo.sg',
-      first_name: 'Demo',
-      last_name: 'Citizen',
-      role: 'user',
-      is_verified: true,
-    },
+    update: citizenFields,
+    create: { username: 'citizen', ...citizenFields },
   });
 
   await prisma.accounts.upsert({
     where: { user_id: citizenUser.id },
-    update: {},
+    update: { password_hash: hashPassword(DEMO_PASSWORD) },
     create: {
       user_id: citizenUser.id,
-      password_hash: hashPassword('citizen'),
+      password_hash: hashPassword(DEMO_PASSWORD),
     },
   });
 
-  console.log('User created:   citizen  / citizen  → /citizen');
+  console.log(
+    'User created:   citizen@onetogether.sg / password123 → /citizen',
+  );
 
   // --- Responder (role: responder, org: SCDF) ---
+  const responderFields = {
+    email: 'responder@scdf.sg',
+    first_name: 'SCDF',
+    last_name: 'Responder',
+    role: 'responder',
+    is_verified: true,
+    user_organisation_id: scdf.id,
+  };
   const responderUser = await prisma.users.upsert({
     where: { username: 'responder' },
-    update: {},
-    create: {
-      username: 'responder',
-      email: 'responder@demo.sg',
-      first_name: 'Demo',
-      last_name: 'Responder',
-      role: 'responder',
-      is_verified: true,
-      user_organisation_id: scdf.id,
-    },
+    update: responderFields,
+    create: { username: 'responder', ...responderFields },
   });
 
   await prisma.accounts.upsert({
     where: { user_id: responderUser.id },
-    update: {},
+    update: { password_hash: hashPassword(DEMO_PASSWORD) },
     create: {
       user_id: responderUser.id,
-      password_hash: hashPassword('responder'),
+      password_hash: hashPassword(DEMO_PASSWORD),
     },
   });
 
@@ -248,29 +253,29 @@ async function main() {
     create: { user_id: responderUser.id, organisation_id: scdf.id },
   });
 
-  console.log('User created:   responder / responder → /responder');
+  console.log('User created:   responder@scdf.sg / password123 → /responder');
 
   // --- Responder 2 (SPF) ---
+  const spfResponderFields = {
+    email: 'officer@spf.sg',
+    first_name: 'SPF',
+    last_name: 'Officer',
+    role: 'responder',
+    is_verified: true,
+    user_organisation_id: spf.id,
+  };
   const spfResponder = await prisma.users.upsert({
     where: { username: 'spf.responder' },
-    update: {},
-    create: {
-      username: 'spf.responder',
-      email: 'spf.responder@demo.sg',
-      first_name: 'SPF',
-      last_name: 'Officer',
-      role: 'responder',
-      is_verified: true,
-      user_organisation_id: spf.id,
-    },
+    update: spfResponderFields,
+    create: { username: 'spf.responder', ...spfResponderFields },
   });
 
   await prisma.accounts.upsert({
     where: { user_id: spfResponder.id },
-    update: {},
+    update: { password_hash: hashPassword(DEMO_PASSWORD) },
     create: {
       user_id: spfResponder.id,
-      password_hash: hashPassword('responder'),
+      password_hash: hashPassword(DEMO_PASSWORD),
     },
   });
 
@@ -285,32 +290,69 @@ async function main() {
     create: { user_id: spfResponder.id, organisation_id: spf.id },
   });
 
-  console.log('User created:   spf.responder / responder → /responder');
+  console.log('User created:   officer@spf.sg / password123 → /responder');
+
+  // --- Hospital coordinator (role: responder, org: SGH) ---
+  const hospitalFields = {
+    email: 'doctor@hospital.sg',
+    first_name: 'Hospital',
+    last_name: 'Coordinator',
+    role: 'responder',
+    is_verified: true,
+    user_organisation_id: sgh.id,
+  };
+  const hospitalUser = await prisma.users.upsert({
+    where: { username: 'hospital' },
+    update: hospitalFields,
+    create: { username: 'hospital', ...hospitalFields },
+  });
+
+  await prisma.accounts.upsert({
+    where: { user_id: hospitalUser.id },
+    update: { password_hash: hashPassword(DEMO_PASSWORD) },
+    create: {
+      user_id: hospitalUser.id,
+      password_hash: hashPassword(DEMO_PASSWORD),
+    },
+  });
+
+  await prisma.user_organisations.upsert({
+    where: {
+      user_id_organisation_id: {
+        user_id: hospitalUser.id,
+        organisation_id: sgh.id,
+      },
+    },
+    update: {},
+    create: { user_id: hospitalUser.id, organisation_id: sgh.id },
+  });
+
+  console.log('User created:   doctor@hospital.sg / password123 → /responder');
 
   // --- Government (role: admin) ---
+  const govFields = {
+    email: 'admin@gov.sg',
+    first_name: 'Demo',
+    last_name: 'Government',
+    role: 'admin',
+    is_verified: true,
+  };
   const govUser = await prisma.users.upsert({
     where: { username: 'gov' },
-    update: {},
-    create: {
-      username: 'gov',
-      email: 'gov@demo.sg',
-      first_name: 'Demo',
-      last_name: 'Government',
-      role: 'admin',
-      is_verified: true,
-    },
+    update: govFields,
+    create: { username: 'gov', ...govFields },
   });
 
   await prisma.accounts.upsert({
     where: { user_id: govUser.id },
-    update: {},
+    update: { password_hash: hashPassword(DEMO_PASSWORD) },
     create: {
       user_id: govUser.id,
-      password_hash: hashPassword('gov'),
+      password_hash: hashPassword(DEMO_PASSWORD),
     },
   });
 
-  console.log('User created:   gov      / gov      → /government');
+  console.log('User created:   admin@gov.sg / password123 → /government');
 
   await seedBroadcasts({
     govUserId: govUser.id,
@@ -319,6 +361,14 @@ async function main() {
   });
 
   console.log('Broadcasts:     seeded published demo broadcasts');
+
+  await seedCommunityEvents();
+
+  console.log('Community:      seeded demo community events');
+
+  await seedGovernmentAlertRules();
+
+  console.log('Alert rules:    seeded demo government alert rules');
 
   // --- Resource inventory ---
   // Mirrors the shape the agency simulators emit (apps/external/agencies/*/main.py)
@@ -346,6 +396,138 @@ async function seedOrganisationContactGuides() {
         org_name: guide.orgName,
         ...data,
       },
+    });
+  }
+}
+
+type SeedCommunityEvent = {
+  id: string;
+  title: string;
+  organiser_name: string;
+  category: string;
+  description: string;
+  location: string;
+  region: string;
+  start_at: Date;
+  end_at: Date;
+  capacity: number;
+  registered_count: number;
+  is_free: boolean;
+  signup_url: string;
+};
+
+async function seedCommunityEvents() {
+  const demoEvents: SeedCommunityEvent[] = [
+    {
+      id: '51000000-0000-0000-0000-000000000001',
+      title: 'Community Emergency Preparedness Workshop',
+      organiser_name: 'Jurong West RC',
+      category: 'preparedness',
+      description:
+        'Hands-on session on home fire safety, evacuation planning, and basic first aid. Tags: first aid, safety, preparedness.',
+      location: 'Jurong West Community Club',
+      region: 'West',
+      start_at: new Date('2026-06-18T10:00:00+08:00'),
+      end_at: new Date('2026-06-18T12:30:00+08:00'),
+      capacity: 60,
+      registered_count: 38,
+      is_free: true,
+      signup_url: 'https://onetogether.sg/community/preparedness-workshop',
+    },
+    {
+      id: '51000000-0000-0000-0000-000000000002',
+      title: 'Flood Relief Volunteer Drive',
+      organiser_name: 'Singapore Red Cross',
+      category: 'relief',
+      description:
+        'Support affected households with cleanup, supplies distribution, and welfare checks. Tags: relief, volunteering, community.',
+      location: 'Bedok Reservoir Community Centre',
+      region: 'East',
+      start_at: new Date('2026-06-22T08:00:00+08:00'),
+      end_at: new Date('2026-06-22T16:00:00+08:00'),
+      capacity: 100,
+      registered_count: 45,
+      is_free: true,
+      signup_url: 'https://onetogether.sg/community/flood-relief-drive',
+    },
+    {
+      id: '51000000-0000-0000-0000-000000000003',
+      title: 'Certified First Aid Training Course',
+      organiser_name: 'SCDF Community Engagement',
+      category: 'training',
+      description:
+        'Certified first aid and AED training with practical assessment. Tags: certification, training, medical.',
+      location: 'Central Fire Station',
+      region: 'Central',
+      start_at: new Date('2026-06-27T14:00:00+08:00'),
+      end_at: new Date('2026-06-27T17:00:00+08:00'),
+      capacity: 30,
+      registered_count: 28,
+      is_free: false,
+      signup_url: 'https://onetogether.sg/community/first-aid-training',
+    },
+  ];
+
+  for (const event of demoEvents) {
+    const { id, ...fields } = event;
+    await prisma.community_events.upsert({
+      where: { id },
+      update: { ...fields, event_status: 'open' },
+      create: { id, ...fields, event_status: 'open' },
+    });
+  }
+}
+
+type SeedGovernmentAlertRule = {
+  id: string;
+  name: string;
+  metric: string;
+  threshold_value: number;
+  condition: string;
+  unit: string;
+  notification_message: string;
+};
+
+async function seedGovernmentAlertRules() {
+  const demoRules: SeedGovernmentAlertRule[] = [
+    {
+      id: '70000000-0000-0000-0000-000000000001',
+      name: 'Open Incidents Surge',
+      metric: 'openIncidents',
+      threshold_value: 10,
+      condition: 'above',
+      unit: 'count',
+      notification_message:
+        'Open incident count has exceeded the safe coordination threshold. Review command allocation.',
+    },
+    {
+      id: '70000000-0000-0000-0000-000000000002',
+      name: 'Hospital Occupancy Critical',
+      metric: 'hospitalOccupancy',
+      threshold_value: 85,
+      condition: 'above',
+      unit: 'percent',
+      notification_message:
+        'Hospital bed occupancy is critically high. Activate surge and load-balancing protocols.',
+    },
+    {
+      id: '70000000-0000-0000-0000-000000000003',
+      name: 'Critical Incidents Watch',
+      metric: 'criticalIncidents',
+      threshold_value: 5,
+      condition: 'above',
+      unit: 'count',
+      notification_message:
+        'Multiple critical incidents detected. Consider escalating to unified command.',
+    },
+  ];
+
+  for (const rule of demoRules) {
+    const { id, ...fields } = rule;
+    await prisma.government_alert_rules.upsert({
+      where: { id },
+      update: { ...fields, is_enabled: true },
+      create: { id, ...fields, is_enabled: true },
     });
   }
 }
@@ -502,15 +684,30 @@ function res(
   reserved: number,
   maintenance: number,
 ): SeedResource {
-  return { externalResourceId, name, category, total, available, deployed, reserved, maintenance };
+  return {
+    externalResourceId,
+    name,
+    category,
+    total,
+    available,
+    deployed,
+    reserved,
+    maintenance,
+  };
 }
 
 const RESOURCE_OUTLETS: SeedOutlet[] = [
   // SCDF — fire stations
   {
-    agencyId: 'SCDF', systemId: 'FIREWATCH', externalOutletId: 'SCDF-CENTRAL',
-    name: 'Central Fire Station', type: 'fire_station', region: 'Central',
-    address: '62 Hill Street', lat: 1.2926, lng: 103.8487,
+    agencyId: 'SCDF',
+    systemId: 'FIREWATCH',
+    externalOutletId: 'SCDF-CENTRAL',
+    name: 'Central Fire Station',
+    type: 'fire_station',
+    region: 'Central',
+    address: '62 Hill Street',
+    lat: 1.2926,
+    lng: 103.8487,
     resources: [
       res('fire_engine', 'Fire Engines', 'vehicle', 8, 5, 2, 0, 1),
       res('ambulance', 'Ambulances', 'vehicle', 12, 8, 3, 0, 1),
@@ -518,9 +715,15 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
     ],
   },
   {
-    agencyId: 'SCDF', systemId: 'FIREWATCH', externalOutletId: 'SCDF-JRG',
-    name: 'Jurong Fire Station', type: 'fire_station', region: 'West',
-    address: '22 Jurong West Street 26', lat: 1.3448, lng: 103.7076,
+    agencyId: 'SCDF',
+    systemId: 'FIREWATCH',
+    externalOutletId: 'SCDF-JRG',
+    name: 'Jurong Fire Station',
+    type: 'fire_station',
+    region: 'West',
+    address: '22 Jurong West Street 26',
+    lat: 1.3448,
+    lng: 103.7076,
     resources: [
       res('fire_engine', 'Fire Engines', 'vehicle', 7, 4, 2, 0, 1),
       res('ambulance', 'Ambulances', 'vehicle', 10, 7, 2, 0, 1),
@@ -528,9 +731,15 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
     ],
   },
   {
-    agencyId: 'SCDF', systemId: 'FIREWATCH', externalOutletId: 'SCDF-BDK',
-    name: 'Bedok Fire Station', type: 'fire_station', region: 'East',
-    address: '850 Bedok North Road', lat: 1.3315, lng: 103.9264,
+    agencyId: 'SCDF',
+    systemId: 'FIREWATCH',
+    externalOutletId: 'SCDF-BDK',
+    name: 'Bedok Fire Station',
+    type: 'fire_station',
+    region: 'East',
+    address: '850 Bedok North Road',
+    lat: 1.3315,
+    lng: 103.9264,
     resources: [
       res('fire_engine', 'Fire Engines', 'vehicle', 6, 5, 1, 0, 0),
       res('ambulance', 'Ambulances', 'vehicle', 11, 8, 2, 0, 1),
@@ -539,19 +748,40 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
   },
   // SPF — police divisions
   {
-    agencyId: 'SPF', systemId: 'POLNET', externalOutletId: 'SPF-CENTRAL-DIV',
-    name: 'Central Police Division', type: 'police_station', region: 'Central',
-    address: '391 New Bridge Road', lat: 1.2841, lng: 103.8404,
+    agencyId: 'SPF',
+    systemId: 'POLNET',
+    externalOutletId: 'SPF-CENTRAL-DIV',
+    name: 'Central Police Division',
+    type: 'police_station',
+    region: 'Central',
+    address: '391 New Bridge Road',
+    lat: 1.2841,
+    lng: 103.8404,
     resources: [
       res('patrol_car', 'Patrol Cars', 'vehicle', 32, 22, 8, 1, 1),
-      res('police_officer', 'Police Officers', 'personnel', 220, 156, 48, 10, 6),
+      res(
+        'police_officer',
+        'Police Officers',
+        'personnel',
+        220,
+        156,
+        48,
+        10,
+        6,
+      ),
       res('traffic_unit', 'Traffic Units', 'specialist_unit', 12, 7, 4, 1, 0),
     ],
   },
   {
-    agencyId: 'SPF', systemId: 'POLNET', externalOutletId: 'SPF-BEDOK-DIV',
-    name: 'Bedok Police Division', type: 'police_station', region: 'East',
-    address: '102 Bedok North Avenue 4', lat: 1.3296, lng: 103.9322,
+    agencyId: 'SPF',
+    systemId: 'POLNET',
+    externalOutletId: 'SPF-BEDOK-DIV',
+    name: 'Bedok Police Division',
+    type: 'police_station',
+    region: 'East',
+    address: '102 Bedok North Avenue 4',
+    lat: 1.3296,
+    lng: 103.9322,
     resources: [
       res('patrol_car', 'Patrol Cars', 'vehicle', 30, 21, 6, 2, 1),
       res('police_officer', 'Police Officers', 'personnel', 205, 149, 41, 9, 6),
@@ -560,9 +790,15 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
   },
   // SingHealth — hospitals
   {
-    agencyId: 'SINGHEALTH', systemId: 'SUNRISE', externalOutletId: 'SINGHEALTH-SGH',
-    name: 'Singapore General Hospital', type: 'hospital', region: 'Central',
-    address: 'Outram Road', lat: 1.2792, lng: 103.8351,
+    agencyId: 'SINGHEALTH',
+    systemId: 'SUNRISE',
+    externalOutletId: 'SINGHEALTH-SGH',
+    name: 'Singapore General Hospital',
+    type: 'hospital',
+    region: 'Central',
+    address: 'Outram Road',
+    lat: 1.2792,
+    lng: 103.8351,
     resources: [
       res('ed_bed', 'Emergency Beds', 'bed', 60, 18, 38, 2, 2),
       res('icu_bed', 'ICU Beds', 'bed', 40, 9, 29, 1, 1),
@@ -570,9 +806,15 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
     ],
   },
   {
-    agencyId: 'SINGHEALTH', systemId: 'SUNRISE', externalOutletId: 'SINGHEALTH-CGH',
-    name: 'Changi General Hospital', type: 'hospital', region: 'East',
-    address: '2 Simei Street 3', lat: 1.3402, lng: 103.9496,
+    agencyId: 'SINGHEALTH',
+    systemId: 'SUNRISE',
+    externalOutletId: 'SINGHEALTH-CGH',
+    name: 'Changi General Hospital',
+    type: 'hospital',
+    region: 'East',
+    address: '2 Simei Street 3',
+    lat: 1.3402,
+    lng: 103.9496,
     resources: [
       res('ed_bed', 'Emergency Beds', 'bed', 48, 16, 30, 1, 1),
       res('icu_bed', 'ICU Beds', 'bed', 28, 7, 20, 1, 0),
@@ -581,9 +823,15 @@ const RESOURCE_OUTLETS: SeedOutlet[] = [
   },
   // PUB — water operations depots
   {
-    agencyId: 'PUB', systemId: 'WATERNET', externalOutletId: 'PUB-KALLANG-DEPOT',
-    name: 'Kallang Water Operations Depot', type: 'water_operations_depot', region: 'Central',
-    address: '40 Geylang Road', lat: 1.3100, lng: 103.8714,
+    agencyId: 'PUB',
+    systemId: 'WATERNET',
+    externalOutletId: 'PUB-KALLANG-DEPOT',
+    name: 'Kallang Water Operations Depot',
+    type: 'water_operations_depot',
+    region: 'Central',
+    address: '40 Geylang Road',
+    lat: 1.31,
+    lng: 103.8714,
     resources: [
       res('portable_pump', 'Portable Pumps', 'equipment', 24, 16, 6, 1, 1),
       res('drainage_crew', 'Drainage Crews', 'crew', 12, 8, 3, 1, 0),
@@ -668,7 +916,9 @@ async function seedResources() {
     }
   }
 
-  console.log(`Resources:      ${outletCount} outlets, ${resourceCount} inventory rows`);
+  console.log(
+    `Resources:      ${outletCount} outlets, ${resourceCount} inventory rows`,
+  );
 }
 
 main()

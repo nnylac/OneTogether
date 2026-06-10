@@ -54,7 +54,7 @@ export class NotificationsRepository {
     },
   ): Promise<NotificationWithRecipients> {
     return this.prisma.notifications.create({
-      data: data as Prisma.notificationsCreateInput,
+      data: data,
       include: {
         notification_recipients: true,
       },

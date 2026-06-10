@@ -72,17 +72,21 @@ export class VolunteerService {
       this.toOpportunityFilters(query),
     );
     return opportunities
-      .map((opportunity) => VolunteerOpportunityResponseDto.fromModel(opportunity))
+      .map((opportunity) =>
+        VolunteerOpportunityResponseDto.fromModel(opportunity),
+      )
       .sort((first, second) => {
         const urgencyDelta =
-          this.toUrgencyRank(first.urgency) - this.toUrgencyRank(second.urgency);
+          this.toUrgencyRank(first.urgency) -
+          this.toUrgencyRank(second.urgency);
 
         if (urgencyDelta !== 0) {
           return urgencyDelta;
         }
 
         return (
-          this.toSortableTime(first.startAt) - this.toSortableTime(second.startAt)
+          this.toSortableTime(first.startAt) -
+          this.toSortableTime(second.startAt)
         );
       });
   }
@@ -307,7 +311,9 @@ export class VolunteerService {
       return;
     }
 
-    throw new BadRequestException('urgency must be normal, urgent, or critical');
+    throw new BadRequestException(
+      'urgency must be normal, urgent, or critical',
+    );
   }
 
   private toUrgencyRank(urgency: string): number {

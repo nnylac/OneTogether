@@ -41,10 +41,7 @@ export function deriveRegion(incident: RegionSource): Region {
 
   const location = incident.inc_location?.toLowerCase() ?? '';
   const textRegions: Array<[Region, string[]]> = [
-    [
-      'North-East',
-      ['sengkang', 'punggol', 'hougang', 'serangoon', 'buangkok'],
-    ],
+    ['North-East', ['sengkang', 'punggol', 'hougang', 'serangoon', 'buangkok']],
     ['North', ['woodlands', 'sembawang', 'yishun', 'mandai']],
     ['East', ['bedok', 'tampines', 'pasir ris', 'changi', 'paya lebar']],
     ['West', ['jurong', 'clementi', 'bukit batok', 'choa chu kang', 'tuas']],

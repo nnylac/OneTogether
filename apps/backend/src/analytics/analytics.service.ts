@@ -2,9 +2,10 @@ import { BadRequestException, Injectable } from '@nestjs/common';
 import type { Prisma } from '../../generated/prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 
-
-
-import type { AnalyticsOverviewQuery ,AnalyticsForecastQuery,} from './analytics.controller';
+import type {
+  AnalyticsOverviewQuery,
+  AnalyticsForecastQuery,
+} from './analytics.controller';
 import {
   deriveRegion,
   REGIONS as regions,
@@ -137,8 +138,7 @@ export class AnalyticsService {
     const historyDays = Math.max(
       1,
       Math.ceil(
-        (filters.to.getTime() - filters.from.getTime()) /
-          (24 * 60 * 60 * 1000),
+        (filters.to.getTime() - filters.from.getTime()) / (24 * 60 * 60 * 1000),
       ),
     );
     const weightedIncidents = filteredIncidents.map((incident) => ({
@@ -152,8 +152,7 @@ export class AnalyticsService {
     const effectiveDailyRate =
       totalWeight === 0
         ? 0
-        : totalWeight /
-          this.forecastExposureWeight(filters.from, filters.to);
+        : totalWeight / this.forecastExposureWeight(filters.from, filters.to);
     const expectedIncidents = this.round(effectiveDailyRate * forecastDays);
     const likelyRange = this.poissonRange(expectedIncidents);
     const dailySeries = this.forecastDailySeries(
@@ -452,8 +451,7 @@ export class AnalyticsService {
     const weekdayReliability = Math.min(totalWeekdayWeight / 30, 0.75);
     const futureDates = Array.from(
       { length: forecastDays },
-      (_, index) =>
-        new Date(filters.to.getTime() + index * millisecondsPerDay),
+      (_, index) => new Date(filters.to.getTime() + index * millisecondsPerDay),
     );
     const scores = futureDates.map((date) => {
       const weekdayWeight =
@@ -461,10 +459,7 @@ export class AnalyticsService {
       const weekdayShare =
         totalWeekdayWeight === 0 ? 1 / 7 : weekdayWeight / totalWeekdayWeight;
 
-      return Math.max(
-        0.25,
-        1 + weekdayReliability * (weekdayShare * 7 - 1),
-      );
+      return Math.max(0.25, 1 + weekdayReliability * (weekdayShare * 7 - 1));
     });
     const totalScore = scores.reduce((sum, score) => sum + score, 0);
     const forecast = futureDates.map((date, index) => {
@@ -499,8 +494,7 @@ export class AnalyticsService {
     const historyDays = Math.max(
       1,
       Math.ceil(
-        (historyEnd.getTime() - historyStart.getTime()) /
-          (24 * 60 * 60 * 1000),
+        (historyEnd.getTime() - historyStart.getTime()) / (24 * 60 * 60 * 1000),
       ),
     );
     let exposure = 0;

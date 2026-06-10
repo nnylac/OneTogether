@@ -56,6 +56,55 @@ a random real-time delay between `AGENCY_UPDATE_MIN_SECONDS` and
 timestamped when it is actually emitted; the simulator does not create
 future-dated agency logs.
 
+## Populate the PRODUCTION database (demo)
+
+Production incidents are **not** seeded — they are event-driven. To feed the live
+deployment, run the simulators locally and point `MIDDLEWARE_URL` at the live
+CloudFront `/api/incident-middleware` endpoint (public, no auth). Running
+`scenario-engine` pulls in the 7 agency sims via `depends_on` and does **not**
+start the local `db`.
+
+Live base URL: `https://d34fq0fyxyo5jn.cloudfront.net`
+
+Start (Windows PowerShell), from the repo root:
+
+```powershell
+$env:MIDDLEWARE_URL = "https://d34fq0fyxyo5jn.cloudfront.net/api/incident-middleware"
+$env:INTERVAL_SECONDS = "60"   # optional: faster demo cadence (default 240s)
+docker compose up --build scenario-engine
+```
+
+Start (bash):
+
+```bash
+MIDDLEWARE_URL="https://d34fq0fyxyo5jn.cloudfront.net/api/incident-middleware" \
+INTERVAL_SECONDS=60 \
+docker compose up --build scenario-engine
+```
+
+Pause/resume new incident generation (scenario engine on port 8100):
+
+```bash
+curl -X POST http://localhost:8100/automation/pause
+curl -X POST http://localhost:8100/automation/resume
+```
+
+Verify incidents are landing in prod (count should grow):
+
+```bash
+curl https://d34fq0fyxyo5jn.cloudfront.net/api/incidents
+```
+
+Stop and tear down when the demo is over (from the repo root):
+
+```bash
+docker compose down
+```
+
+This is intentionally laptop-driven and on-demand — there is no always-on
+simulator deployed in the cluster, so incidents only flow while the compose
+stack is running.
+
 ## Ports
 
 | Service | Port | Simulated system | Purpose |
