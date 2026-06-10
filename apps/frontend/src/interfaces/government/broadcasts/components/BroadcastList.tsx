@@ -13,6 +13,7 @@ import type { GovernmentBroadcast } from '../types/broadcast'
 type BroadcastListProps = {
   title: string
   broadcasts: GovernmentBroadcast[]
+  isLoading: boolean
   onDelete: (broadcastId: string) => void
   onRefresh: () => void
 }
@@ -20,6 +21,7 @@ type BroadcastListProps = {
 export function BroadcastList({
   title,
   broadcasts,
+  isLoading,
   onDelete,
   onRefresh,
 }: BroadcastListProps) {
@@ -44,7 +46,11 @@ export function BroadcastList({
         </Button>
       </Flex>
 
-      {broadcasts.length === 0 ? (
+      {isLoading ? (
+        <Box borderTopColor="gray.100" borderTopWidth="1px" px="4" py="8">
+          <Text color="gray.500">Loading broadcasts...</Text>
+        </Box>
+      ) : broadcasts.length === 0 ? (
         <Box borderTopColor="gray.100" borderTopWidth="1px" px="4" py="8">
           <Text color="gray.500">No broadcasts found for this filter.</Text>
         </Box>

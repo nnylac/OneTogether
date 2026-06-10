@@ -1,5 +1,5 @@
 import { PrismaPg } from '@prisma/adapter-pg';
-import { PrismaClient } from '../generated/prisma/client';
+import { PrismaClient, type Prisma } from '../generated/prisma/client';
 import { pbkdf2Sync, randomBytes } from 'node:crypto';
 
 const connectionString = process.env.DATABASE_URL;
@@ -16,6 +16,20 @@ type OrganisationContactGuide = {
   contactChannel: string;
   serviceSummary: string;
   contactGuidance: string;
+};
+
+type SeedBroadcastAudience =
+  | { audience_type: 'public' }
+  | { audience_type: 'region'; region: string }
+  | { audience_type: 'organisation'; organisation_id: string };
+
+type SeedBroadcast = {
+  id: string;
+  title: string;
+  message: string;
+  severity: string;
+  createdAt: Date;
+  audiences: SeedBroadcastAudience[];
 };
 
 const organisationContactGuides: OrganisationContactGuide[] = [
@@ -298,6 +312,14 @@ async function main() {
 
   console.log('User created:   gov      / gov      → /government');
 
+  await seedBroadcasts({
+    govUserId: govUser.id,
+    scdfOrganisationId: scdf.id,
+    spfOrganisationId: spf.id,
+  });
+
+  console.log('Broadcasts:     seeded published demo broadcasts');
+
   // --- Resource inventory ---
   // Mirrors the shape the agency simulators emit (apps/external/agencies/*/main.py)
   // so the responder Resources view has data without the Python sims running.
@@ -326,6 +348,124 @@ async function seedOrganisationContactGuides() {
       },
     });
   }
+}
+
+async function seedBroadcasts({
+  govUserId,
+  scdfOrganisationId,
+  spfOrganisationId,
+}: {
+  govUserId: string;
+  scdfOrganisationId: string;
+  spfOrganisationId: string;
+}) {
+  const demoBroadcasts: SeedBroadcast[] = [
+    {
+      id: '40000000-0000-0000-0000-000000000001',
+      title: 'Flood Alert - Orchard Area',
+      message:
+        'Heavy rainfall causing flash floods. Avoid low-lying areas. Seek higher ground if water levels rise.',
+      severity: 'critical',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'region', region: 'Central' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000002',
+      title: 'All Responders - Standby',
+      message:
+        'Multiple incidents reported across CBD. All units on standby for immediate deployment.',
+      severity: 'warning',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [
+        { audience_type: 'organisation', organisation_id: spfOrganisationId },
+        { audience_type: 'organisation', organisation_id: scdfOrganisationId },
+      ],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000003',
+      title: 'Public Safety Advisory',
+      message:
+        'Construction site accident at Marina Bay. Avoid the area. Emergency services are on scene.',
+      severity: 'advisory',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'public' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000004',
+      title: 'MRT Disruption Notice',
+      message:
+        'Power failure on North-South Line. Alternative bus services deployed. Check SMRT app for updates.',
+      severity: 'info',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [{ audience_type: 'public' }],
+    },
+    {
+      id: '40000000-0000-0000-0000-000000000005',
+      title: 'Volunteer Call - Medical Support',
+      message:
+        'Multiple medical incidents requiring first aid support. Certified volunteers should report to nearest SCDF station.',
+      severity: 'warning',
+      createdAt: new Date('2026-05-20T13:50:00+08:00'),
+      audiences: [
+        { audience_type: 'organisation', organisation_id: scdfOrganisationId },
+      ],
+    },
+  ];
+
+  for (const broadcast of demoBroadcasts) {
+    await prisma.broadcasts.upsert({
+      where: { id: broadcast.id },
+      update: {
+        title: broadcast.title,
+        message: broadcast.message,
+        broadcast_type: 'emergency_advisory',
+        severity: broadcast.severity,
+        broadcast_status: 'published',
+        created_by_user_id: govUserId,
+        published_at: broadcast.createdAt,
+        archived_at: null,
+        created_at: broadcast.createdAt,
+        updated_at: broadcast.createdAt,
+      },
+      create: {
+        id: broadcast.id,
+        title: broadcast.title,
+        message: broadcast.message,
+        broadcast_type: 'emergency_advisory',
+        severity: broadcast.severity,
+        broadcast_status: 'published',
+        created_by_user_id: govUserId,
+        published_at: broadcast.createdAt,
+        created_at: broadcast.createdAt,
+        updated_at: broadcast.createdAt,
+      },
+    });
+
+    await prisma.broadcast_audiences.deleteMany({
+      where: { broadcast_id: broadcast.id },
+    });
+
+    await prisma.broadcast_audiences.createMany({
+      data: broadcast.audiences.map((audience) =>
+        toSeedBroadcastAudienceCreateManyInput(broadcast.id, audience),
+      ),
+    });
+  }
+}
+
+function toSeedBroadcastAudienceCreateManyInput(
+  broadcastId: string,
+  audience: SeedBroadcastAudience,
+): Prisma.broadcast_audiencesCreateManyInput {
+  return {
+    broadcast_id: broadcastId,
+    audience_type: audience.audience_type,
+    region: audience.audience_type === 'region' ? audience.region : undefined,
+    organisation_id:
+      audience.audience_type === 'organisation'
+        ? audience.organisation_id
+        : undefined,
+  };
 }
 
 type SeedResource = {

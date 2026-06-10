@@ -26,7 +26,7 @@ import type {
 type BroadcastFormDrawerProps = {
   isOpen: boolean
   onClose: () => void
-  onPublish: (broadcast: NewBroadcastInput) => void
+  onPublish: (broadcast: NewBroadcastInput) => Promise<void>
 }
 
 const initialFormState: NewBroadcastInput = {
@@ -91,6 +91,7 @@ export function BroadcastFormDrawer({
   onPublish,
 }: BroadcastFormDrawerProps) {
   const [form, setForm] = useState<NewBroadcastInput>(initialFormState)
+  const [isPublishing, setIsPublishing] = useState(false)
 
   function updateForm<Key extends keyof NewBroadcastInput>(
     key: Key,
@@ -143,7 +144,7 @@ export function BroadcastFormDrawer({
     }))
   }
 
-  function handlePublish() {
+  async function handlePublish() {
     if (
       !form.title.trim() ||
       !form.message.trim() ||
@@ -153,8 +154,14 @@ export function BroadcastFormDrawer({
       return
     }
 
-    onPublish(form)
-    setForm(initialFormState)
+    setIsPublishing(true)
+
+    try {
+      await onPublish(form)
+      setForm(initialFormState)
+    } finally {
+      setIsPublishing(false)
+    }
   }
 
   function handleCancel() {
@@ -261,6 +268,7 @@ export function BroadcastFormDrawer({
             bg="blue.900"
             color="white"
             disabled={
+              isPublishing ||
               !form.title.trim() ||
               !form.message.trim() ||
               (form.audience === 'Responders' &&
@@ -271,7 +279,7 @@ export function BroadcastFormDrawer({
               bg: 'blue.800',
             }}
           >
-            Publish Broadcast
+            {isPublishing ? 'Publishing...' : 'Publish Broadcast'}
           </Button>
         </HStack>
       </Stack>

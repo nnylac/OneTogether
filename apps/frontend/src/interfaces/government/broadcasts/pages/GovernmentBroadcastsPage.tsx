@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Plus } from 'lucide-react'
 import {
   Box,
@@ -9,10 +9,15 @@ import {
   Stack,
   Text,
 } from '../../../../components/chakra-ui'
+import { useAuth } from '../../../auth/useAuth'
+import {
+  archiveBroadcast,
+  fetchGovernmentBroadcasts,
+  publishNewBroadcast,
+} from '../api/broadcastsApi'
 import { BroadcastFilterBar } from '../components/BroadcastFilterBar'
 import { BroadcastFormDrawer } from '../components/BroadcastFormDrawer'
 import { BroadcastList } from '../components/BroadcastList'
-import { sampleGovernmentBroadcasts } from '../data/sampleGovernmentBroadcasts'
 import type {
   BroadcastFilter,
   GovernmentBroadcast,
@@ -39,16 +44,6 @@ const broadcastFilterLabels: Record<BroadcastFilter, string> = {
   advisory: 'Advisory',
   warning: 'Warning',
   critical: 'Critical',
-}
-
-function getCurrentBroadcastTime() {
-  return new Intl.DateTimeFormat('en-SG', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date())
 }
 
 function doesBroadcastMatchFilter(
@@ -83,11 +78,32 @@ function getBroadcastListTitle(selectedFilter: BroadcastFilter) {
 }
 
 export function GovernmentBroadcastsPage() {
-  const [broadcasts, setBroadcasts] = useState<GovernmentBroadcast[]>(
-    sampleGovernmentBroadcasts,
-  )
+  const { user } = useAuth()
+  const [broadcasts, setBroadcasts] = useState<GovernmentBroadcast[]>([])
   const [selectedFilter, setSelectedFilter] = useState<BroadcastFilter>('All')
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
+  const [isLoading, setIsLoading] = useState(true)
+  const [errorMessage, setErrorMessage] = useState<string | null>(null)
+
+  async function loadBroadcasts({ showLoading = false } = {}) {
+    if (showLoading) {
+      setIsLoading(true)
+    }
+
+    try {
+      const nextBroadcasts = await fetchGovernmentBroadcasts()
+      setBroadcasts(nextBroadcasts)
+      setErrorMessage(null)
+    } catch {
+      setErrorMessage('Unable to load published broadcasts.')
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    void loadBroadcasts({ showLoading: true })
+  }, [])
 
   const filterOptions = useMemo(() => {
     return broadcastFilters.map((filter) => ({
@@ -103,39 +119,33 @@ export function GovernmentBroadcastsPage() {
     )
   }, [broadcasts, selectedFilter])
 
-  function handlePublishBroadcast(newBroadcast: NewBroadcastInput) {
-    const broadcast: GovernmentBroadcast = {
-      id: `broadcast-${Date.now()}`,
-      title: newBroadcast.title,
-      message: newBroadcast.message,
-      audience: newBroadcast.audience,
-      zone: newBroadcast.audience === 'Zone' ? newBroadcast.zone : undefined,
-      responderOrganisationIds:
-        newBroadcast.audience === 'Responders'
-          ? newBroadcast.responderOrganisationIds
-          : undefined,
-      responderOrganisationNames:
-        newBroadcast.audience === 'Responders'
-          ? newBroadcast.responderOrganisationNames
-          : undefined,
-      severity: newBroadcast.severity,
-      authorName: 'Raj Kumar',
-      createdAt: getCurrentBroadcastTime(),
+  async function handlePublishBroadcast(newBroadcast: NewBroadcastInput) {
+    try {
+      const broadcast = await publishNewBroadcast(newBroadcast, user?.id)
+      setBroadcasts((currentBroadcasts) => [broadcast, ...currentBroadcasts])
+      setSelectedFilter('All')
+      setIsCreatePanelOpen(false)
+      setErrorMessage(null)
+    } catch {
+      setErrorMessage('Unable to publish broadcast.')
+      throw new Error('Unable to publish broadcast')
     }
-
-    setBroadcasts((currentBroadcasts) => [broadcast, ...currentBroadcasts])
-    setSelectedFilter('All')
-    setIsCreatePanelOpen(false)
   }
 
-  function handleDeleteBroadcast(broadcastId: string) {
-    setBroadcasts((currentBroadcasts) =>
-      currentBroadcasts.filter((broadcast) => broadcast.id !== broadcastId),
-    )
+  async function handleDeleteBroadcast(broadcastId: string) {
+    try {
+      await archiveBroadcast(broadcastId)
+      setBroadcasts((currentBroadcasts) =>
+        currentBroadcasts.filter((broadcast) => broadcast.id !== broadcastId),
+      )
+      setErrorMessage(null)
+    } catch {
+      setErrorMessage('Unable to archive broadcast.')
+    }
   }
 
   function handleRefreshBroadcasts() {
-    setBroadcasts(sampleGovernmentBroadcasts)
+    void loadBroadcasts({ showLoading: true })
     setSelectedFilter('All')
   }
 
@@ -183,9 +193,18 @@ export function GovernmentBroadcastsPage() {
         onPublish={handlePublishBroadcast}
       />
 
+      {errorMessage && (
+        <Box bg="red.50" borderColor="red.200" borderWidth="1px" p="4">
+          <Text color="red.700" fontWeight="700">
+            {errorMessage}
+          </Text>
+        </Box>
+      )}
+
       <BroadcastList
         title={getBroadcastListTitle(selectedFilter)}
         broadcasts={filteredBroadcasts}
+        isLoading={isLoading}
         onDelete={handleDeleteBroadcast}
         onRefresh={handleRefreshBroadcasts}
       />

@@ -19,3 +19,4 @@ COPY 11_simplify_incident_analysis.sql /docker-entrypoint-initdb.d/11_simplify_i
 COPY 12_incident_resources.sql /docker-entrypoint-initdb.d/12_incident_resources.sql
 COPY 13_organisation_contact_guides.sql /docker-entrypoint-initdb.d/13_organisation_contact_guides.sql
 COPY 14_government_alert_rules.sql /docker-entrypoint-initdb.d/14_government_alert_rules.sql
+COPY 15_seed_broadcasts.sql /docker-entrypoint-initdb.d/14_seed_broadcasts.sql
