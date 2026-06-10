@@ -49,10 +49,12 @@ export class NotificationsRepository {
   }
 
   create(
-    data: Prisma.notificationsCreateInput,
+    data: Prisma.notificationsCreateInput & {
+      metadata?: Prisma.InputJsonValue;
+    },
   ): Promise<NotificationWithRecipients> {
     return this.prisma.notifications.create({
-      data,
+      data: data as Prisma.notificationsCreateInput,
       include: {
         notification_recipients: true,
       },

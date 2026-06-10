@@ -16,6 +16,7 @@ import { IntegrationsModule } from './integrations/integrations.module';
 import { IncidentMiddlewareModule } from './incident-middleware/incident-middleware.module';
 import { PrismaModule } from './prisma/prisma.module';
 import { AnalyticsModule } from './analytics/analytics.module';
+import { GovernmentAlertsModule } from './government-alerts/government-alerts.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { AnalyticsModule } from './analytics/analytics.module';
     IntegrationsModule,
     IncidentMiddlewareModule,
     AnalyticsModule,
+    GovernmentAlertsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

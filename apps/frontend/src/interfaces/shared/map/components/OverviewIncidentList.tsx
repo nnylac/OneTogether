@@ -1,8 +1,15 @@
 import { ExternalLink, MapPinOff, Users } from 'lucide-react'
 import { Link } from 'react-router-dom'
-import { Box, Flex, HStack, Icon, Text, VStack } from '../../../../components/chakra-ui'
+import {
+  Box,
+  Flex,
+  HStack,
+  Icon,
+  Text,
+  VStack,
+} from '../../../../components/chakra-ui'
 import { LabelBox } from '../../../../components/ui/LabelBox'
-import type { Incident } from '../../incidents/types'
+import type { OverviewIncident } from '../types/overviewIncident'
 import { resolveIncidentCoordinates } from '../geocode'
 import { severityColor, severityTone, statusTone, typeMeta } from '../mapShared'
 import type { OverviewView } from '../filterState'
@@ -10,12 +17,15 @@ import type { OverviewView } from '../filterState'
 type ViewCounts = Record<OverviewView, number>
 
 type OverviewIncidentListProps = {
-  incidents: Incident[]
-  selectedId: string | null
-  onSelect: (id: string | null) => void
-  view: OverviewView
+  accentColor?: string
   counts: ViewCounts
+  detailLink?: (incident: OverviewIncident) => string | null
+  detailLinkLabel?: string
+  incidents: OverviewIncident[]
+  onSelect: (id: string | null) => void
   onViewChange: (view: OverviewView) => void
+  selectedId: string | null
+  view: OverviewView
 }
 
 const TABS: Array<{ key: OverviewView; label: string }> = [
@@ -25,12 +35,15 @@ const TABS: Array<{ key: OverviewView; label: string }> = [
 ]
 
 export function OverviewIncidentList({
-  incidents,
-  selectedId,
-  onSelect,
-  view,
+  accentColor = 'purple',
   counts,
+  detailLink,
+  detailLinkLabel = 'Open incident',
+  incidents,
+  onSelect,
   onViewChange,
+  selectedId,
+  view,
 }: OverviewIncidentListProps) {
   return (
     <Box bg="white" borderWidth="1px" borderColor="gray.200" display="flex" flexDirection="column" minH="0" flex="1">
@@ -46,7 +59,7 @@ export function OverviewIncidentList({
               py="2.5"
               cursor="pointer"
               borderBottomWidth="2px"
-              borderColor={isActive ? 'purple.500' : 'transparent'}
+              borderColor={isActive ? `${accentColor}.500` : 'transparent'}
               bg={isActive ? 'white' : 'transparent'}
               onClick={() => onViewChange(tab.key)}
               _hover={{ bg: isActive ? 'white' : 'gray.100' }}
@@ -58,8 +71,8 @@ export function OverviewIncidentList({
                 <Box
                   px="1.5"
                   borderRadius="full"
-                  bg={isActive ? 'purple.100' : 'gray.200'}
-                  color={isActive ? 'purple.700' : 'gray.600'}
+                  bg={isActive ? `${accentColor}.100` : 'gray.200'}
+                  color={isActive ? `${accentColor}.700` : 'gray.600'}
                   fontSize="2xs"
                   fontWeight="700"
                   minW="5"
@@ -86,6 +99,8 @@ export function OverviewIncidentList({
             const { source } = resolveIncidentCoordinates(incident)
             const isApproximate = source === 'approximate'
             const { icon: TypeIcon } = typeMeta(incident.incidentType)
+            const href = detailLink?.(incident) ?? null
+
             return (
               <Box
                 key={incident.id}
@@ -162,7 +177,7 @@ export function OverviewIncidentList({
                     <Flex align="center" justify="space-between" mt="1" gap="2">
                       <HStack gap="2" color="gray.500" fontSize="2xs" wrap="wrap">
                         {incident.assignedOrgs && incident.assignedOrgs.length > 0 && (
-                          <Text>{incident.assignedOrgs.join(' · ')}</Text>
+                          <Text>{incident.assignedOrgs.join(' / ')}</Text>
                         )}
                         {incident.resources && incident.resources.length > 0 && (
                           <HStack gap="1">
@@ -176,11 +191,11 @@ export function OverviewIncidentList({
                       </Text>
                     </Flex>
 
-                    {isSelected && (
+                    {isSelected && href && (
                       <Link
-                        to={`/responder/incidents/${incident.id}/room`}
+                        to={href}
                         style={{
-                          color: '#6d28d9',
+                          color: accentColor === 'blue' ? '#0369a1' : '#6d28d9',
                           fontWeight: 700,
                           fontSize: '0.75rem',
                           display: 'inline-flex',
@@ -191,7 +206,7 @@ export function OverviewIncidentList({
                         onClick={(event) => event.stopPropagation()}
                       >
                         <Icon as={ExternalLink} boxSize="3" />
-                        Open incident room
+                        {detailLinkLabel}
                       </Link>
                     )}
                   </VStack>

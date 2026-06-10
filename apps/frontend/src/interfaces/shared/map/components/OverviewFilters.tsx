@@ -1,27 +1,37 @@
 import type { ReactNode } from 'react'
 import { RotateCcw } from 'lucide-react'
-import { Box, Button, Flex, HStack, Icon, Text, VStack } from '../../../../components/chakra-ui'
-import type { IncidentSeverity } from '../../incidents/types'
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Icon,
+  Text,
+  VStack,
+} from '../../../../components/chakra-ui'
+import type { IncidentSeverity } from '../../../responder/incidents/types'
 import { severityColor, typeLabel } from '../mapShared'
 import { ALL, clearChipFilters, hasActiveChipFilters } from '../filterState'
 import type { OverviewFilterState } from '../filterState'
 
 type OverviewFiltersProps = {
-  filters: OverviewFilterState
-  types: string[]
+  agencyLabel?: string
   agencies: string[]
-  severities: string[]
+  filters: OverviewFilterState
   onChange: (next: OverviewFilterState) => void
   resultCount: number
+  severities: string[]
+  types: string[]
 }
 
 export function OverviewFilters({
-  filters,
-  types,
+  agencyLabel = 'Agency',
   agencies,
-  severities,
+  filters,
   onChange,
   resultCount,
+  severities,
+  types,
 }: OverviewFiltersProps) {
   const isFiltered = hasActiveChipFilters(filters)
 
@@ -66,7 +76,7 @@ export function OverviewFilters({
           onChange={(value) => onChange({ ...filters, type: value })}
         />
         <ChipRow
-          label="Agency"
+          label={agencyLabel}
           value={filters.agency}
           options={agencies}
           onChange={(value) => onChange({ ...filters, agency: value })}
@@ -77,18 +87,32 @@ export function OverviewFilters({
 }
 
 type ChipRowProps = {
-  label: string
-  value: string
-  options: string[]
-  onChange: (value: string) => void
-  formatOption?: (value: string) => string
   dotColor?: (value: string) => string
+  formatOption?: (value: string) => string
+  label: string
+  onChange: (value: string) => void
+  options: string[]
+  value: string
 }
 
-function ChipRow({ label, value, options, onChange, formatOption, dotColor }: ChipRowProps) {
+function ChipRow({
+  dotColor,
+  formatOption,
+  label,
+  onChange,
+  options,
+  value,
+}: ChipRowProps) {
   return (
     <Box>
-      <Text fontSize="xs" fontWeight="700" color="gray.500" textTransform="uppercase" letterSpacing="0.04em" mb="1.5">
+      <Text
+        fontSize="xs"
+        fontWeight="700"
+        color="gray.500"
+        textTransform="uppercase"
+        letterSpacing="0.04em"
+        mb="1.5"
+      >
         {label}
       </Text>
       <Flex gap="1.5" wrap="wrap">
@@ -112,14 +136,14 @@ function ChipRow({ label, value, options, onChange, formatOption, dotColor }: Ch
 
 function Chip({
   children,
-  selected,
   dotColor,
   onClick,
+  selected,
 }: {
   children: ReactNode
-  selected: boolean
   dotColor?: string
   onClick: () => void
+  selected: boolean
 }) {
   return (
     <Box
@@ -148,3 +172,4 @@ function Chip({
     </Box>
   )
 }
+

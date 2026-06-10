@@ -21,6 +21,15 @@ export class CreateNotificationDto {
   })
   referenceId?: string;
 
+  @ApiPropertyOptional({
+    example: {
+      alertRuleId: '40000000-0000-0000-0000-000000000001',
+      currentValue: 13,
+      thresholdValue: 10,
+    },
+  })
+  metadata?: Record<string, unknown>;
+
   @ApiProperty({ type: NotificationRecipientDto, isArray: true })
   recipients!: NotificationRecipientDto[];
 }

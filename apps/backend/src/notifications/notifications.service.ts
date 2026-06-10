@@ -63,6 +63,7 @@ export class NotificationsService {
       notification_type: dto.notificationType.trim(),
       reference_type: this.normalizeOptionalString(dto.referenceType),
       reference_id: this.normalizeOptionalString(dto.referenceId),
+      metadata: dto.metadata as Prisma.InputJsonValue | undefined,
       notification_recipients: {
         create: dto.recipients.map((recipient) =>
           this.toRecipientCreateInput(recipient),

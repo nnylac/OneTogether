@@ -8,11 +8,19 @@ import {
   useMapsLibrary,
 } from '@vis.gl/react-google-maps'
 import { Link } from 'react-router-dom'
-import { Box, Flex, HStack, Icon, Stack, Text, VStack } from '../../../../components/chakra-ui'
+import {
+  Box,
+  Flex,
+  HStack,
+  Icon,
+  Stack,
+  Text,
+  VStack,
+} from '../../../../components/chakra-ui'
 import { LabelBox } from '../../../../components/ui/LabelBox'
-import type { Incident } from '../../incidents/types'
 import { resolveIncidentCoordinates } from '../geocode'
 import type { CoordinateSource } from '../geocode'
+import type { OverviewIncident } from '../types/overviewIncident'
 import {
   MAP_ID,
   SINGAPORE_CENTRE,
@@ -24,16 +32,18 @@ import {
 } from '../mapShared'
 
 type PlacedIncident = {
-  incident: Incident
+  incident: OverviewIncident
   lat: number
   lng: number
   source: CoordinateSource
 }
 
 type OverviewMapProps = {
-  incidents: Incident[]
-  selectedId: string | null
+  detailLink?: (incident: OverviewIncident) => string | null
+  detailLinkLabel?: string
+  incidents: OverviewIncident[]
   onSelect: (id: string | null) => void
+  selectedId: string | null
 }
 
 const SEVERITY_LEGEND: Array<{ label: string; color: string }> = [
@@ -43,7 +53,13 @@ const SEVERITY_LEGEND: Array<{ label: string; color: string }> = [
   { label: 'Low', color: '#3b82f6' },
 ]
 
-export function OverviewMap({ incidents, selectedId, onSelect }: OverviewMapProps) {
+export function OverviewMap({
+  detailLink,
+  detailLinkLabel = 'Open incident',
+  incidents,
+  onSelect,
+  selectedId,
+}: OverviewMapProps) {
   const apiKey = import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string | undefined
   const placed = useMemo<PlacedIncident[]>(
     () =>
@@ -109,7 +125,7 @@ export function OverviewMap({ incidents, selectedId, onSelect }: OverviewMapProp
               zIndex={
                 entry.incident.id === selectedId ? 60 : entry.incident.isCritical ? 40 : 20
               }
-              title={`${entry.incident.title} · ${entry.incident.location}`}
+              title={`${entry.incident.title} - ${entry.incident.location}`}
               onClick={() => onSelect(entry.incident.id)}
             >
               <IncidentPin
@@ -126,7 +142,12 @@ export function OverviewMap({ incidents, selectedId, onSelect }: OverviewMapProp
               pixelOffset={[0, -42]}
               onCloseClick={() => onSelect(null)}
             >
-              <IncidentCallout incident={selected.incident} source={selected.source} />
+              <IncidentCallout
+                detailLink={detailLink}
+                detailLinkLabel={detailLinkLabel}
+                incident={selected.incident}
+                source={selected.source}
+              />
             </InfoWindow>
           )}
         </GoogleMap>
@@ -137,7 +158,6 @@ export function OverviewMap({ incidents, selectedId, onSelect }: OverviewMapProp
   )
 }
 
-/** Fits the viewport to every plotted incident; refits only when the marker set changes. */
 function MapAutoFit({ placed }: { placed: PlacedIncident[] }) {
   const map = useMap()
   const coreLib = useMapsLibrary('core')
@@ -168,7 +188,6 @@ function MapAutoFit({ placed }: { placed: PlacedIncident[] }) {
   return null
 }
 
-/** Gently recentres on the selected incident without changing zoom. */
 function MapPanTo({ selected }: { selected: PlacedIncident | null }) {
   const map = useMap()
 
@@ -182,12 +201,12 @@ function MapPanTo({ selected }: { selected: PlacedIncident | null }) {
 
 function IncidentPin({
   incident,
-  source,
   selected,
+  source,
 }: {
-  incident: Incident
-  source: CoordinateSource
+  incident: OverviewIncident
   selected: boolean
+  source: CoordinateSource
 }) {
   const color = severityColor(incident.severity)
   const { icon } = typeMeta(incident.incidentType)
@@ -223,12 +242,18 @@ function IncidentPin({
 }
 
 function IncidentCallout({
+  detailLink,
+  detailLinkLabel,
   incident,
   source,
 }: {
-  incident: Incident
+  detailLink?: (incident: OverviewIncident) => string | null
+  detailLinkLabel: string
+  incident: OverviewIncident
   source: CoordinateSource
 }) {
+  const href = detailLink?.(incident) ?? null
+
   return (
     <Box minW="220px" maxW="280px" p="1">
       <Text fontSize="xs" fontWeight="700" color="gray.500" letterSpacing="0.04em">
@@ -252,7 +277,7 @@ function IncidentCallout({
 
       {source === 'approximate' && (
         <Text fontSize="2xs" color="orange.500" mt="1.5" fontWeight="600">
-          Approximate location — no precise coordinates
+          Approximate location - no precise coordinates
         </Text>
       )}
 
@@ -265,12 +290,14 @@ function IncidentCallout({
         {incident.date}
       </Text>
 
-      <Link
-        to={`/responder/incidents/${incident.id}/room`}
-        style={{ color: '#6d28d9', fontWeight: 700, fontSize: '0.8rem', display: 'inline-block', marginTop: '8px' }}
-      >
-        Open incident room →
-      </Link>
+      {href && (
+        <Link
+          to={href}
+          style={{ color: '#6d28d9', fontWeight: 700, fontSize: '0.8rem', display: 'inline-block', marginTop: '8px' }}
+        >
+          {detailLinkLabel} -&gt;
+        </Link>
+      )}
     </Box>
   )
 }
@@ -303,7 +330,7 @@ function MapLegend({ plotted, approximate }: { plotted: number; approximate: num
       </Stack>
       <Text fontSize="2xs" color="gray.400" mt="2">
         {plotted} plotted
-        {approximate > 0 ? ` · ${approximate} approximate` : ''}
+        {approximate > 0 ? ` / ${approximate} approximate` : ''}
       </Text>
     </Box>
   )

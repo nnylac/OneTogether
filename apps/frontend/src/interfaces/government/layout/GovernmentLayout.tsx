@@ -17,10 +17,7 @@ import {
 } from 'lucide-react'
 import { ConsoleLayout } from '../../../components/layout/ConsoleLayout'
 import type { ConsoleNavItem, ConsoleSidebarTheme } from '../../../components/layout/ConsoleSidebar'
-import {
-  fetchUnreadGovernmentAlertNotificationCount,
-  markGovernmentAlertNotificationsRead,
-} from '../alerts/api/governmentAlertNotificationsApi'
+import { fetchGovernmentAlertRules } from '../alerts/api/governmentAlertRulesApi'
 
 const navItems: ConsoleNavItem[] = [
   { label: 'Dashboard', href: '/government', icon: Grid2X2, end: true },
@@ -45,27 +42,18 @@ export function GovernmentLayout() {
   const [alertNotificationCount, setAlertNotificationCount] = useState(0)
 
   const refreshAlertNotificationCount = useCallback(() => {
-    fetchUnreadGovernmentAlertNotificationCount()
-      .then(setAlertNotificationCount)
+    fetchGovernmentAlertRules()
+      .then((alerts) => {
+        setAlertNotificationCount(
+          alerts.filter((alert) => alert.status === 'Critical').length,
+        )
+      })
       .catch(() => setAlertNotificationCount(0))
   }, [])
 
   const handleGovernmentAlertNotificationCreated = useCallback(() => {
     setAlertNotificationCount((currentCount) => currentCount + 1)
   }, [])
-
-  const handleReadAlertNotifications = useCallback(() => {
-    if (alertNotificationCount === 0) {
-      return
-    }
-
-    setAlertNotificationCount(0)
-    markGovernmentAlertNotificationsRead().catch(() => {
-      fetchUnreadGovernmentAlertNotificationCount()
-        .then(setAlertNotificationCount)
-        .catch(() => setAlertNotificationCount(0))
-    })
-  }, [alertNotificationCount])
 
   useEffect(() => {
     refreshAlertNotificationCount()
@@ -75,12 +63,20 @@ export function GovernmentLayout() {
       'government-alert-notification-created',
       handleGovernmentAlertNotificationCreated,
     )
+    window.addEventListener(
+      'government-alert-rules-changed',
+      refreshAlertNotificationCount,
+    )
 
     return () => {
       window.clearInterval(intervalId)
       window.removeEventListener(
         'government-alert-notification-created',
         handleGovernmentAlertNotificationCreated,
+      )
+      window.removeEventListener(
+        'government-alert-rules-changed',
+        refreshAlertNotificationCount,
       )
     }
   }, [handleGovernmentAlertNotificationCreated, refreshAlertNotificationCount])
@@ -95,10 +91,9 @@ export function GovernmentLayout() {
         return {
           ...item,
           badgeCount: alertNotificationCount,
-          onClick: handleReadAlertNotifications,
         }
       }),
-    [alertNotificationCount, handleReadAlertNotifications],
+    [alertNotificationCount],
   )
 
   return (
