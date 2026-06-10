@@ -11,14 +11,30 @@ export class PrismaService extends PrismaClient {
       throw new Error('DATABASE_URL is not set');
     }
 
-    // RDS enforces TLS (rds.force_ssl). Force an encrypted connection even when
-    // DATABASE_URL omits an sslmode param. rejectUnauthorized is false because the
-    // Amazon RDS CA isn't in Node's default trust store; sslmode=require alone fails.
     const adapter = new PrismaPg({
       connectionString,
-      ssl: { rejectUnauthorized: false },
+      ...(PrismaService.shouldUseSsl(connectionString)
+        ? { ssl: { rejectUnauthorized: false } }
+        : {}),
     });
 
     super({ adapter });
+  }
+
+  private static shouldUseSsl(connectionString: string): boolean {
+    const localHosts = new Set(['localhost', '127.0.0.1', '::1', '[::1]']);
+
+    try {
+      const url = new URL(connectionString);
+      const sslmode = url.searchParams.get('sslmode');
+
+      if (sslmode) {
+        return !['disable', 'allow', 'prefer'].includes(sslmode);
+      }
+
+      return !localHosts.has(url.hostname);
+    } catch {
+      return true;
+    }
   }
 }
