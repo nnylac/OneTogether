@@ -164,17 +164,12 @@ export function CommunityPage() {
 }
 
 function CommunityEventCard({ event }: { event: CommunityEvent }) {
-  const isVolunteer = event.category === 'volunteer'
   const descriptionParts = getEventDescriptionParts(event.description)
   const tone = categoryTone[event.category] ?? {
     bg: 'gray.100',
     color: 'gray.700',
     icon: Users,
   }
-  const progressPercent = Math.min(
-    Math.max((event.registrationProgress ?? 0) * 100, 0),
-    100,
-  )
 
   return (
     <Stack bg="white" borderColor="gray.200" borderWidth="1px" gap="4" p="5">
@@ -225,30 +220,6 @@ function CommunityEventCard({ event }: { event: CommunityEvent }) {
           </Badge>
         )}
       </HStack>
-
-      <Stack gap="2">
-        <Flex justify="space-between" gap="3">
-          <Text color="gray.500" fontSize="sm">
-            {event.registeredCount}
-            {event.capacity ? `/${event.capacity}` : ''}{' '}
-            {isVolunteer ? 'slots filled' : 'registered'}
-          </Text>
-          <Text color="green.700" fontSize="sm" fontWeight="800">
-            {event.spotsLeft ?? 'Open'} spots left
-          </Text>
-        </Flex>
-        <Box bg="gray.100" h="2">
-          <Box bg="green.500" h="2" w={`${progressPercent}%`} />
-        </Box>
-      </Stack>
-
-      {event.signupUrl && (
-        <Button asChild alignSelf="flex-start" color="green.700" variant="ghost">
-          <a href={event.signupUrl} rel="noreferrer" target="_blank">
-            {isVolunteer ? 'Tap to sign up' : 'Tap to view and register'}
-          </a>
-        </Button>
-      )}
     </Stack>
   )
 }
