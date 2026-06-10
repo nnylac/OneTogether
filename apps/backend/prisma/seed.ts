@@ -10,6 +10,125 @@ if (!connectionString) {
 const adapter = new PrismaPg({ connectionString });
 const prisma = new PrismaClient({ adapter });
 
+type OrganisationContactGuide = {
+  orgName: string;
+  contactNumber: string | null;
+  contactChannel: string;
+  serviceSummary: string;
+  contactGuidance: string;
+};
+
+const organisationContactGuides: OrganisationContactGuide[] = [
+  {
+    orgName: 'SPF',
+    contactNumber: '999',
+    contactChannel: 'Emergency hotline',
+    serviceSummary:
+      'Police response for crime, public order, suspicious activity, and immediate security threats.',
+    contactGuidance:
+      'Call 999 for police emergencies or urgent security threats. For non-urgent matters, use SPF public reporting channels.',
+  },
+  {
+    orgName: 'SCDF',
+    contactNumber: '995',
+    contactChannel: 'Emergency hotline',
+    serviceSummary:
+      'Fire, rescue, ambulance, hazardous material, and emergency medical response.',
+    contactGuidance:
+      'Call 995 for life-threatening medical emergencies, fire, rescue, or hazardous material incidents.',
+  },
+  {
+    orgName: 'MOH',
+    contactNumber: '6325 9220',
+    contactChannel: 'General hotline',
+    serviceSummary:
+      'National health guidance, public health advisories, disease information, and healthcare policy support.',
+    contactGuidance:
+      'Contact MOH for general health guidance, disease advisories, and ministry-level healthcare enquiries.',
+  },
+  {
+    orgName: 'SGH',
+    contactNumber: '6222 3322',
+    contactChannel: 'Hospital hotline',
+    serviceSummary:
+      'Singapore General Hospital services including specialist care, appointments, and hospital enquiries.',
+    contactGuidance:
+      'Contact SGH for hospital services, appointment guidance, and patient-related enquiries.',
+  },
+  {
+    orgName: 'PUB',
+    contactNumber: '6521 6470',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'National water agency handling drainage, flood management, water supply, and sewerage issues.',
+    contactGuidance:
+      'Contact PUB for drainage issues, flooding, water supply disruptions, or sewerage-related matters.',
+  },
+  {
+    orgName: 'NEA',
+    contactNumber: '6225 5632',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Environmental public health, pollution, sanitation, hawker centre matters, and weather-related advisories.',
+    contactGuidance:
+      'Contact NEA for environmental health, pollution, cleanliness, vector, or weather advisory matters.',
+  },
+  {
+    orgName: 'LTA',
+    contactNumber: '6225 5582',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Land transport operations, road issues, public transport disruptions, and traffic management.',
+    contactGuidance:
+      'Contact LTA for road, traffic, and public transport service disruptions or transport infrastructure concerns.',
+  },
+  {
+    orgName: 'HDB',
+    contactNumber: '6225 5432',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Public housing estate matters, town living support, HDB flats, and residential property services.',
+    contactGuidance:
+      'Contact HDB for public housing, estate facilities, and flat-related enquiries.',
+  },
+  {
+    orgName: 'EMA',
+    contactNumber: '6835 8000',
+    contactChannel: 'Agency hotline',
+    serviceSummary:
+      'Energy market, electricity and gas supply reliability, and power-sector coordination.',
+    contactGuidance:
+      'Contact EMA for electricity, gas, and power-sector matters. For immediate danger from electrical hazards, call emergency services.',
+  },
+  {
+    orgName: 'SINGHEALTH',
+    contactNumber: '6377 8791',
+    contactChannel: 'Healthcare cluster hotline',
+    serviceSummary:
+      'Public healthcare cluster covering hospitals, polyclinics, national specialty centres, and community care services.',
+    contactGuidance:
+      'Contact SingHealth for cluster healthcare services, appointments, and care navigation.',
+  },
+  {
+    orgName: 'NUHS',
+    contactNumber: '6908 2222',
+    contactChannel: 'Healthcare cluster hotline',
+    serviceSummary:
+      'Public healthcare cluster supporting hospital, national specialty, polyclinic, and academic health services.',
+    contactGuidance:
+      'Contact NUHS for cluster healthcare services, appointments, and care navigation.',
+  },
+  {
+    orgName: 'TOWN_COUNCIL',
+    contactNumber: null,
+    contactChannel: 'OneService App',
+    serviceSummary:
+      'Municipal estate support for neighbourhood maintenance, cleanliness, facilities, and local defects.',
+    contactGuidance:
+      'Use the OneService App for municipal estate issues such as cleanliness, lighting, defects, and neighbourhood maintenance.',
+  },
+];
+
 function hashPassword(password: string): string {
   const salt = randomBytes(16).toString('base64url');
   const iterations = 210000;
@@ -51,7 +170,9 @@ async function main() {
     create: { org_name: 'IMDA' },
   });
 
-  console.log('Organisations: SCDF, SPF, SGH, MOH, IMDA');
+  await seedOrganisationContactGuides();
+
+  console.log('Organisations: SCDF, SPF, SGH, MOH, IMDA, and public guides');
 
   // --- Citizen (role: user) ---
   const citizenUser = await prisma.users.upsert({
@@ -185,6 +306,26 @@ async function main() {
   await seedResources();
 
   console.log('\nSeed complete.');
+}
+
+async function seedOrganisationContactGuides() {
+  for (const guide of organisationContactGuides) {
+    const data = {
+      contact_number: guide.contactNumber,
+      contact_channel: guide.contactChannel,
+      service_summary: guide.serviceSummary,
+      contact_guidance: guide.contactGuidance,
+    };
+
+    await prisma.organisations.upsert({
+      where: { org_name: guide.orgName },
+      update: data,
+      create: {
+        org_name: guide.orgName,
+        ...data,
+      },
+    });
+  }
 }
 
 type SeedResource = {

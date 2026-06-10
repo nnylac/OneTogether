@@ -14,6 +14,20 @@ describe('OrganisationsService', () => {
   const organisationModel: OrganisationModel = {
     id: '10000000-0000-0000-0000-000000000001',
     org_name: 'SCDF Central Division',
+    contact_number: '995',
+    contact_channel: 'Emergency hotline',
+    service_summary: 'Fire, rescue, ambulance, hazardous material response.',
+    contact_guidance:
+      'Call 995 for life-threatening medical emergencies, fire, or rescue.',
+  };
+
+  const organisationDto = {
+    id: organisationModel.id,
+    orgName: organisationModel.org_name,
+    contactNumber: organisationModel.contact_number,
+    contactChannel: organisationModel.contact_channel,
+    serviceSummary: organisationModel.service_summary,
+    contactGuidance: organisationModel.contact_guidance,
   };
 
   beforeEach(() => {
@@ -37,12 +51,7 @@ describe('OrganisationsService', () => {
 
     await expect(
       service.findAll({ search: 'SCDF', take: '10', skip: '0' }),
-    ).resolves.toEqual([
-      {
-        id: organisationModel.id,
-        orgName: organisationModel.org_name,
-      },
-    ]);
+    ).resolves.toEqual([organisationDto]);
     expect(repository.findMany.mock.calls[0]).toEqual([
       {
         search: 'SCDF',
@@ -61,10 +70,9 @@ describe('OrganisationsService', () => {
   it('should get one mapped organisation', async () => {
     repository.findById.mockResolvedValue(organisationModel);
 
-    await expect(service.findOne(organisationModel.id)).resolves.toEqual({
-      id: organisationModel.id,
-      orgName: organisationModel.org_name,
-    });
+    await expect(service.findOne(organisationModel.id)).resolves.toEqual(
+      organisationDto,
+    );
   });
 
   it('should throw when organisation is not found', async () => {
@@ -81,10 +89,7 @@ describe('OrganisationsService', () => {
 
     await expect(
       service.create({ orgName: '  SCDF Central Division  ' }),
-    ).resolves.toEqual({
-      id: organisationModel.id,
-      orgName: organisationModel.org_name,
-    });
+    ).resolves.toEqual(organisationDto);
     expect(repository.create.mock.calls[0]).toEqual([
       {
         org_name: organisationModel.org_name,
@@ -111,7 +116,7 @@ describe('OrganisationsService', () => {
     await expect(
       service.update(organisationModel.id, { orgName: 'SCDF East Division' }),
     ).resolves.toEqual({
-      id: organisationModel.id,
+      ...organisationDto,
       orgName: 'SCDF East Division',
     });
     expect(repository.update.mock.calls[0]).toEqual([
@@ -127,6 +132,10 @@ describe('OrganisationsService', () => {
     repository.findByName.mockResolvedValue({
       id: '10000000-0000-0000-0000-000000000002',
       org_name: 'SCDF East Division',
+      contact_number: null,
+      contact_channel: null,
+      service_summary: null,
+      contact_guidance: null,
     });
 
     await expect(
