@@ -291,12 +291,14 @@ endpoint and renders:
 
 - date, region, severity and organisation filters;
 - national KPI cards;
-- proportional bar summaries for type, region, severity and lifecycle status;
-- a multi-agency performance table;
+- switchable bar and doughnut charts for type, region, severity and lifecycle
+  status;
+- direct average, median and P90 resolution-time visualisation;
+- switchable multi-agency workload chart and detailed performance table;
 - loading, empty, error and data-quality states.
 
-These first visualisations use existing React/CSS components and do not add a
-charting dependency.
+These visualisations use existing React/CSS components and accessible inline
+SVG, without a charting dependency or fabricated data.
 
 Each response should include:
 
@@ -335,8 +337,8 @@ The planned next phase is:
 2. Add resource utilisation and capacity-pressure analytics.
 3. Add agency-specific measures only where the source data supports them, such
    as SCDF ETA or hospital handoff measures.
-4. Add Recharts to the frontend for responsive line, bar and utilisation
-   charts with tooltips.
+4. Add responsive time-series and utilisation charts with detailed tooltips
+   when those backend datasets are available.
 5. Add the opt-in historical analytics seed and cleanup scripts described
    below.
 
