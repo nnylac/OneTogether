@@ -17,4 +17,5 @@ COPY 09_incident_aggregation.sql /docker-entrypoint-initdb.d/09_incident_aggrega
 COPY 10_ai_final_analysis.sql /docker-entrypoint-initdb.d/10_ai_final_analysis.sql
 COPY 11_simplify_incident_analysis.sql /docker-entrypoint-initdb.d/11_simplify_incident_analysis.sql
 COPY 12_incident_resources.sql /docker-entrypoint-initdb.d/12_incident_resources.sql
-COPY 13_government_alert_rules.sql /docker-entrypoint-initdb.d/13_government_alert_rules.sql
+COPY 13_organisation_contact_guides.sql /docker-entrypoint-initdb.d/13_organisation_contact_guides.sql
+COPY 14_government_alert_rules.sql /docker-entrypoint-initdb.d/14_government_alert_rules.sql

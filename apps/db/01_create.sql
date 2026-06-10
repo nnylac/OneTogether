@@ -13,7 +13,11 @@ $$ LANGUAGE plpgsql;
 
 CREATE TABLE organisations (
     id          UUID         NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
-    org_name    VARCHAR(50)  NOT NULL UNIQUE
+    org_name    VARCHAR(50)  NOT NULL UNIQUE,
+    contact_number   VARCHAR(40),
+    contact_channel  VARCHAR(80),
+    service_summary  TEXT,
+    contact_guidance TEXT
 );
 
 CREATE TABLE resources (
@@ -369,7 +373,6 @@ CREATE INDEX idx_messages_discussion_id  ON messages (discussion_id);
 CREATE INDEX idx_messages_sender_id  ON messages (sender_id);
 CREATE INDEX idx_messages_parent_id  ON messages (parent_id);
 CREATE INDEX idx_messages_created_at ON messages (created_at);
-
 
 
 
