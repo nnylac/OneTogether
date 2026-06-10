@@ -10,6 +10,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Open incidents',
     description: 'Total active incident tickets across agencies',
     defaultUnit: 'count',
+    defaultThresholdValue: 10,
     currentValue: 13,
   },
   {
@@ -17,6 +18,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Critical incidents',
     description: 'Incidents tagged as critical severity',
     defaultUnit: 'count',
+    defaultThresholdValue: 5,
     currentValue: 10,
   },
   {
@@ -24,6 +26,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Hospital occupancy',
     description: 'Average hospital bed occupancy across linked hospitals',
     defaultUnit: 'percent',
+    defaultThresholdValue: 85,
     currentValue: 86,
   },
   {
@@ -31,6 +34,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Infectious disease cases',
     description: 'Reported infectious disease cases in the current window',
     defaultUnit: 'count',
+    defaultThresholdValue: 80,
     currentValue: 44,
   },
   {
@@ -38,6 +42,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Heat injury cases',
     description: 'Reported heat injury cases from hospitals and responders',
     defaultUnit: 'count',
+    defaultThresholdValue: 35,
     currentValue: 31,
   },
   {
@@ -45,6 +50,7 @@ export const alertMetricDefinitions: AlertMetricDefinition[] = [
     label: 'Flood reports',
     description: 'Flood-related citizen and agency reports',
     defaultUnit: 'count',
+    defaultThresholdValue: 12,
     currentValue: 18,
   },
 ]

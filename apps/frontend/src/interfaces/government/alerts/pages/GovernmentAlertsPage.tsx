@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { CircleCheck, LineChart, Plus, ShieldAlert, TriangleAlert } from 'lucide-react'
 import {
   Box,
@@ -13,17 +13,19 @@ import {
 import { AlertFormPanel } from '../components/AlertFormPanel'
 import { AlertList } from '../components/AlertList'
 import { AlertSummaryCard } from '../components/AlertSummaryCard'
-import { createGovernmentAlertNotification } from '../api/alertNotificationsApi'
 import {
-  alertMetricDefinitions,
-  sampleGovernmentAlerts,
-} from '../data/sampleGovernmentAlerts'
+  createGovernmentAlertRule,
+  deleteGovernmentAlertRule,
+  fetchGovernmentAlertMetricDefinitions,
+  fetchGovernmentAlertRules,
+  updateGovernmentAlertRuleThreshold,
+} from '../api/governmentAlertRulesApi'
 import type {
+  AlertMetricDefinition,
   AlertFilter,
   GovernmentAlert,
   NewAlertInput,
 } from '../types/alert'
-import { calculateAlertStatus } from '../utils/alertStatus'
 
 const alertFilters: AlertFilter[] = ['All', 'Critical', 'Warning', 'Normal']
 
@@ -32,23 +34,6 @@ const alertFilterLabels: Record<AlertFilter, string> = {
   Critical: 'Critical',
   Warning: 'Warning',
   Normal: 'Normal',
-}
-
-function getCurrentAlertTime() {
-  return new Intl.DateTimeFormat('en-SG', {
-    day: '2-digit',
-    month: 'short',
-    year: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit',
-  }).format(new Date())
-}
-
-function getMetricCurrentValue(metric: NewAlertInput['metric']) {
-  return (
-    alertMetricDefinitions.find((definition) => definition.value === metric)
-      ?.currentValue ?? 0
-  )
 }
 
 function doesAlertMatchFilter(alert: GovernmentAlert, selectedFilter: AlertFilter) {
@@ -72,14 +57,40 @@ function getAlertListTitle(selectedFilter: AlertFilter) {
 }
 
 export function GovernmentAlertsPage() {
-  const [alerts, setAlerts] = useState<GovernmentAlert[]>(
-    sampleGovernmentAlerts,
-  )
-  const [notificationError, setNotificationError] = useState<string | null>(
-    null,
-  )
+  const [alerts, setAlerts] = useState<GovernmentAlert[]>([])
+  const [metricDefinitions, setMetricDefinitions] = useState<
+    AlertMetricDefinition[]
+  >([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+  const [isLoading, setIsLoading] = useState(true)
   const [selectedFilter, setSelectedFilter] = useState<AlertFilter>('All')
   const [isCreatePanelOpen, setIsCreatePanelOpen] = useState(false)
+
+  useEffect(() => {
+    void loadAlerts({ showLoading: true })
+  }, [])
+
+  async function loadAlerts({ showLoading = false } = {}) {
+    try {
+      if (showLoading) {
+        setIsLoading(true)
+      }
+
+      const [nextMetricDefinitions, nextAlerts] = await Promise.all([
+        fetchGovernmentAlertMetricDefinitions(),
+        fetchGovernmentAlertRules(),
+      ])
+      setMetricDefinitions(nextMetricDefinitions)
+      setAlerts(nextAlerts)
+      setLoadError(null)
+    } catch {
+      setLoadError('Unable to load alert rules from the backend.')
+    } finally {
+      if (showLoading) {
+        setIsLoading(false)
+      }
+    }
+  }
 
   const filterOptions = useMemo(() => {
     return alertFilters.map((filter) => ({
@@ -99,88 +110,43 @@ export function GovernmentAlertsPage() {
     (alert) => alert.status === 'Critical',
   ).length
 
-  function notifyGovernmentForAlert(alert: GovernmentAlert) {
-    createGovernmentAlertNotification(alert)
-      .then(() => setNotificationError(null))
-      .catch(() =>
-        setNotificationError(
-          'Alert rule saved, but the government notification could not be created.',
-        ),
-      )
-  }
-
   function handleCreateAlert(newAlert: NewAlertInput) {
-    const currentValue = getMetricCurrentValue(newAlert.metric)
-    const status = calculateAlertStatus(
-      currentValue,
-      newAlert.thresholdValue,
-      newAlert.condition,
-    )
-
-    const alert: GovernmentAlert = {
-      id: `alert-${Date.now()}`,
-      name: newAlert.name,
-      metric: newAlert.metric,
-      currentValue,
-      thresholdValue: newAlert.thresholdValue,
-      condition: newAlert.condition,
-      unit: newAlert.unit,
-      status,
-      notificationMessage: newAlert.notificationMessage,
-      createdAt: getCurrentAlertTime(),
-    }
-
-    setAlerts((currentAlerts) => [alert, ...currentAlerts])
-    setSelectedFilter('All')
-    setIsCreatePanelOpen(false)
-
-    if (alert.status === 'Critical') {
-      notifyGovernmentForAlert(alert)
-    }
+    createGovernmentAlertRule(newAlert)
+      .then((alert) => {
+        setAlerts((currentAlerts) => [alert, ...currentAlerts])
+        setSelectedFilter('All')
+        setIsCreatePanelOpen(false)
+        setLoadError(null)
+      })
+      .catch(() => setLoadError('Unable to create alert rule.'))
   }
 
   function handleUpdateAlertThreshold(alertId: string, thresholdValue: number) {
-    const currentAlert = alerts.find((alert) => alert.id === alertId)
-
-    if (!currentAlert) {
-      return
-    }
-
-    const nextStatus = calculateAlertStatus(
-      currentAlert.currentValue,
-      thresholdValue,
-      currentAlert.condition,
-    )
-    const updatedAlert: GovernmentAlert = {
-      ...currentAlert,
-      thresholdValue,
-      status: nextStatus,
-    }
-
-    setAlerts((currentAlerts) =>
-      currentAlerts.map((alert) => {
-        if (alert.id !== alertId) {
-          return alert
-        }
-
-        return updatedAlert
-      }),
-    )
-
-    if (nextStatus === 'Critical') {
-      notifyGovernmentForAlert(updatedAlert)
-    }
+    updateGovernmentAlertRuleThreshold(alertId, thresholdValue)
+      .then((updatedAlert) => {
+        setAlerts((currentAlerts) =>
+          currentAlerts.map((alert) =>
+            alert.id === alertId ? updatedAlert : alert,
+          ),
+        )
+        setLoadError(null)
+      })
+      .catch(() => setLoadError('Unable to update alert threshold.'))
   }
 
   function handleDeleteAlert(alertId: string) {
-    setAlerts((currentAlerts) =>
-      currentAlerts.filter((alert) => alert.id !== alertId),
-    )
+    deleteGovernmentAlertRule(alertId)
+      .then(() => {
+        setAlerts((currentAlerts) =>
+          currentAlerts.filter((alert) => alert.id !== alertId),
+        )
+        setLoadError(null)
+      })
+      .catch(() => setLoadError('Unable to delete alert rule.'))
   }
 
   function handleRefreshAlerts() {
-    setAlerts(sampleGovernmentAlerts)
-    setSelectedFilter('All')
+    void loadAlerts({ showLoading: true })
   }
 
   return (
@@ -206,6 +172,7 @@ export function GovernmentAlertsPage() {
           alignSelf={{ base: 'flex-start', lg: 'center' }}
           bg="blue.900"
           color="white"
+          disabled={metricDefinitions.length === 0}
           onClick={() => setIsCreatePanelOpen((isOpen) => !isOpen)}
           _hover={{
             bg: 'blue.800',
@@ -275,26 +242,35 @@ export function GovernmentAlertsPage() {
       </HStack>
 
       <AlertFormPanel
+        metricDefinitions={metricDefinitions}
         isOpen={isCreatePanelOpen}
         onClose={() => setIsCreatePanelOpen(false)}
         onCreateAlert={handleCreateAlert}
       />
 
-      {notificationError && (
+      {loadError && (
         <Box bg="red.50" borderColor="red.200" borderWidth="1px" p="4">
           <Text color="red.700" fontSize="sm" fontWeight="700">
-            {notificationError}
+            {loadError}
           </Text>
         </Box>
       )}
 
-      <AlertList
-        title={getAlertListTitle(selectedFilter)}
-        alerts={filteredAlerts}
-        onDelete={handleDeleteAlert}
-        onRefresh={handleRefreshAlerts}
-        onUpdateThreshold={handleUpdateAlertThreshold}
-      />
+      {isLoading && (
+        <Box bg="white" borderColor="gray.200" borderWidth="1px" p="4">
+          <Text color="gray.500">Loading alert rules...</Text>
+        </Box>
+      )}
+
+      {!isLoading && (
+        <AlertList
+          title={getAlertListTitle(selectedFilter)}
+          alerts={filteredAlerts}
+          onDelete={handleDeleteAlert}
+          onRefresh={handleRefreshAlerts}
+          onUpdateThreshold={handleUpdateAlertThreshold}
+        />
+      )}
     </Stack>
   )
 }

@@ -13,54 +13,77 @@ import {
 } from '../../../../components/chakra-ui'
 import { AlertConditionSelector } from './AlertConditionSelector'
 import { AlertMetricSelector } from './AlertMetricSelector'
-import {
-  alertMetricDefinitions,
-  alertMetricLabelByValue,
-} from '../data/sampleGovernmentAlerts'
 import type {
   AlertCondition,
   AlertMetric,
+  AlertMetricDefinition,
   AlertUnit,
   NewAlertInput,
 } from '../types/alert'
 
 type AlertFormPanelProps = {
+  metricDefinitions: AlertMetricDefinition[]
   isOpen: boolean
   onClose: () => void
   onCreateAlert: (alert: NewAlertInput) => void
 }
 
-const firstMetric = alertMetricDefinitions[0]
-
-const initialFormState: NewAlertInput = {
-  name: `${firstMetric.label} threshold`,
-  metric: firstMetric.value,
-  thresholdValue: 10,
-  condition: 'above',
-  unit: firstMetric.defaultUnit,
-  notificationMessage:
-    'Notify government command when this metric exceeds the configured threshold.',
-}
-
 function getDefaultMessage(
+  metricDefinitions: AlertMetricDefinition[],
   metric: AlertMetric,
   condition: AlertCondition,
   thresholdValue: number,
   unit: AlertUnit,
 ) {
-  const metricLabel = alertMetricLabelByValue[metric].toLowerCase()
+  const metricLabel =
+    metricDefinitions.find((definition) => definition.value === metric)?.label ??
+    metric
   const conditionText = condition === 'above' ? 'exceeds' : 'drops below'
   const suffix = unit === 'percent' ? '%' : ''
 
-  return `Notify government command when ${metricLabel} ${conditionText} ${thresholdValue}${suffix}.`
+  return `Notify government command when ${metricLabel.toLowerCase()} ${conditionText} ${thresholdValue}${suffix}.`
+}
+
+function getInitialFormState(
+  metricDefinitions: AlertMetricDefinition[],
+): NewAlertInput {
+  const firstMetric = metricDefinitions[0]
+  if (!firstMetric) {
+    return {
+      name: '',
+      metric: 'openIncidents',
+      thresholdValue: 10,
+      condition: 'above',
+      unit: 'count',
+      notificationMessage: '',
+    }
+  }
+
+  return {
+    name: `${firstMetric.label} threshold`,
+    metric: firstMetric.value,
+    thresholdValue: firstMetric.defaultThresholdValue,
+    condition: 'above',
+    unit: firstMetric.defaultUnit,
+    notificationMessage: getDefaultMessage(
+      metricDefinitions,
+      firstMetric.value,
+      'above',
+      firstMetric.defaultThresholdValue,
+      firstMetric.defaultUnit,
+    ),
+  }
 }
 
 export function AlertFormPanel({
+  metricDefinitions,
   isOpen,
   onClose,
   onCreateAlert,
 }: AlertFormPanelProps) {
-  const [form, setForm] = useState<NewAlertInput>(initialFormState)
+  const [form, setForm] = useState<NewAlertInput>(() =>
+    getInitialFormState(metricDefinitions),
+  )
 
   function updateForm<Key extends keyof NewAlertInput>(
     key: Key,
@@ -73,7 +96,7 @@ export function AlertFormPanel({
   }
 
   function handleSelectMetric(metric: AlertMetric) {
-    const metricDefinition = alertMetricDefinitions.find(
+    const metricDefinition = metricDefinitions.find(
       (definition) => definition.value === metric,
     )
 
@@ -86,10 +109,12 @@ export function AlertFormPanel({
       metric,
       name: `${metricDefinition.label} threshold`,
       unit: metricDefinition.defaultUnit,
+      thresholdValue: metricDefinition.defaultThresholdValue,
       notificationMessage: getDefaultMessage(
+        metricDefinitions,
         metric,
         currentForm.condition,
-        currentForm.thresholdValue,
+        metricDefinition.defaultThresholdValue,
         metricDefinition.defaultUnit,
       ),
     }))
@@ -99,6 +124,7 @@ export function AlertFormPanel({
     setForm((currentForm) => ({
       ...currentForm,
       notificationMessage: getDefaultMessage(
+        metricDefinitions,
         currentForm.metric,
         currentForm.condition,
         currentForm.thresholdValue,
@@ -117,15 +143,19 @@ export function AlertFormPanel({
     }
 
     onCreateAlert(form)
-    setForm(initialFormState)
+    setForm(getInitialFormState(metricDefinitions))
   }
 
   function handleCancel() {
-    setForm(initialFormState)
+    setForm(getInitialFormState(metricDefinitions))
     onClose()
   }
 
   if (!isOpen) {
+    return null
+  }
+
+  if (metricDefinitions.length === 0) {
     return null
   }
 
@@ -158,6 +188,7 @@ export function AlertFormPanel({
         </Flex>
 
         <AlertMetricSelector
+          metricDefinitions={metricDefinitions}
           selectedMetric={form.metric}
           onSelectMetric={handleSelectMetric}
         />
