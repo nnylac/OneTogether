@@ -342,10 +342,14 @@ model volunteer_opportunities {
   title               String            @db.VarChar(150)
   description         String?
   opportunity_type    String?           @db.VarChar(50)
+  urgency             String            @default("normal") @db.VarChar(20)
   location            String?
   region              String?           @db.VarChar(100)
   start_at            DateTime?         @db.Timestamptz(6)
   end_at              DateTime?         @db.Timestamptz(6)
+  slots_total         Int?
+  slots_filled        Int               @default(0)
+  requires_training   Boolean           @default(false)
   signup_url          String
   source_url          String?
   external_updated_at DateTime?         @db.Timestamptz(6)
@@ -360,6 +364,7 @@ model volunteer_opportunities {
   @@index([start_at], map: "idx_volunteer_opportunities_start_at")
   @@index([opportunity_status], map: "idx_volunteer_opportunities_status")
   @@index([opportunity_type], map: "idx_volunteer_opportunities_type")
+  @@index([urgency], map: "idx_volunteer_opportunities_urgency")
 }
 
 model volunteer_sources {
@@ -376,6 +381,30 @@ model volunteer_sources {
 
   @@index([is_active], map: "idx_volunteer_sources_active")
   @@index([organisation_id], map: "idx_volunteer_sources_organisation_id")
+}
+
+model community_events {
+  id               String    @id @default(dbgenerated("gen_random_uuid()")) @db.Uuid
+  title            String    @db.VarChar(150)
+  organiser_name   String    @db.VarChar(120)
+  category         String    @db.VarChar(50)
+  description      String?
+  location         String?
+  region           String?   @db.VarChar(100)
+  start_at         DateTime? @db.Timestamptz(6)
+  end_at           DateTime? @db.Timestamptz(6)
+  capacity         Int?
+  registered_count Int       @default(0)
+  is_free          Boolean   @default(true)
+  signup_url       String?
+  event_status     String    @default("open") @db.VarChar(30)
+  created_at       DateTime  @default(now()) @db.Timestamptz(6)
+  updated_at       DateTime  @default(now()) @db.Timestamptz(6)
+
+  @@index([category], map: "idx_community_events_category")
+  @@index([region], map: "idx_community_events_region")
+  @@index([start_at], map: "idx_community_events_start_at")
+  @@index([event_status], map: "idx_community_events_status")
 }
 
 model incident_resources {

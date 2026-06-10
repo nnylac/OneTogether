@@ -18,6 +18,12 @@ export class UpsertVolunteerOpportunityDto {
   @ApiPropertyOptional({ example: 'flood_relief', maxLength: 50 })
   opportunityType?: string;
 
+  @ApiPropertyOptional({
+    example: 'urgent',
+    enum: ['normal', 'urgent', 'critical'],
+  })
+  urgency?: string;
+
   @ApiPropertyOptional({ example: 'Tampines Community Hub' })
   location?: string;
 
@@ -29,6 +35,15 @@ export class UpsertVolunteerOpportunityDto {
 
   @ApiPropertyOptional({ type: String, format: 'date-time' })
   endAt?: Date | string;
+
+  @ApiPropertyOptional({ example: 30 })
+  slotsTotal?: number | string | null;
+
+  @ApiPropertyOptional({ example: 18 })
+  slotsFilled?: number | string;
+
+  @ApiPropertyOptional({ example: false })
+  requiresTraining?: boolean | string;
 
   @ApiProperty({ example: 'https://volunteer.example.sg/events/123' })
   signupUrl!: string;

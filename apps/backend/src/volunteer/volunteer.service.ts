@@ -71,9 +71,20 @@ export class VolunteerService {
     const opportunities = await this.volunteerRepository.findOpportunities(
       this.toOpportunityFilters(query),
     );
-    return opportunities.map((opportunity) =>
-      VolunteerOpportunityResponseDto.fromModel(opportunity),
-    );
+    return opportunities
+      .map((opportunity) => VolunteerOpportunityResponseDto.fromModel(opportunity))
+      .sort((first, second) => {
+        const urgencyDelta =
+          this.toUrgencyRank(first.urgency) - this.toUrgencyRank(second.urgency);
+
+        if (urgencyDelta !== 0) {
+          return urgencyDelta;
+        }
+
+        return (
+          this.toSortableTime(first.startAt) - this.toSortableTime(second.startAt)
+        );
+      });
   }
 
   async findOpportunity(id: string): Promise<VolunteerOpportunityResponseDto> {
@@ -138,6 +149,7 @@ export class VolunteerService {
     this.validateRequiredString(dto.signupUrl, 'signupUrl');
     this.validateOptionalString(dto.description, 'description');
     this.validateOptionalString(dto.opportunityType, 'opportunityType', 50);
+    this.validateUrgency(dto.urgency);
     this.validateOptionalString(dto.location, 'location');
     this.validateOptionalString(dto.region, 'region', 100);
     this.validateOptionalString(dto.sourceUrl, 'sourceUrl');
@@ -153,6 +165,7 @@ export class VolunteerService {
       sourceId: query.sourceId,
       region: query.region,
       opportunityType: query.opportunityType,
+      urgency: query.urgency,
       status: query.status,
       search: query.search,
       take: this.parseNumber(query.take, 'take'),
@@ -188,10 +201,15 @@ export class VolunteerService {
       title: dto.title.trim(),
       description: this.normalizeOptionalString(dto.description),
       opportunity_type: this.normalizeOptionalString(dto.opportunityType),
+      urgency: dto.urgency?.trim() ?? 'normal',
       location: this.normalizeOptionalString(dto.location),
       region: this.normalizeOptionalString(dto.region),
       start_at: this.parseOptionalDate(dto.startAt, 'startAt'),
       end_at: this.parseOptionalDate(dto.endAt, 'endAt'),
+      slots_total: this.parseNullableNumber(dto.slotsTotal, 'slotsTotal'),
+      slots_filled: this.parseNumber(dto.slotsFilled, 'slotsFilled') ?? 0,
+      requires_training:
+        this.parseBoolean(dto.requiresTraining, 'requiresTraining') ?? false,
       signup_url: dto.signupUrl.trim(),
       source_url: this.normalizeOptionalString(dto.sourceUrl),
       external_updated_at: this.parseOptionalDate(
@@ -266,6 +284,46 @@ export class VolunteerService {
     }
 
     return this.parseOptionalDate(value, field);
+  }
+
+  private parseNullableNumber(
+    value: number | string | null | undefined,
+    field: string,
+  ): number | null | undefined {
+    if (value === null) {
+      return null;
+    }
+
+    return this.parseNumber(value, field);
+  }
+
+  private validateUrgency(value: string | undefined): void {
+    if (
+      value === undefined ||
+      value === 'normal' ||
+      value === 'urgent' ||
+      value === 'critical'
+    ) {
+      return;
+    }
+
+    throw new BadRequestException('urgency must be normal, urgent, or critical');
+  }
+
+  private toUrgencyRank(urgency: string): number {
+    if (urgency === 'critical') {
+      return 0;
+    }
+
+    if (urgency === 'urgent') {
+      return 1;
+    }
+
+    return 2;
+  }
+
+  private toSortableTime(value: Date | null): number {
+    return value?.getTime() ?? Number.MAX_SAFE_INTEGER;
   }
 
   private parseBoolean(

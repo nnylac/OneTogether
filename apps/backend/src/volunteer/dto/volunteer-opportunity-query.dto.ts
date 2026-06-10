@@ -10,6 +10,9 @@ export class VolunteerOpportunityQueryDto {
   @ApiPropertyOptional({ example: 'flood_relief' })
   opportunityType?: string;
 
+  @ApiPropertyOptional({ example: 'urgent' })
+  urgency?: string;
+
   @ApiPropertyOptional({ example: 'open' })
   status?: string;
 
