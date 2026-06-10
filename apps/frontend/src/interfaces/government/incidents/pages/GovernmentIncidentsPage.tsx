@@ -1,9 +1,21 @@
 import { useEffect, useMemo, useState } from 'react'
-import { Box, Heading, Stack, Text } from '../../../../components/chakra-ui'
+import { ChevronLeft, ChevronRight } from 'lucide-react'
+import {
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Heading,
+  Icon,
+  Stack,
+  Text,
+} from '../../../../components/chakra-ui'
 import { fetchGovernmentIncidents } from '../api/governmentIncidentsApi'
 import { GovernmentIncidentCard } from '../components/GovernmentIncidentCard'
 import { IncidentFilterBar } from '../components/IncidentFilterBar'
 import type { GovernmentIncident, GovernmentIncidentFilter } from '../types/incident'
+
+const pageSize = 10
 
 const incidentFilters: GovernmentIncidentFilter[] = [
   'All',
@@ -64,6 +76,7 @@ export function GovernmentIncidentsPage() {
   const [loadError, setLoadError] = useState<string | null>(null)
   const [selectedFilter, setSelectedFilter] =
     useState<GovernmentIncidentFilter>('All')
+  const [page, setPage] = useState(1)
 
   useEffect(() => {
     let isCurrent = true
@@ -108,6 +121,23 @@ export function GovernmentIncidentsPage() {
       doesIncidentMatchFilter(incident, selectedFilter),
     )
   }, [incidents, selectedFilter])
+
+  const pageCount = Math.max(Math.ceil(filteredIncidents.length / pageSize), 1)
+  const pageStart = (page - 1) * pageSize
+  const visibleIncidents = filteredIncidents.slice(
+    pageStart,
+    pageStart + pageSize,
+  )
+  const visibleStart = filteredIncidents.length === 0 ? 0 : pageStart + 1
+  const visibleEnd = Math.min(pageStart + pageSize, filteredIncidents.length)
+
+  useEffect(() => {
+    setPage(1)
+  }, [selectedFilter])
+
+  useEffect(() => {
+    setPage((currentPage) => Math.min(currentPage, pageCount))
+  }, [pageCount])
 
   return (
     <Stack gap="5">
@@ -158,15 +188,61 @@ export function GovernmentIncidentsPage() {
           <Text color="gray.500">No incidents found for this filter.</Text>
         </Box>
       ) : (
-        <Box
-          display="grid"
-          gridTemplateColumns={{ base: '1fr', xl: 'repeat(2, 1fr)' }}
-          gap="4"
-        >
-          {filteredIncidents.map((incident) => (
-            <GovernmentIncidentCard key={incident.id} incident={incident} />
-          ))}
-        </Box>
+        <>
+          <Box
+            display="grid"
+            gridTemplateColumns={{ base: '1fr', xl: 'repeat(2, 1fr)' }}
+            gap="4"
+          >
+            {visibleIncidents.map((incident) => (
+              <GovernmentIncidentCard key={incident.id} incident={incident} />
+            ))}
+          </Box>
+
+          <Flex justify="space-between" align="center" gap="4" wrap="wrap">
+            <Text color="gray.500" fontSize="sm">
+              Showing {visibleStart}-{visibleEnd} of {filteredIncidents.length}{' '}
+              incidents
+            </Text>
+
+            <HStack gap="2">
+              <Button
+                variant="outline"
+                borderColor="gray.300"
+                disabled={page === 1}
+                onClick={() =>
+                  setPage((currentPage) => Math.max(currentPage - 1, 1))
+                }
+              >
+                <Icon as={ChevronLeft} />
+                Previous
+              </Button>
+
+              <Text
+                color="gray.700"
+                fontWeight="700"
+                minW="16"
+                textAlign="center"
+              >
+                {page} / {pageCount}
+              </Text>
+
+              <Button
+                variant="outline"
+                borderColor="gray.300"
+                disabled={page === pageCount}
+                onClick={() =>
+                  setPage((currentPage) =>
+                    Math.min(currentPage + 1, pageCount),
+                  )
+                }
+              >
+                Next
+                <Icon as={ChevronRight} />
+              </Button>
+            </HStack>
+          </Flex>
+        </>
       )}
     </Stack>
   )
