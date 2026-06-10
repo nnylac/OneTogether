@@ -96,13 +96,31 @@ export async function markResponderNotificationRead(recipientId: string) {
 
 export function subscribeToResponderNotificationCreated(
   onNotificationCreated: (notification: ResponderNotificationResponse) => void,
+  onConnected?: () => void,
 ) {
-  notificationSocket ??= io();
+  notificationSocket ??= io(getSocketOrigin(), {
+    path: "/socket.io",
+    transports: ["websocket"],
+  });
   notificationSocket.on("notification.created", onNotificationCreated);
+  if (onConnected) {
+    notificationSocket.on("connect", onConnected);
+    if (notificationSocket.connected) {
+      onConnected();
+    }
+  }
 
   return () => {
     notificationSocket?.off("notification.created", onNotificationCreated);
+    if (onConnected) {
+      notificationSocket?.off("connect", onConnected);
+    }
   };
+}
+
+function getSocketOrigin() {
+  return import.meta.env.VITE_SOCKET_URL ??
+    (import.meta.env.DEV ? "http://localhost:3001" : undefined);
 }
 
 export function isResponderOrganisationNotification(

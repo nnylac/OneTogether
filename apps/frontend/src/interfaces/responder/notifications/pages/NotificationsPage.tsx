@@ -1,5 +1,11 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Heading, Stack, Text } from "../../../../components/chakra-ui";
+import {
+  Button,
+  Flex,
+  Heading,
+  Stack,
+  Text,
+} from "../../../../components/chakra-ui";
 import { useAuth } from "../../../auth/useAuth";
 import { NotificationList } from "../components/NotificationList";
 import {
@@ -8,6 +14,7 @@ import {
   isResponderOrganisationNotification,
   isUnreadResponderNotification,
   markResponderNotificationRead,
+  markResponderNotificationsRead,
   subscribeToResponderNotificationCreated,
   type ResponderNotificationResponse,
 } from "../api/responderNotificationsApi";
@@ -20,6 +27,8 @@ export function NotificationsPage() {
     ResponderNotificationResponse[]
   >([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isMarkingAllRead, setIsMarkingAllRead] = useState(false);
+  const [markAllError, setMarkAllError] = useState<string | null>(null);
   const unreadIds = useMemo(
     () =>
       new Set(
@@ -69,18 +78,25 @@ export function NotificationsPage() {
       return undefined;
     }
 
-    return subscribeToResponderNotificationCreated((notification) => {
-      if (!isResponderOrganisationNotification(notification, organisationId)) {
-        return;
-      }
+    return subscribeToResponderNotificationCreated(
+      (notification) => {
+        if (!isResponderOrganisationNotification(notification, organisationId)) {
+          return;
+        }
 
-      setNotifications((currentNotifications) => [
-        notification,
-        ...currentNotifications.filter(
-          (currentNotification) => currentNotification.id !== notification.id,
-        ),
-      ]);
-    });
+        setNotifications((currentNotifications) => [
+          notification,
+          ...currentNotifications.filter(
+            (currentNotification) => currentNotification.id !== notification.id,
+          ),
+        ]);
+      },
+      () => {
+        void fetchResponderNotifications(organisationId)
+          .then(setNotifications)
+          .catch(() => undefined);
+      },
+    );
   }, [organisationId]);
 
   const handleNotificationClick = useCallback(
@@ -139,16 +155,66 @@ export function NotificationsPage() {
     [organisationId],
   );
 
+  const handleMarkAllRead = useCallback(async () => {
+    if (!organisationId || unreadIds.size === 0 || isMarkingAllRead) {
+      return;
+    }
+
+    const previousNotifications = notifications;
+    setMarkAllError(null);
+    setIsMarkingAllRead(true);
+    setNotifications((currentNotifications) =>
+      currentNotifications.map((notification) => ({
+        ...notification,
+        recipients: notification.recipients.map((recipient) =>
+          recipient.recipientType === "organisation" &&
+          recipient.recipientId === organisationId
+            ? { ...recipient, isRead: true }
+            : recipient,
+        ),
+      })),
+    );
+
+    try {
+      await markResponderNotificationsRead(organisationId);
+      window.dispatchEvent(new CustomEvent("responder-notification-read"));
+    } catch {
+      setNotifications(previousNotifications);
+      setMarkAllError("Unable to mark all notifications as read.");
+    } finally {
+      setIsMarkingAllRead(false);
+    }
+  }, [
+    isMarkingAllRead,
+    notifications,
+    organisationId,
+    unreadIds.size,
+  ]);
+
   return (
     <Stack gap="6">
-      <Heading size="3xl" color="gray.900">
-        Notifications
-      </Heading>
+      <Flex align="center" justify="space-between" gap="4" wrap="wrap">
+        <Heading size="3xl" color="gray.900">
+          Notifications
+        </Heading>
+        {organisationId && (
+          <Button
+            disabled={unreadIds.size === 0 || isMarkingAllRead}
+            loading={isMarkingAllRead}
+            loadingText="Marking..."
+            onClick={() => void handleMarkAllRead()}
+            variant="outline"
+          >
+            Mark all as read
+          </Button>
+        )}
+      </Flex>
       {!organisationId && (
         <Text color="gray.500">
           No responder organisation is linked to this account.
         </Text>
       )}
+      {markAllError && <Text color="red.600">{markAllError}</Text>}
       {organisationId && isLoading ? (
         <Text color="gray.500">Loading notifications...</Text>
       ) : (

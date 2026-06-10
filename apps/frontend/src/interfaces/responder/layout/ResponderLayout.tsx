@@ -65,12 +65,15 @@ export function ResponderLayout() {
       return undefined
     }
 
-    return subscribeToResponderNotificationCreated((notification) => {
-      if (isResponderOrganisationNotification(notification, organisationId)) {
-        setNotificationCount((currentCount) => currentCount + 1)
-      }
-    })
-  }, [organisationId])
+    return subscribeToResponderNotificationCreated(
+      (notification) => {
+        if (isResponderOrganisationNotification(notification, organisationId)) {
+          setNotificationCount((currentCount) => currentCount + 1)
+        }
+      },
+      refreshNotificationCount,
+    )
+  }, [organisationId, refreshNotificationCount])
 
   const handleNotificationsClick = useCallback(() => {
     setNotificationCount(0)
