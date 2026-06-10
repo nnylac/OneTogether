@@ -1,1 +1,5 @@
-export { MapPage as GovernmentMapPage } from '../../../responder/map/pages/MapPage'
+import { MapPage } from '../../../responder/map/pages/MapPage'
+
+export function GovernmentMapPage() {
+  return <MapPage />
+}
