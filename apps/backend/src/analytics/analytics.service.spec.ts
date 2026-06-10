@@ -148,4 +148,130 @@ describe('AnalyticsService', () => {
       service.findOverview({ region: 'South' }),
     ).rejects.toBeInstanceOf(BadRequestException);
   });
+
+  it('forecasts simulated incident volume and distributions', async () => {
+    const findMany = jest.fn().mockResolvedValue([
+      {
+        incident_type: 'TRAFFIC_ACCIDENT',
+        inc_location: 'Jurong West',
+        latitude: null,
+        longitude: null,
+        created_at: new Date('2026-06-07T00:00:00.000Z'),
+      },
+      {
+        incident_type: 'TRAFFIC_ACCIDENT',
+        inc_location: 'Jurong East',
+        latitude: null,
+        longitude: null,
+        created_at: new Date('2026-06-08T00:00:00.000Z'),
+      },
+      {
+        incident_type: 'BUILDING_FIRE',
+        inc_location: 'Bedok',
+        latitude: null,
+        longitude: null,
+        created_at: new Date('2026-06-09T00:00:00.000Z'),
+      },
+    ]);
+    const service = new AnalyticsService({
+      incidents: { findMany },
+    } as never);
+
+    const result = await service.findForecast({
+      from: '2026-06-03T00:00:00.000Z',
+      to: '2026-06-10T00:00:00.000Z',
+      days: '7',
+    });
+
+    expect(result.forecast).toEqual(
+      expect.objectContaining({
+        horizonDays: 7,
+        sampleSize: 3,
+        historyDays: 7,
+        confidence: 'very_low',
+        topIncidentType: 'TRAFFIC_ACCIDENT',
+        topRegion: 'West',
+      }),
+    );
+    expect(result.forecast.expectedIncidents).toBeGreaterThan(0);
+    expect(result.forecast.likelyRange.low).toBeGreaterThanOrEqual(0);
+    expect(result.forecast.byType[0]).toEqual(
+      expect.objectContaining({ key: 'TRAFFIC_ACCIDENT' }),
+    );
+    expect(result.forecast.dailySeries).toHaveLength(14);
+    expect(result.forecast.dailySeries.slice(-7)).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          kind: 'forecast',
+          observed: null,
+          expected: expect.any(Number),
+        }),
+      ]),
+    );
+    expect(result.methodology.dataSource).toBe('simulated_incidents');
+  });
+
+  it('returns an honest empty simulation forecast', async () => {
+    const service = new AnalyticsService({
+      incidents: { findMany: jest.fn().mockResolvedValue([]) },
+    } as never);
+
+    const result = await service.findForecast({
+      from: '2026-06-01T00:00:00.000Z',
+      to: '2026-06-10T00:00:00.000Z',
+    });
+
+    expect(result.forecast).toEqual(
+      expect.objectContaining({
+        expectedIncidents: 0,
+        likelyRange: { low: 0, high: 0 },
+        confidence: 'very_low',
+        sampleSize: 0,
+        topIncidentType: null,
+        topRegion: null,
+        dailySeries: expect.any(Array),
+        byType: [],
+        byRegion: [],
+      }),
+    );
+  });
+
+  it('smooths weekday patterns when forecast history is sparse', async () => {
+    const createdAt = new Date('2026-06-10T02:00:00.000Z');
+    const service = new AnalyticsService({
+      incidents: {
+        findMany: jest.fn().mockResolvedValue(
+          Array.from({ length: 4 }, () => ({
+            incident_type: 'MEDICAL_EMERGENCY',
+            inc_location: 'Central',
+            latitude: null,
+            longitude: null,
+            created_at: createdAt,
+          })),
+        ),
+      },
+    } as never);
+
+    const result = await service.findForecast({
+      from: '2026-05-12T00:00:00.000+08:00',
+      to: '2026-06-11T23:59:59.999+08:00',
+      days: '7',
+    });
+    const dailyExpected = result.forecast.dailySeries
+      .slice(-7)
+      .map((item) => item.expected ?? 0);
+
+    expect(result.forecast.expectedIncidents).toBeGreaterThan(0);
+    expect(Math.max(...dailyExpected)).toBeLessThan(
+      Math.min(...dailyExpected) * 4,
+    );
+  });
+
+  it('rejects an invalid forecast horizon', async () => {
+    const service = new AnalyticsService({} as never);
+
+    await expect(service.findForecast({ days: '31' })).rejects.toBeInstanceOf(
+      BadRequestException,
+    );
+  });
 });
