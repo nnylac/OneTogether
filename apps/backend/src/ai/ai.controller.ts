@@ -12,6 +12,7 @@ import {
   AiBroadcastService,
   type BroadcastDraftRequest,
 } from './ai-broadcast.service';
+import { AiTranslationService } from './ai-translation.service';
 import { SituationSummaryService } from './situation-summary.service';
 
 const AUDIENCES = ['Public', 'Responders', 'Zone'];
@@ -23,6 +24,7 @@ const SEVERITIES = ['info', 'advisory', 'warning', 'critical'];
 export class AiController {
   constructor(
     private readonly aiBroadcastService: AiBroadcastService,
+    private readonly aiTranslationService: AiTranslationService,
     private readonly situationSummaryService: SituationSummaryService,
   ) {}
 
@@ -66,6 +68,36 @@ export class AiController {
       });
     } catch (error) {
       if (error instanceof AiUnavailableError) {
+        throw new ServiceUnavailableException('AI translation is unavailable');
+      }
+      throw error;
+    }
+  }
+
+  // Generic batch translator used by the citizen-facing DOM auto-translation
+  // engine. Body shape matches what the frontend LanguageContext already sends:
+  // { targetLanguage: 'zh'|'ms'|'ta', texts: string[] } -> { translations: [] }.
+  @Post('translate-batch')
+  async translateBatch(
+    @Body() body: { targetLanguage?: string; texts?: string[] },
+  ) {
+    const target = body.targetLanguage;
+    if (target !== 'zh' && target !== 'ms' && target !== 'ta') {
+      throw new BadRequestException('targetLanguage must be zh|ms|ta');
+    }
+    if (!Array.isArray(body.texts) || body.texts.length === 0) {
+      throw new BadRequestException('texts must be a non-empty array');
+    }
+
+    try {
+      const translations = await this.aiTranslationService.translateTexts({
+        targetLanguage: target,
+        texts: body.texts,
+      });
+      return { translations };
+    } catch (error) {
+      if (error instanceof AiUnavailableError) {
+        // 503 lets the frontend silently keep the English text.
         throw new ServiceUnavailableException('AI translation is unavailable');
       }
       throw error;

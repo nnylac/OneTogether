@@ -12,6 +12,8 @@ import {
 import { Bell, Home, LogOut, MessageSquareWarning } from 'lucide-react'
 import type { ElementType } from 'react'
 import { useAuth } from '../../auth/useAuth'
+import { DomTranslator } from '../i18n/DomTranslator'
+import { LanguageToggle } from '../i18n/LanguageToggle'
 
 type NavItem = {
   label: string
@@ -78,6 +80,8 @@ export function PublicLayout() {
             pl="3"
             flexShrink="0"
           >
+            <LanguageToggle />
+
             <Avatar.Root size="sm" bg="blue.50" color="blue.950">
               <Avatar.Fallback name={username}>{initial}</Avatar.Fallback>
             </Avatar.Root>
@@ -102,6 +106,8 @@ export function PublicLayout() {
       <Box as="main" flex="1" p={{ base: '4', md: '8' }}>
         <Outlet />
       </Box>
+
+      <DomTranslator />
     </Flex>
   )
 }
